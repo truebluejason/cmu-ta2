@@ -1,6 +1,9 @@
 #!/bin/sh
+# Gernerate python files from the protobuf spec
+# The paths and such here are *super fiddly* to get the protobuf paths
+# and python modules to line up right.  Sigh.
+# See https://github.com/google/protobuf/issues/1491 and related issues,
+# which don't really fix anything, just tell you how to work around them
+# if you get things EXACTLY RIGHT.
 
-for protofile in ta3ta2-api/*.proto; do
-    echo "Building" $protofile
-    python -m grpc_tools.protoc -Ita3ta2-api --python_out=src/proto --grpc_python_out=src/proto $protofile
-done
+python3 -m grpc_tools.protoc -I ta3ta2-api/ --python_out=src --grpc_python_out=src ta3ta2-api/*.proto
