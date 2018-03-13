@@ -1,0 +1,3 @@
+[submodule "primitives_repo"]
+	path = primitives_repo
+	url = https://gitlab.datadrivendiscovery.org/jpl/primitives_repo.git

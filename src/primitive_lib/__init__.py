@@ -9,8 +9,8 @@ The primitives themselves can be attained from https://gitlab.datadrivendiscover
 import os
 import collections
 
-PRIMITIVES_DIR = "/home/icefox/tmp/D3M/primitives_repo"
-PRIMITIVES_VERSION = "v2018.1.5"
+PRIMITIVES_DIR = "../../primitives_repo"
+PRIMITIVES_VERSION = "v2018.1.26"
 
 PrimitiveLabel = collections.namedtuple('PrimitiveLabel', ['team', 'module', 'version'])
 
