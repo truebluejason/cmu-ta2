@@ -1,3 +1,6 @@
 [submodule "primitives_repo"]
 	path = primitives_repo
 	url = https://gitlab.datadrivendiscovery.org/jpl/primitives_repo.git
+[submodule "ta3ta2-api"]
+	path = ta3ta2-api
+	url = git@gitlab.datadrivendiscovery.org:nyu/ta3ta2-api.git
