@@ -20,7 +20,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   name='dataflow_ext.proto',
   package='',
   syntax='proto3',
-  serialized_pb=_b('\n\x12\x64\x61taflow_ext.proto\x1a\ncore.proto\"J\n\x11PipelineReference\x12 \n\x07\x63ontext\x18\x01 \x01(\x0b\x32\x0f.SessionContext\x12\x13\n\x0bpipeline_id\x18\x02 \x01(\t\"\x85\x04\n\x13\x44\x61taflowDescription\x12 \n\rresponse_info\x18\x04 \x01(\x0b\x32\t.Response\x12\x13\n\x0bpipeline_id\x18\x01 \x01(\t\x12,\n\x07modules\x18\x02 \x03(\x0b\x32\x1b.DataflowDescription.Module\x12\x34\n\x0b\x63onnections\x18\x03 \x03(\x0b\x32\x1f.DataflowDescription.Connection\x1a\x32\n\x05Input\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x0c\n\x04type\x18\x02 \x01(\t\x12\r\n\x05value\x18\x03 \x01(\t\x1a$\n\x06Output\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x0c\n\x04type\x18\x02 \x01(\t\x1a\x8b\x01\n\x06Module\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0c\n\x04type\x18\x02 \x01(\t\x12\r\n\x05label\x18\x03 \x01(\t\x12*\n\x06inputs\x18\x04 \x03(\x0b\x32\x1a.DataflowDescription.Input\x12,\n\x07outputs\x18\x05 \x03(\x0b\x32\x1b.DataflowDescription.Output\x1ak\n\nConnection\x12\x16\n\x0e\x66rom_module_id\x18\x01 \x01(\t\x12\x18\n\x10\x66rom_output_name\x18\x02 \x01(\t\x12\x14\n\x0cto_module_id\x18\x03 \x01(\t\x12\x15\n\rto_input_name\x18\x04 \x01(\t\"2\n\x0cModuleOutput\x12\x13\n\x0boutput_name\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t\"\xec\x01\n\x0cModuleResult\x12 \n\rresponse_info\x18\x06 \x01(\x0b\x32\t.Response\x12\x11\n\tmodule_id\x18\x01 \x01(\t\x12$\n\x06status\x18\x02 \x01(\x0e\x32\x14.ModuleResult.Status\x12\x10\n\x08progress\x18\x03 \x01(\x02\x12\x1e\n\x07outputs\x18\x04 \x03(\x0b\x32\r.ModuleOutput\x12\x16\n\x0e\x65xecution_time\x18\x05 \x01(\x02\"7\n\x06Status\x12\x0b\n\x07PENDING\x10\x00\x12\x0b\n\x07RUNNING\x10\x01\x12\x08\n\x04\x44ONE\x10\x02\x12\t\n\x05\x45RROR\x10\x03\x32\x8a\x01\n\x0b\x44\x61taflowExt\x12>\n\x10\x44\x65scribeDataflow\x12\x12.PipelineReference\x1a\x14.DataflowDescription\"\x00\x12;\n\x12GetDataflowResults\x12\x12.PipelineReference\x1a\r.ModuleResult\"\x00\x30\x01\x42\nZ\x08pipelineb\x06proto3')
+  serialized_pb=_b('\n\x12\x64\x61taflow_ext.proto\x1a\ncore.proto\"J\n\x11PipelineReference\x12 \n\x07\x63ontext\x18\x01 \x01(\x0b\x32\x0f.SessionContext\x12\x13\n\x0bpipeline_id\x18\x02 \x01(\t\"\x85\x04\n\x13\x44\x61taflowDescription\x12 \n\rresponse_info\x18\x04 \x01(\x0b\x32\t.Response\x12\x13\n\x0bpipeline_id\x18\x01 \x01(\t\x12,\n\x07modules\x18\x02 \x03(\x0b\x32\x1b.DataflowDescription.Module\x12\x34\n\x0b\x63onnections\x18\x03 \x03(\x0b\x32\x1f.DataflowDescription.Connection\x1a\x32\n\x05Input\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x0c\n\x04type\x18\x02 \x01(\t\x12\r\n\x05value\x18\x03 \x01(\t\x1a$\n\x06Output\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x0c\n\x04type\x18\x02 \x01(\t\x1a\x8b\x01\n\x06Module\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0c\n\x04type\x18\x02 \x01(\t\x12\r\n\x05label\x18\x03 \x01(\t\x12*\n\x06inputs\x18\x04 \x03(\x0b\x32\x1a.DataflowDescription.Input\x12,\n\x07outputs\x18\x05 \x03(\x0b\x32\x1b.DataflowDescription.Output\x1ak\n\nConnection\x12\x16\n\x0e\x66rom_module_id\x18\x01 \x01(\t\x12\x18\n\x10\x66rom_output_name\x18\x02 \x01(\t\x12\x14\n\x0cto_module_id\x18\x03 \x01(\t\x12\x15\n\rto_input_name\x18\x04 \x01(\t\"2\n\x0cModuleOutput\x12\x13\n\x0boutput_name\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t\"\xf9\x01\n\x0cModuleResult\x12 \n\rresponse_info\x18\x06 \x01(\x0b\x32\t.Response\x12\x11\n\tmodule_id\x18\x01 \x01(\t\x12$\n\x06status\x18\x02 \x01(\x0e\x32\x14.ModuleResult.Status\x12\x10\n\x08progress\x18\x03 \x01(\x02\x12\x1e\n\x07outputs\x18\x04 \x03(\x0b\x32\r.ModuleOutput\x12\x16\n\x0e\x65xecution_time\x18\x05 \x01(\x02\"D\n\x06Status\x12\x0b\n\x07UNKNOWN\x10\x00\x12\x0b\n\x07PENDING\x10\x01\x12\x0b\n\x07RUNNING\x10\x02\x12\x08\n\x04\x44ONE\x10\x03\x12\t\n\x05\x45RROR\x10\x04\x32\x8a\x01\n\x0b\x44\x61taflowExt\x12>\n\x10\x44\x65scribeDataflow\x12\x12.PipelineReference\x1a\x14.DataflowDescription\"\x00\x12;\n\x12GetDataflowResults\x12\x12.PipelineReference\x1a\r.ModuleResult\"\x00\x30\x01\x42\nZ\x08pipelineb\x06proto3')
   ,
   dependencies=[core__pb2.DESCRIPTOR,])
 
@@ -33,26 +33,30 @@ _MODULERESULT_STATUS = _descriptor.EnumDescriptor(
   file=DESCRIPTOR,
   values=[
     _descriptor.EnumValueDescriptor(
-      name='PENDING', index=0, number=0,
+      name='UNKNOWN', index=0, number=0,
       options=None,
       type=None),
     _descriptor.EnumValueDescriptor(
-      name='RUNNING', index=1, number=1,
+      name='PENDING', index=1, number=1,
       options=None,
       type=None),
     _descriptor.EnumValueDescriptor(
-      name='DONE', index=2, number=2,
+      name='RUNNING', index=2, number=2,
       options=None,
       type=None),
     _descriptor.EnumValueDescriptor(
-      name='ERROR', index=3, number=3,
+      name='DONE', index=3, number=3,
+      options=None,
+      type=None),
+    _descriptor.EnumValueDescriptor(
+      name='ERROR', index=4, number=4,
       options=None,
       type=None),
   ],
   containing_type=None,
   options=None,
   serialized_start=864,
-  serialized_end=919,
+  serialized_end=932,
 )
 _sym_db.RegisterEnumDescriptor(_MODULERESULT_STATUS)
 
@@ -438,7 +442,7 @@ _MODULERESULT = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=683,
-  serialized_end=919,
+  serialized_end=932,
 )
 
 _PIPELINEREFERENCE.fields_by_name['context'].message_type = core__pb2._SESSIONCONTEXT
@@ -531,8 +535,8 @@ _DATAFLOWEXT = _descriptor.ServiceDescriptor(
   file=DESCRIPTOR,
   index=0,
   options=None,
-  serialized_start=922,
-  serialized_end=1060,
+  serialized_start=935,
+  serialized_end=1073,
   methods=[
   _descriptor.MethodDescriptor(
     name='DescribeDataflow',

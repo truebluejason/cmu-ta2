@@ -20,7 +20,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   name='data_ext.proto',
   package='',
   syntax='proto3',
-  serialized_pb=_b('\n\x0e\x64\x61ta_ext.proto\x1a\ncore.proto\"B\n\x0b\x46\x65\x61tureData\x12\x1e\n\x0c\x66rom_feature\x18\x01 \x03(\x0b\x32\x08.Feature\x12\x13\n\x0b\x64\x61taset_uri\x18\x02 \x01(\t\"V\n\x12\x41\x64\x64\x46\x65\x61turesRequest\x12 \n\x07\x63ontext\x18\x01 \x01(\x0b\x32\x0f.SessionContext\x12\x1e\n\x08\x66\x65\x61tures\x18\x02 \x03(\x0b\x32\x0c.FeatureData\"U\n\x15RemoveFeaturesRequest\x12 \n\x07\x63ontext\x18\x01 \x01(\x0b\x32\x0f.SessionContext\x12\x1a\n\x08\x66\x65\x61tures\x18\x02 \x03(\x0b\x32\x08.Feature\"-\n\x06Sample\x12\x11\n\tsample_id\x18\x01 \x01(\t\x12\x10\n\x08\x64\x61ta_uri\x18\x02 \x01(\t\"?\n\nSampleData\x12\x1c\n\x0b\x66rom_sample\x18\x01 \x03(\x0b\x32\x07.Sample\x12\x13\n\x0b\x64\x61taset_uri\x18\x02 \x01(\t\"S\n\x11\x41\x64\x64SamplesRequest\x12 \n\x07\x63ontext\x18\x01 \x01(\x0b\x32\x0f.SessionContext\x12\x1c\n\x07samples\x18\x02 \x03(\x0b\x32\x0b.SampleData\"U\n\x14RemoveSamplesRequest\x12 \n\x07\x63ontext\x18\x01 \x01(\x0b\x32\x0f.SessionContext\x12\x1b\n\nsample_ids\x18\x02 \x03(\x0b\x32\x07.Sample\"\\\n\x0fReplacementData\x12\r\n\x05value\x18\x01 \x01(\t\x12\x12\n\nfeature_id\x18\x02 \x01(\t\x12\x11\n\tsample_id\x18\x03 \x01(\t\x12\x13\n\x0b\x64\x61taset_uri\x18\x04 \x01(\t\"^\n\x12ReplaceDataRequest\x12 \n\x07\x63ontext\x18\x01 \x01(\x0b\x32\x0f.SessionContext\x12&\n\x0creplacements\x18\x02 \x03(\x0b\x32\x10.ReplacementData\"l\n\x12MaterializeRequest\x12 \n\x07\x63ontext\x18\x01 \x01(\x0b\x32\x0f.SessionContext\x12\x1a\n\x12source_dataset_uri\x18\x02 \x01(\t\x12\x18\n\x10\x64\x65st_dataset_uri\x18\x03 \x01(\t\"\x8b\x01\n\x1bTrainValidationSplitRequest\x12 \n\x07\x63ontext\x18\x01 \x01(\x0b\x32\x0f.SessionContext\x12\x10\n\x08val_size\x18\x02 \x01(\x02\x12\x0c\n\x04seed\x18\x03 \x01(\x05\x12\x15\n\ris_validation\x18\x04 \x01(\x08\x12\x13\n\x0b\x64\x61taset_uri\x18\x05 \x01(\t\"$\n\rRevertRequest\x12\x13\n\x0b\x64\x61taset_uri\x18\x01 \x01(\t2\xa1\x03\n\x07\x44\x61taExt\x12/\n\x0b\x41\x64\x64\x46\x65\x61tures\x12\x13.AddFeaturesRequest\x1a\t.Response\"\x00\x12\x35\n\x0eRemoveFeatures\x12\x16.RemoveFeaturesRequest\x1a\t.Response\"\x00\x12-\n\nAddSamples\x12\x12.AddSamplesRequest\x1a\t.Response\"\x00\x12\x33\n\rRemoveSamples\x12\x15.RemoveSamplesRequest\x1a\t.Response\"\x00\x12/\n\x0bReplaceData\x12\x13.ReplaceDataRequest\x1a\t.Response\"\x00\x12/\n\x0bMaterialize\x12\x13.MaterializeRequest\x1a\t.Response\"\x00\x12\x41\n\x14TrainValidationSplit\x12\x1c.TrainValidationSplitRequest\x1a\t.Response\"\x00\x12%\n\x06Revert\x12\x0e.RevertRequest\x1a\t.Response\"\x00\x42\nZ\x08pipelineb\x06proto3')
+  serialized_pb=_b('\n\x0e\x64\x61ta_ext.proto\x1a\ncore.proto\"K\n\x0b\x46\x65\x61tureData\x12\x1e\n\x0c\x66rom_feature\x18\x01 \x01(\x0b\x32\x08.Feature\x12\x1c\n\nto_feature\x18\x02 \x01(\x0b\x32\x08.Feature\"\x88\x01\n\x12\x41\x64\x64\x46\x65\x61turesRequest\x12 \n\x07\x63ontext\x18\x01 \x01(\x0b\x32\x0f.SessionContext\x12\x18\n\x10\x66rom_dataset_uri\x18\x02 \x01(\t\x12\x16\n\x0eto_dataset_uri\x18\x03 \x01(\t\x12\x1e\n\x08\x66\x65\x61tures\x18\x04 \x03(\x0b\x32\x0c.FeatureData\"j\n\x15RemoveFeaturesRequest\x12 \n\x07\x63ontext\x18\x01 \x01(\x0b\x32\x0f.SessionContext\x12\x13\n\x0b\x64\x61taset_uri\x18\x02 \x01(\t\x12\x1a\n\x08\x66\x65\x61tures\x18\x03 \x03(\x0b\x32\x08.Feature\"\xad\x01\n\x11\x41\x64\x64SamplesRequest\x12 \n\x07\x63ontext\x18\x01 \x01(\x0b\x32\x0f.SessionContext\x12\x18\n\x10\x66rom_dataset_uri\x18\x02 \x01(\t\x12\x18\n\x10\x66rom_resource_id\x18\x03 \x01(\t\x12\x16\n\x0eto_dataset_uri\x18\x04 \x01(\t\x12\x16\n\x0eto_resource_id\x18\x05 \x01(\t\x12\x12\n\nsample_ids\x18\x06 \x03(\t\"v\n\x14RemoveSamplesRequest\x12 \n\x07\x63ontext\x18\x01 \x01(\x0b\x32\x0f.SessionContext\x12\x13\n\x0b\x64\x61taset_uri\x18\x02 \x01(\t\x12\x13\n\x0bresource_id\x18\x03 \x01(\t\x12\x12\n\nsample_ids\x18\x04 \x03(\t\"N\n\x0fReplacementData\x12\x19\n\x07\x66\x65\x61ture\x18\x01 \x01(\x0b\x32\x08.Feature\x12\x11\n\tsample_id\x18\x02 \x01(\t\x12\r\n\x05value\x18\x03 \x01(\t\"s\n\x12ReplaceDataRequest\x12 \n\x07\x63ontext\x18\x01 \x01(\x0b\x32\x0f.SessionContext\x12\x13\n\x0b\x64\x61taset_uri\x18\x02 \x01(\t\x12&\n\x0creplacements\x18\x03 \x03(\x0b\x32\x10.ReplacementData\"l\n\x12MaterializeRequest\x12 \n\x07\x63ontext\x18\x01 \x01(\x0b\x32\x0f.SessionContext\x12\x1a\n\x12source_dataset_uri\x18\x02 \x01(\t\x12\x18\n\x10\x64\x65st_dataset_uri\x18\x03 \x01(\t\"\x8b\x01\n\x1bTrainValidationSplitRequest\x12 \n\x07\x63ontext\x18\x01 \x01(\x0b\x32\x0f.SessionContext\x12\x10\n\x08val_size\x18\x02 \x01(\x02\x12\x0c\n\x04seed\x18\x03 \x01(\x05\x12\x15\n\ris_validation\x18\x04 \x01(\x08\x12\x13\n\x0b\x64\x61taset_uri\x18\x05 \x01(\t\"$\n\rRevertRequest\x12\x13\n\x0b\x64\x61taset_uri\x18\x01 \x01(\t2\xa1\x03\n\x07\x44\x61taExt\x12/\n\x0b\x41\x64\x64\x46\x65\x61tures\x12\x13.AddFeaturesRequest\x1a\t.Response\"\x00\x12\x35\n\x0eRemoveFeatures\x12\x16.RemoveFeaturesRequest\x1a\t.Response\"\x00\x12-\n\nAddSamples\x12\x12.AddSamplesRequest\x1a\t.Response\"\x00\x12\x33\n\rRemoveSamples\x12\x15.RemoveSamplesRequest\x1a\t.Response\"\x00\x12/\n\x0bReplaceData\x12\x13.ReplaceDataRequest\x1a\t.Response\"\x00\x12/\n\x0bMaterialize\x12\x13.MaterializeRequest\x1a\t.Response\"\x00\x12\x41\n\x14TrainValidationSplit\x12\x1c.TrainValidationSplitRequest\x1a\t.Response\"\x00\x12%\n\x06Revert\x12\x0e.RevertRequest\x1a\t.Response\"\x00\x42\nZ\x08pipelineb\x06proto3')
   ,
   dependencies=[core__pb2.DESCRIPTOR,])
 
@@ -36,15 +36,15 @@ _FEATUREDATA = _descriptor.Descriptor(
   fields=[
     _descriptor.FieldDescriptor(
       name='from_feature', full_name='FeatureData.from_feature', index=0,
-      number=1, type=11, cpp_type=10, label=3,
-      has_default_value=False, default_value=[],
+      number=1, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
-      name='dataset_uri', full_name='FeatureData.dataset_uri', index=1,
-      number=2, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
+      name='to_feature', full_name='FeatureData.to_feature', index=1,
+      number=2, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None, file=DESCRIPTOR),
@@ -61,7 +61,7 @@ _FEATUREDATA = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=30,
-  serialized_end=96,
+  serialized_end=105,
 )
 
 
@@ -80,8 +80,22 @@ _ADDFEATURESREQUEST = _descriptor.Descriptor(
       is_extension=False, extension_scope=None,
       options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
-      name='features', full_name='AddFeaturesRequest.features', index=1,
-      number=2, type=11, cpp_type=10, label=3,
+      name='from_dataset_uri', full_name='AddFeaturesRequest.from_dataset_uri', index=1,
+      number=2, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=_b("").decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='to_dataset_uri', full_name='AddFeaturesRequest.to_dataset_uri', index=2,
+      number=3, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=_b("").decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='features', full_name='AddFeaturesRequest.features', index=3,
+      number=4, type=11, cpp_type=10, label=3,
       has_default_value=False, default_value=[],
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
@@ -98,8 +112,8 @@ _ADDFEATURESREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=98,
-  serialized_end=184,
+  serialized_start=108,
+  serialized_end=244,
 )
 
 
@@ -118,8 +132,15 @@ _REMOVEFEATURESREQUEST = _descriptor.Descriptor(
       is_extension=False, extension_scope=None,
       options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
-      name='features', full_name='RemoveFeaturesRequest.features', index=1,
-      number=2, type=11, cpp_type=10, label=3,
+      name='dataset_uri', full_name='RemoveFeaturesRequest.dataset_uri', index=1,
+      number=2, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=_b("").decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='features', full_name='RemoveFeaturesRequest.features', index=2,
+      number=3, type=11, cpp_type=10, label=3,
       has_default_value=False, default_value=[],
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
@@ -136,84 +157,8 @@ _REMOVEFEATURESREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=186,
-  serialized_end=271,
-)
-
-
-_SAMPLE = _descriptor.Descriptor(
-  name='Sample',
-  full_name='Sample',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  fields=[
-    _descriptor.FieldDescriptor(
-      name='sample_id', full_name='Sample.sample_id', index=0,
-      number=1, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='data_uri', full_name='Sample.data_uri', index=1,
-      number=2, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      options=None, file=DESCRIPTOR),
-  ],
-  extensions=[
-  ],
-  nested_types=[],
-  enum_types=[
-  ],
-  options=None,
-  is_extendable=False,
-  syntax='proto3',
-  extension_ranges=[],
-  oneofs=[
-  ],
-  serialized_start=273,
-  serialized_end=318,
-)
-
-
-_SAMPLEDATA = _descriptor.Descriptor(
-  name='SampleData',
-  full_name='SampleData',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  fields=[
-    _descriptor.FieldDescriptor(
-      name='from_sample', full_name='SampleData.from_sample', index=0,
-      number=1, type=11, cpp_type=10, label=3,
-      has_default_value=False, default_value=[],
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='dataset_uri', full_name='SampleData.dataset_uri', index=1,
-      number=2, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      options=None, file=DESCRIPTOR),
-  ],
-  extensions=[
-  ],
-  nested_types=[],
-  enum_types=[
-  ],
-  options=None,
-  is_extendable=False,
-  syntax='proto3',
-  extension_ranges=[],
-  oneofs=[
-  ],
-  serialized_start=320,
-  serialized_end=383,
+  serialized_start=246,
+  serialized_end=352,
 )
 
 
@@ -232,8 +177,36 @@ _ADDSAMPLESREQUEST = _descriptor.Descriptor(
       is_extension=False, extension_scope=None,
       options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
-      name='samples', full_name='AddSamplesRequest.samples', index=1,
-      number=2, type=11, cpp_type=10, label=3,
+      name='from_dataset_uri', full_name='AddSamplesRequest.from_dataset_uri', index=1,
+      number=2, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=_b("").decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='from_resource_id', full_name='AddSamplesRequest.from_resource_id', index=2,
+      number=3, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=_b("").decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='to_dataset_uri', full_name='AddSamplesRequest.to_dataset_uri', index=3,
+      number=4, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=_b("").decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='to_resource_id', full_name='AddSamplesRequest.to_resource_id', index=4,
+      number=5, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=_b("").decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='sample_ids', full_name='AddSamplesRequest.sample_ids', index=5,
+      number=6, type=9, cpp_type=9, label=3,
       has_default_value=False, default_value=[],
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
@@ -250,8 +223,8 @@ _ADDSAMPLESREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=385,
-  serialized_end=468,
+  serialized_start=355,
+  serialized_end=528,
 )
 
 
@@ -270,8 +243,22 @@ _REMOVESAMPLESREQUEST = _descriptor.Descriptor(
       is_extension=False, extension_scope=None,
       options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
-      name='sample_ids', full_name='RemoveSamplesRequest.sample_ids', index=1,
-      number=2, type=11, cpp_type=10, label=3,
+      name='dataset_uri', full_name='RemoveSamplesRequest.dataset_uri', index=1,
+      number=2, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=_b("").decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='resource_id', full_name='RemoveSamplesRequest.resource_id', index=2,
+      number=3, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=_b("").decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='sample_ids', full_name='RemoveSamplesRequest.sample_ids', index=3,
+      number=4, type=9, cpp_type=9, label=3,
       has_default_value=False, default_value=[],
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
@@ -288,8 +275,8 @@ _REMOVESAMPLESREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=470,
-  serialized_end=555,
+  serialized_start=530,
+  serialized_end=648,
 )
 
 
@@ -301,29 +288,22 @@ _REPLACEMENTDATA = _descriptor.Descriptor(
   containing_type=None,
   fields=[
     _descriptor.FieldDescriptor(
-      name='value', full_name='ReplacementData.value', index=0,
-      number=1, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
+      name='feature', full_name='ReplacementData.feature', index=0,
+      number=1, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
-      name='feature_id', full_name='ReplacementData.feature_id', index=1,
+      name='sample_id', full_name='ReplacementData.sample_id', index=1,
       number=2, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=_b("").decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
-      name='sample_id', full_name='ReplacementData.sample_id', index=2,
+      name='value', full_name='ReplacementData.value', index=2,
       number=3, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='dataset_uri', full_name='ReplacementData.dataset_uri', index=3,
-      number=4, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=_b("").decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
@@ -340,8 +320,8 @@ _REPLACEMENTDATA = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=557,
-  serialized_end=649,
+  serialized_start=650,
+  serialized_end=728,
 )
 
 
@@ -360,8 +340,15 @@ _REPLACEDATAREQUEST = _descriptor.Descriptor(
       is_extension=False, extension_scope=None,
       options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
-      name='replacements', full_name='ReplaceDataRequest.replacements', index=1,
-      number=2, type=11, cpp_type=10, label=3,
+      name='dataset_uri', full_name='ReplaceDataRequest.dataset_uri', index=1,
+      number=2, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=_b("").decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='replacements', full_name='ReplaceDataRequest.replacements', index=2,
+      number=3, type=11, cpp_type=10, label=3,
       has_default_value=False, default_value=[],
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
@@ -378,8 +365,8 @@ _REPLACEDATAREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=651,
-  serialized_end=745,
+  serialized_start=730,
+  serialized_end=845,
 )
 
 
@@ -423,8 +410,8 @@ _MATERIALIZEREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=747,
-  serialized_end=855,
+  serialized_start=847,
+  serialized_end=955,
 )
 
 
@@ -482,8 +469,8 @@ _TRAINVALIDATIONSPLITREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=858,
-  serialized_end=997,
+  serialized_start=958,
+  serialized_end=1097,
 )
 
 
@@ -513,20 +500,19 @@ _REVERTREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=999,
-  serialized_end=1035,
+  serialized_start=1099,
+  serialized_end=1135,
 )
 
 _FEATUREDATA.fields_by_name['from_feature'].message_type = core__pb2._FEATURE
+_FEATUREDATA.fields_by_name['to_feature'].message_type = core__pb2._FEATURE
 _ADDFEATURESREQUEST.fields_by_name['context'].message_type = core__pb2._SESSIONCONTEXT
 _ADDFEATURESREQUEST.fields_by_name['features'].message_type = _FEATUREDATA
 _REMOVEFEATURESREQUEST.fields_by_name['context'].message_type = core__pb2._SESSIONCONTEXT
 _REMOVEFEATURESREQUEST.fields_by_name['features'].message_type = core__pb2._FEATURE
-_SAMPLEDATA.fields_by_name['from_sample'].message_type = _SAMPLE
 _ADDSAMPLESREQUEST.fields_by_name['context'].message_type = core__pb2._SESSIONCONTEXT
-_ADDSAMPLESREQUEST.fields_by_name['samples'].message_type = _SAMPLEDATA
 _REMOVESAMPLESREQUEST.fields_by_name['context'].message_type = core__pb2._SESSIONCONTEXT
-_REMOVESAMPLESREQUEST.fields_by_name['sample_ids'].message_type = _SAMPLE
+_REPLACEMENTDATA.fields_by_name['feature'].message_type = core__pb2._FEATURE
 _REPLACEDATAREQUEST.fields_by_name['context'].message_type = core__pb2._SESSIONCONTEXT
 _REPLACEDATAREQUEST.fields_by_name['replacements'].message_type = _REPLACEMENTDATA
 _MATERIALIZEREQUEST.fields_by_name['context'].message_type = core__pb2._SESSIONCONTEXT
@@ -534,8 +520,6 @@ _TRAINVALIDATIONSPLITREQUEST.fields_by_name['context'].message_type = core__pb2.
 DESCRIPTOR.message_types_by_name['FeatureData'] = _FEATUREDATA
 DESCRIPTOR.message_types_by_name['AddFeaturesRequest'] = _ADDFEATURESREQUEST
 DESCRIPTOR.message_types_by_name['RemoveFeaturesRequest'] = _REMOVEFEATURESREQUEST
-DESCRIPTOR.message_types_by_name['Sample'] = _SAMPLE
-DESCRIPTOR.message_types_by_name['SampleData'] = _SAMPLEDATA
 DESCRIPTOR.message_types_by_name['AddSamplesRequest'] = _ADDSAMPLESREQUEST
 DESCRIPTOR.message_types_by_name['RemoveSamplesRequest'] = _REMOVESAMPLESREQUEST
 DESCRIPTOR.message_types_by_name['ReplacementData'] = _REPLACEMENTDATA
@@ -565,20 +549,6 @@ RemoveFeaturesRequest = _reflection.GeneratedProtocolMessageType('RemoveFeatures
   # @@protoc_insertion_point(class_scope:RemoveFeaturesRequest)
   ))
 _sym_db.RegisterMessage(RemoveFeaturesRequest)
-
-Sample = _reflection.GeneratedProtocolMessageType('Sample', (_message.Message,), dict(
-  DESCRIPTOR = _SAMPLE,
-  __module__ = 'data_ext_pb2'
-  # @@protoc_insertion_point(class_scope:Sample)
-  ))
-_sym_db.RegisterMessage(Sample)
-
-SampleData = _reflection.GeneratedProtocolMessageType('SampleData', (_message.Message,), dict(
-  DESCRIPTOR = _SAMPLEDATA,
-  __module__ = 'data_ext_pb2'
-  # @@protoc_insertion_point(class_scope:SampleData)
-  ))
-_sym_db.RegisterMessage(SampleData)
 
 AddSamplesRequest = _reflection.GeneratedProtocolMessageType('AddSamplesRequest', (_message.Message,), dict(
   DESCRIPTOR = _ADDSAMPLESREQUEST,
@@ -639,8 +609,8 @@ _DATAEXT = _descriptor.ServiceDescriptor(
   file=DESCRIPTOR,
   index=0,
   options=None,
-  serialized_start=1038,
-  serialized_end=1455,
+  serialized_start=1138,
+  serialized_end=1555,
   methods=[
   _descriptor.MethodDescriptor(
     name='AddFeatures',

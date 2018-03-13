@@ -37,7 +37,9 @@ pip install docker grpcio-tools grpcio
   * https://gitlab.com/datadrivendiscovery/tests-data.git
  * https://gitlab.datadrivendiscovery.org/jpl/primitives_repo.git
  * https://gitlab.datadrivendiscovery.org/nyu/ta3ta2-api
+  * https://gitlab.com/datadrivendiscovery/ta3ta2-api -- newer than above???  There's a v2017.12.20 branch, sigh
  * https://gitlab.datadrivendiscovery.org/nyu/ta2ta3-stubs
+ * New proposed TA2-TA3 interface: https://gitlab.com/datadrivendiscovery/ta3ta2-api/blob/preprocessing_api2/
 
 
 ## TA2 impl's
