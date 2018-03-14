@@ -7,9 +7,12 @@ import time
 import grpc
 from api_v1 import core, data_ext, dataflow_ext
 
-logging.basicConfig(level=logging.WARNING)
+logging.basicConfig(level=logging.INFO)
 
 __version__ = "0.1.0"
+
+TA2_API_HOST = '[::]'
+TA2_API_PORT = 45042
 
 def main():
     threadpool = futures.ThreadPoolExecutor(max_workers=4)
@@ -17,8 +20,11 @@ def main():
     core.add_to_server(server)
     data_ext.add_to_server(server)
     dataflow_ext.add_to_server(server)
-    server.add_insecure_port('[::]:50051')
+    server_string = '{}:{}'.format(TA2_API_HOST, TA2_API_PORT)
+    server.add_insecure_port(server_string)
+    logging.info("Starting server on %s", server_string)
     server.start()
+    logging.info("Server started, waiting.")
     try:
         while True:
             time.sleep(3600)

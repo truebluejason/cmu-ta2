@@ -7,7 +7,7 @@ import core_pb2 as core_pb2
 import core_pb2_grpc as core_pb2_grpc
 import logging
 
-logging.basicConfig(level=logging.WARNING)
+logging.basicConfig(level=logging.INFO)
 
 __version__ = "0.1.0"
 
@@ -15,6 +15,7 @@ class Core(core_pb2_grpc.CoreServicer):
     def CreatePipelines(self, request, context):
         pipeline_id = 1
         progress = 1
+        logging.info("Message received: CreatePipelines")
         msg = core_pb2.PipelineCreateResult(
             response_info=core_pb2.Response(
                 status=core_pb2.Status(code=core_pb2.OK),
@@ -26,6 +27,7 @@ class Core(core_pb2_grpc.CoreServicer):
 
 
     def ExecutePipeline(self, request, context):
+        logging.info("Message received: ExecutePipelines")
         yield core_pb2.PipelineExecuteResult(
             response_info=core_pb2.Response(
                 status=core_pb2.Status(code=core_pb2.OK),
@@ -37,6 +39,7 @@ class Core(core_pb2_grpc.CoreServicer):
         
 
     def ListPipelines(self, request, context):
+        logging.info("Message received: ListPipelines")
         return core_pb2.PipelineListResult(
             response_info = core_pb2.Response(
                 status=core_pb2.Status(code=core_pb2.OK)),
@@ -47,6 +50,7 @@ class Core(core_pb2_grpc.CoreServicer):
 
 
     def DeletePipelines(self, request, context):
+        logging.info("Message received: DeletePipelines")
         return core_pb2.PipelineListResult(
             response_info = core_pb2.Response(
                 status=core_pb2.Status(code=core_pb2.OK)),
@@ -56,17 +60,22 @@ class Core(core_pb2_grpc.CoreServicer):
         )
 
     def GetCreatePipelineResults(self, request, context):
+        logging.info("Message received: GetCreatePipelineResults")
         return core_pb2.Response(core_pb2.Status(code=core_pb2.OK))
     def GetExecutePipelineResults(self, request, context):
+        logging.info("Message received: GetExecutePipelineResults")
         return core_pb2.Response(core_pb2.Status(code=core_pb2.OK))
 
     def ExportPipeline(self, request, context):
+        logging.info("Message received: ExportPipeline")
         return core_pb2.Response(core_pb2.Status(code=core_pb2.OK))
 
     def UpdateProblemSchema(self, request, context):
+        logging.info("Message received: UpdateProblemSchema")
         return core_pb2.Response(core_pb2.Status(code=core_pb2.OK))
 
     def StartSession(self, request, context):
+        logging.info("Message received: StartSession")
         version = core_pb2.DESCRIPTOR.GetOptions().Extensions[
             core_pb2.protocol_version]
         session = "session_1"
@@ -83,6 +92,7 @@ class Core(core_pb2_grpc.CoreServicer):
         )
 
     def EndSession(self, request, context):
+        logging.info("Message received: EndSession")
         logging.info("Session terminated: %s", request.session_id)
         return core_pb2.Response(
             status=core_pb2.Status(code=core_pb2.OK),

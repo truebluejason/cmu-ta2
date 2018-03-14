@@ -65,3 +65,23 @@ Currently pipelines are 100% opaque.  Mitar's proposal, which we are going to ne
  * plasma for object store?  https://arrow.apache.org/docs/python/plasma.html
  * Celery for task distribution and communication, almost certainly.  Alternatives to look at: rq, huey, maybe kuyruk.  Question is basically whether to use redis or rabbitmq as the message broker.
  * 
+
+
+# Running (very ad-hoc)
+
+So after some hacking of paths and ports, we can start Matthias's TA3 interface like so (having installed all the deps in our virtualenv and activating it):
+
+```
+env CONFIG_JSON_PATH=/home/sheath/projects/D3M/cmu-ta3/test-configs/test_config_185_local_mg.json python ta3ta2-proxy.py 
+```
+
+Now we can browse to `localhost:8088` (or whatever port set in `ta3ta2-proxy.py`) and should see "D3M January blah blah System Evaluation".
+
+We start our TA2:
+
+```
+cd /home/sheath/projects/D3M/cmu-ta2
+./src/main.py
+```
+
+Now we can hit "start session" in the thing and, lo and behold, it actually talks to our TA2!  Magic.
