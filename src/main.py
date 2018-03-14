@@ -12,7 +12,7 @@ logging.basicConfig(level=logging.WARNING)
 __version__ = "0.1.0"
 
 def main():
-    threadpool = futures.ThreadPoolExecutor
+    threadpool = futures.ThreadPoolExecutor(max_workers=4)
     server = grpc.server(threadpool)
     core.add_to_server(server)
     data_ext.add_to_server(server)

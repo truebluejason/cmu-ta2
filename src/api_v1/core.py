@@ -5,6 +5,11 @@ Implementation of the ta2ta3 API v1 (preprocessing extensions) -- core.proto
 
 import core_pb2 as core_pb2
 import core_pb2_grpc as core_pb2_grpc
+import logging
+
+logging.basicConfig(level=logging.WARNING)
+
+__version__ = "0.1.0"
 
 class Core(core_pb2_grpc.CoreServicer):
     def CreatePipelines(self, request, context):
@@ -64,7 +69,7 @@ class Core(core_pb2_grpc.CoreServicer):
     def StartSession(self, request, context):
         version = core_pb2.DESCRIPTOR.GetOptions().Extensions[
             core_pb2.protocol_version]
-        session = 1
+        session = "session_1"
         # session = "session_%d" % len(self.sessions)
         # self.sessions.add(session)
         logging.info("Session started: 1 (protocol version %s)", version)
