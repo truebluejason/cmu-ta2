@@ -18,6 +18,12 @@ class TestEnumeration(unittest.TestCase):
 
         target_label = PrimitiveLabel(team='CMU', module='d3m.primitives.cmu.autonlab.find_projections.Search', version='2.0')
         self.assertIn(target_label, prims)
+
+    def test_list_all(self):
+        "Test whether we can create (or at least load metadata for) all the primitives in the index."
+        prims = list_primitives()
+        for label in prims:
+            Primitive(label)
         
 if __name__ == '__main__':
     unittest.main()

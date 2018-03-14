@@ -75,7 +75,7 @@ class Core(core_pb2_grpc.CoreServicer):
         return core_pb2.Response(core_pb2.Status(code=core_pb2.OK))
 
     def StartSession(self, request, context):
-        logging.info("Message received: StartSession")
+        logging.info("Message received: StartSession %s", request)
         version = core_pb2.DESCRIPTOR.GetOptions().Extensions[
             core_pb2.protocol_version]
         session = "session_1"

@@ -8,6 +8,8 @@ The primitives themselves can be attained from https://gitlab.datadrivendiscover
 
 import os
 import collections
+import json
+import d3m_metadata.metadata
 
 PRIMITIVES_DIR = "../../primitives_repo"
 PRIMITIVES_VERSION = "v2018.1.26"
@@ -34,10 +36,30 @@ def primitive_label_from_str(s):
     return PrimitiveLabel(team=team, module=python_module, version=version)
 
 
+def primitive_path_from_label(label):
+    return os.path.join(PRIMITIVES_DIR, PRIMITIVES_VERSION, label.team, label.module, label.version, 'primitive.json')
+
 def list_primitives():
     """
-    Returns a list of all primitives, as strings.
+    Returns a list of all primitives, as PrimitiveLabel's.
     """
     prim_dir = os.path.join(PRIMITIVES_DIR, PRIMITIVES_VERSION)
     return [primitive_label_from_str(path) for (path, names, filenames) in os.walk(prim_dir)
             if 'primitive.json' in filenames]
+
+class Primitive(object):
+    def __init__(self, label):
+        self.__label = label
+        schema_file = primitive_path_from_label(label)
+        with open(schema_file, 'r') as f:
+            schema = json.load(f)
+            self.__metadata = d3m_metadata.metadata.PrimitiveMetadata(schema)
+            validated = False
+            try:
+                self.__metadata._validate()
+                validated = True
+            except:
+                pass
+            
+            print("Primitive {}: validated: {}".format(self.__metadata.query()['name'], validated))
+            # self.__metadata.pretty_print()
