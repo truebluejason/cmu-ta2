@@ -5,7 +5,7 @@ from concurrent import futures
 import time
 
 import grpc
-from api_v1 import core
+from api_v1 import core, data_ext, dataflow_ext
 
 logging.basicConfig(level=logging.WARNING)
 
@@ -15,6 +15,8 @@ def main():
     threadpool = futures.ThreadPoolExecutor
     server = grpc.server(threadpool)
     core.add_to_server(server)
+    data_ext.add_to_server(server)
+    dataflow_ext.add_to_server(server)
     server.add_insecure_port('[::]:50051')
     server.start()
     try:
