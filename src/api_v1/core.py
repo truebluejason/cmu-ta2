@@ -100,7 +100,7 @@ class Column(object):
 
 
 # TODO: sigh
-DATASET_ROOT = "/home/sheath/projects/D3M/cmu-ta3/test-data/185_baseball/185_baseball_dataset/"
+DATASET_ROOT = "/home/sheath/projects/D3M/cmu-ta3/test-data/185_baseball/TRAIN/dataset_TRAIN/"
 OUTPUT_ROOT = "/home/sheath/projects/D3M/cmu-ta2/test_output/"
 
 class DataResource(object):
