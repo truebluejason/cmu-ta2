@@ -14,6 +14,8 @@ import core_pb2_grpc as core_pb2_grpc
 import logging
 import primitive_lib
 import json
+import os
+import pandas as pd
 from urllib import request as url_request
 
 logging.basicConfig(level=logging.INFO)
@@ -35,6 +37,8 @@ def run_pipeline_mockup():
     time.sleep(1)
     yield core_pb2.COMPLETED
 
+
+
 class TaskClassification(object):
     "Simple random classifier that just does the data loading etc."
     def __init__(self, dataset_uri, target_features, predict_features):
@@ -42,12 +46,16 @@ class TaskClassification(object):
             res = uri.read()
             self.dataset_spec = DatasetSpec.from_json_str(res)
 
-        self.data_resources = {
-            resource['resID']:resource for resource in self.dataset_spec.resource_specs
+        self.resource_specs = {
+            resource.res_id:resource for resource in self.dataset_spec.resource_specs
         }
 
         self.target_features = target_features
         self.predict_features = predict_features
+
+        self.datasets = {
+            resource.res_id:resource.load() for resource in self.dataset_spec.resource_specs
+        }
 
         # Resolve our (resource_name, feature_name) pairs
         # to (resource_spec, feature_name)
@@ -56,6 +64,21 @@ class TaskClassification(object):
         #      feature.feature_name)
         #     for feature in predict_features
         # ]
+
+
+    def run(self, output_path):
+        import random
+        for target in self.target_features:
+            target_column = self.datasets[target.resource_id][target.feature_name]
+            possible_values = list(set(target_column.values))
+            predictions = random.choices(possible_values, k=len(target_column))
+            predictions_df = pd.DataFrame(
+                predictions,
+                columns=[target.feature_name]
+            )
+            predictions_df.to_csv(output_path)
+            break
+
 
 class Column(object):
     def __init__(self, colIndex, colName, colType, role):
@@ -76,6 +99,10 @@ class Column(object):
         return json.loads(json_str, object_hook=Column.from_json_dict)
 
 
+# TODO: sigh
+DATASET_ROOT = "/home/sheath/projects/D3M/cmu-ta3/test-data/185_baseball/185_baseball_dataset/"
+OUTPUT_ROOT = "/home/sheath/projects/D3M/cmu-ta2/test_output/"
+
 class DataResource(object):
     def __init__(self, res_id, path, type, format, is_collection, columns):
         self.res_id = res_id
@@ -84,7 +111,15 @@ class DataResource(object):
         self.format = format
         self.is_collection = is_collection
         self.columns = columns
+        self.full_path = os.path.join(DATASET_ROOT, path)
 
+    def load(self):
+        """
+        Loads the dataset and returns a Pandas dataframe.
+        """
+        index_col = next((c for c in self.columns if c.role == "index"), None)
+        df = pd.read_csv(self.full_path, index_col=index_col)
+        return df
 
     @staticmethod
     def from_json_dict(json_dct):
@@ -142,11 +177,14 @@ class Core(core_pb2_grpc.CoreServicer):
         pipeline_id = self._new_pipeline_id()
         self._pipelines.add(pipeline_id)
 
+        output_file = os.path.join(OUTPUT_ROOT, pipeline_id + ".csv")
+        output_uri = "file://" + output_file
         classifier = TaskClassification(request.dataset_uri, request.target_features, request.predict_features)
+        classifier.run(output_file)
 
         # Return pipeline results
         pipeline = core_pb2.Pipeline(
-            predict_result_uri = "test_uri",
+            predict_result_uri = output_uri,
             output = core_pb2.OUTPUT_TYPE_UNDEFINED,
             scores = []
         )
