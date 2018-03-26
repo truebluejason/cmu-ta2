@@ -7,10 +7,6 @@ import time
 import grpc
 from api_v1 import core, data_ext, dataflow_ext
 
-logging.basicConfig(level=logging.INFO)
-
-__version__ = "0.1.0"
-
 TA2_API_HOST = '[::]'
 TA2_API_PORT = 45042
 

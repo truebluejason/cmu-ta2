@@ -96,7 +96,7 @@ class Column(object):
 
     # TODO: Refactor this to a class method, annotation or mixin.
     @staticmethod
-    def staticmethod(json_str):
+    def from_json_str(json_str):
         "Easy way to deserialize JSON to an object, see https://stackoverflow.com/a/16826012"
         return json.loads(json_str, object_hook=Column.from_json_dict)
 

@@ -11,6 +11,9 @@ The TA3 requests take the form of a grpc protobuf call.  https://grpc.io/docs/qu
 Easy primitives for testing would be the JPL repo, which just wraps sklearn.  
 
 
+Goals: Pipeline and API, primitives, TA3 interface, Bayes optimization.
+
+
 # Setup instructions
 
 Setup virtualenv

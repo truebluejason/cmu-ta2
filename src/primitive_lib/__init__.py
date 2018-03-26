@@ -9,7 +9,7 @@ The primitives themselves can be attained from https://gitlab.datadrivendiscover
 import os
 import collections
 import json
-import d3m_metadata.metadata
+import d3m.metadata.base as metadata
 
 PRIMITIVES_DIR = "../../primitives_repo"
 PRIMITIVES_VERSION = "v2018.1.26"
@@ -53,13 +53,11 @@ class Primitive(object):
         schema_file = primitive_path_from_label(label)
         with open(schema_file, 'r') as f:
             schema = json.load(f)
-            self.__metadata = d3m_metadata.metadata.PrimitiveMetadata(schema)
-            validated = False
+            self.__metadata = metadata.PrimitiveMetadata(schema)
             try:
+                # Validation appears to never work...
                 self.__metadata._validate()
-                validated = True
+                print("Primitive {}: validated".format(self.__metadata.query()['name']))
             except:
                 pass
             
-            print("Primitive {}: validated: {}".format(self.__metadata.query()['name'], validated))
-            # self.__metadata.pretty_print()
