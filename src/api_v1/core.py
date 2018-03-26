@@ -65,13 +65,15 @@ class TaskClassification(object):
         #     for feature in predict_features
         # ]
 
+    def to_json_dict(self):
+        return self.dataset_spec.to_json_dict()
 
     def run(self, output_path):
         import random
         for target in self.target_features:
             target_column = self.datasets[target.resource_id][target.feature_name]
-            possible_values = list(set(target_column.values))
-            predictions = random.choices(possible_values, k=len(target_column))
+            # possible_values = list(set(target_column.values))
+            predictions = random.choices(target_column.values, k=len(target_column))
             predictions_df = pd.DataFrame(
                 predictions,
                 columns=[target.feature_name]
@@ -98,6 +100,13 @@ class Column(object):
         "Easy way to deserialize JSON to an object, see https://stackoverflow.com/a/16826012"
         return json.loads(json_str, object_hook=Column.from_json_dict)
 
+    def to_json_dict(self):
+        return {
+            'colIndex':self.col_index,
+            'colName':self.col_name,
+            'colType':self.col_type,
+            'role':self.role,
+        }
 
 # TODO: sigh
 DATASET_ROOT = "/home/sheath/projects/D3M/cmu-ta3/test-data/185_baseball/TRAIN/dataset_TRAIN/"
@@ -117,6 +126,7 @@ class DataResource(object):
         """
         Loads the dataset and returns a Pandas dataframe.
         """
+        # Just take the first index column, assuming there's only one.
         index_col = next((c for c in self.columns if c.role == "index"), None)
         df = pd.read_csv(self.full_path, index_col=index_col)
         return df
@@ -138,6 +148,16 @@ class DataResource(object):
     def from_json_str(json_str):
         return json.loads(json_str, object_hook=DataResource.from_json_dict)
 
+    def to_json_dict(self):
+        return {
+            'resID': self.res_id,
+            'resPath': self.path,
+            'resType': self.type,
+            'resFormat': self.format,
+            'isCollection': self.is_collection,
+            'columns': list(map(lambda column: column.to_json_dict(), self.columns))
+        }
+
 class DatasetSpec(object):
     def __init__(self, about, resources):
         self.about = about
@@ -157,6 +177,12 @@ class DatasetSpec(object):
         s = json.loads(json_str)
         return DatasetSpec.from_json_dict(s)
 
+    def to_json_dict(self):
+        return {
+            'about': self.about,
+            'dataResources': list(map(lambda spec: spec.to_json_dict(), self.resource_specs))
+        }
+
 class Core(core_pb2_grpc.CoreServicer):
     def __init__(self):
         self._sessions = set()
@@ -173,31 +199,38 @@ class Core(core_pb2_grpc.CoreServicer):
     def CreatePipelines(self, request, context):
         logging.info("Message received: CreatePipelines: %s", request)
 
-        # Actually do stuff
+        # Setup pipeline
         pipeline_id = self._new_pipeline_id()
         self._pipelines.add(pipeline_id)
-
         output_file = os.path.join(OUTPUT_ROOT, pipeline_id + ".csv")
         output_uri = "file://" + output_file
-        classifier = TaskClassification(request.dataset_uri, request.target_features, request.predict_features)
-        classifier.run(output_file)
-
-        # Return pipeline results
         pipeline = core_pb2.Pipeline(
             predict_result_uri = output_uri,
             output = core_pb2.OUTPUT_TYPE_UNDEFINED,
             scores = []
         )
-        for status in run_pipeline_mockup():
-            msg = core_pb2.PipelineCreateResult(
-                response_info=core_pb2.Response(
-                    status=core_pb2.Status(code=core_pb2.OK),
-                ),
-                progress_info=status,
-                pipeline_id=pipeline_id,
-                pipeline_info=pipeline
-            )
-            yield msg
+        msg = core_pb2.PipelineCreateResult(
+            response_info=core_pb2.Response(
+                status=core_pb2.Status(code=core_pb2.OK),
+            ),
+            progress_info=core_pb2.SUBMITTED,
+            pipeline_id=pipeline_id,
+            pipeline_info=pipeline
+        )
+        yield msg
+
+        # Actually do stuff
+        msg.progress_info = core_pb2.RUNNING
+        yield msg
+
+
+        classifier = TaskClassification(request.dataset_uri, request.target_features, request.predict_features)
+        classifier.run(output_file)
+        print(classifier.to_json_dict())
+
+        # Return pipeline results
+        msg.progress_info = core_pb2.COMPLETED
+        yield msg
 
 
     def ExecutePipeline(self, request, context):

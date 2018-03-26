@@ -6,4 +6,4 @@
 # which don't really fix anything, just tell you how to work around them
 # if you get things EXACTLY RIGHT.
 
-python3 -m grpc_tools.protoc -I ta3ta2-api/ --python_out=src --grpc_python_out=src ta3ta2-api/*.proto
+python3 -m grpc_tools.protoc -I ta3ta2-api-v1/ --python_out=src --grpc_python_out=src ta3ta2-api-v1/*.proto
