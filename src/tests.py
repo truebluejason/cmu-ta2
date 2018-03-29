@@ -28,9 +28,14 @@ class TestCore(unittest.TestCase):
         stub = core_pb2_grpc.CoreStub(channel)
         msg = core_pb2.SessionRequest(user_agent="unittest", version="Foo")
         session = stub.StartSession(msg)
-        print(session)
+        self.assertTrue(session.response_info.status.code == core_pb2.OK)
 
         session_end_response = stub.EndSession(session.context)
+        self.assertTrue(session_end_response.status.code == core_pb2.OK)
+
+        fake_context = core_pb2.SessionContext(session_id="fake context")
+        session_end_response = stub.EndSession(fake_context)
+        self.assertTrue(session_end_response.status.code == core_pb2.SESSION_UNKNOWN)
 
 if __name__ == '__main__':
     unittest.main()

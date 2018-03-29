@@ -173,7 +173,11 @@ class DatasetSpec(object):
             'dataResources': list(map(lambda spec: spec.to_json_dict(), self.resource_specs))
         }
 
-class Pipeline(object):
+class PipelineSpecification(object):
+    """
+    Basically a PipelineCreateRequest; it describes a problem to solve.
+    Each Pipeline object is then a possible solution for solving this problem.
+    """
     def __init__(self, name, dataset_uri, task_type, metrics, target_features, predict_features):
         self._name = name
         self._dataset_uri = dataset_uri
@@ -186,11 +190,33 @@ class Pipeline(object):
         self._target_features = target_features
         self._predict_features = predict_features
 
+class Pipeline(object):
+    """
+    A single model that is trying to solve a particular problem described
+    by the PipelineSpecification
+    """
+    def __init__(self, name, spec):
+        self._name = name
+        self._spec = spec
+
 class Session(object):
+    """
+    A single Session contains one or more PipelineSpecifications,
+    and keeps track of the Pipelines currently being trained to solve
+    those problems.
+    """
     def __init__(self, name):
         self._name = name
-        # List of pipeline ID's.
-        self._pipelines = []
+        # Dict of pipeline_id : pipeline pairs
+        self._pipelines_specifications = {}
+
+    def new_problem(self, pipeline_spec):
+        """
+        Takes a new PipelineSpecification and starts trying
+        to solve the problem it presents.
+        """
+        specname = gensym(self._name + "_spec")
+        self._pipelines_specifications[specname] = pipeline_spec
 
 class Core(core_pb2_grpc.CoreServicer):
     def __init__(self):
@@ -205,8 +231,29 @@ class Core(core_pb2_grpc.CoreServicer):
         "Returns an identifier string for a new pipeline."
         return gensym("pipeline")
 
+    def _response_session_invalid(self, session_id):
+        "Returns a message that the given session does not exist"
+        pipeline = core_pb2.Pipeline(
+            predict_result_uri = "invalid",
+            output = core_pb2.OUTPUT_TYPE_UNDEFINED,
+            scores = []
+        )
+        msg = core_pb2.PipelineCreateResult(
+            response_info=core_pb2.Response(
+                status=core_pb2.Status(code=core_pb2.SESSION_UNKNOWN),
+            ),
+            progress_info=core_pb2.ERRORED,
+            pipeline_id="invalid",
+            pipeline_info=pipeline
+        )
+        return msg
+
     def CreatePipelines(self, request, context):
         logging.info("Message received: CreatePipelines: %s", request)
+
+        if request.context.session_id not in self._sessions:
+            logging.warning("Asked to create pipeline for session % which does not exist", request.context.session_id)
+            return self._response_session_invalid(request.context.session_id, )
 
         # Setup pipeline
         pipeline_id = self._new_pipeline_id()
@@ -295,6 +342,7 @@ class Core(core_pb2_grpc.CoreServicer):
         session_id = self._new_session_id()
         session = Session(session_id)
         self._sessions[session_id] = session
+        # TODO: Check duplicates
         # session = "session_%d" % len(self.sessions)
         # self.sessions.add(session)
         logging.info("Session started: %s (protocol version %s)", session_id, version)
