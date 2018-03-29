@@ -18,9 +18,8 @@ import os
 import pandas as pd
 from urllib import request as url_request
 
-logging.basicConfig(level=logging.INFO)
 
-__version__ = "0.1.0"
+logging.basicConfig(level=logging.INFO)
 
 __symbol_idx = 0
 def gensym(id="gensym"):
@@ -28,15 +27,6 @@ def gensym(id="gensym"):
     s = "{}_{}".format(id, __symbol_idx)
     __symbol_idx += 1
     return s
-
-def run_pipeline_mockup():
-    import time
-    yield core_pb2.SUBMITTED
-    time.sleep(1)
-    yield core_pb2.RUNNING
-    time.sleep(1)
-    yield core_pb2.COMPLETED
-
 
 
 class TaskClassification(object):
@@ -183,10 +173,29 @@ class DatasetSpec(object):
             'dataResources': list(map(lambda spec: spec.to_json_dict(), self.resource_specs))
         }
 
+class Pipeline(object):
+    def __init__(self, name, dataset_uri, task_type, metrics, target_features, predict_features):
+        self._name = name
+        self._dataset_uri = dataset_uri
+        self._task_type = task_type
+        # TODO
+        # self._task_subtype = ""
+        # Currently undefined, sigh
+        # self._output_type
+        self._evaluation_metrics = metrics
+        self._target_features = target_features
+        self._predict_features = predict_features
+
+class Session(object):
+    def __init__(self, name):
+        self._name = name
+        # List of pipeline ID's.
+        self._pipelines = []
+
 class Core(core_pb2_grpc.CoreServicer):
     def __init__(self):
-        self._sessions = set()
-        self._pipelines = set()
+        self._sessions = {}
+        self._pipelines = {}
 
     def _new_session_id(self):
         "Returns an identifier string for a new session."
@@ -284,7 +293,8 @@ class Core(core_pb2_grpc.CoreServicer):
         version = core_pb2.DESCRIPTOR.GetOptions().Extensions[
             core_pb2.protocol_version]
         session_id = self._new_session_id()
-        self._sessions.add(session_id)
+        session = Session(session_id)
+        self._sessions[session_id] = session
         # session = "session_%d" % len(self.sessions)
         # self.sessions.add(session)
         logging.info("Session started: %s (protocol version %s)", session_id, version)
@@ -292,15 +302,16 @@ class Core(core_pb2_grpc.CoreServicer):
             response_info=core_pb2.Response(
                 status=core_pb2.Status(code=core_pb2.OK)
             ),
-            user_agent="cmu_ta2 %s" % __version__,
+            # Sigh, importing the version string is screwy for no apparent reason
+            user_agent="cmu_ta2 0.1",
             version=version,
             context=core_pb2.SessionContext(session_id=session_id),
         )
 
     def EndSession(self, request, context):
         logging.info("Message received: EndSession")
-        if request.session_id in self._sessions:
-            self._sessions.remove(request.session_id)
+        if request.session_id in self._sessions.keys():
+            _session = self._sessions.pop(request.session_id)
             logging.info("Session terminated: %s", request.session_id)
             return core_pb2.Response(
                 status=core_pb2.Status(code=core_pb2.OK),
