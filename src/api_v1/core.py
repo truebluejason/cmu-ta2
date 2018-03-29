@@ -221,7 +221,6 @@ class Session(object):
 class Core(core_pb2_grpc.CoreServicer):
     def __init__(self):
         self._sessions = {}
-        self._pipelines = {}
 
     def _new_session_id(self):
         "Returns an identifier string for a new session."
@@ -251,13 +250,25 @@ class Core(core_pb2_grpc.CoreServicer):
     def CreatePipelines(self, request, context):
         logging.info("Message received: CreatePipelines: %s", request)
 
-        if request.context.session_id not in self._sessions:
-            logging.warning("Asked to create pipeline for session % which does not exist", request.context.session_id)
-            return self._response_session_invalid(request.context.session_id, )
+        session_id = request.context.session_id
+        if session_id not in self._sessions:
+            logging.warning("Asked to create pipeline for session %s which does not exist", session_id)
+            return self._response_session_invalid(session_id)
+        session = self._sessions[session_id]
 
-        # Setup pipeline
+        # Setup pipeline specification
         pipeline_id = self._new_pipeline_id()
-        self._pipelines.add(pipeline_id)
+        dataset_uri = request.dataset_uri
+        task_type = request.task
+        # TODO: task_subtype is currently ignored.
+        # TODO: task_description is currently ignored.
+        metrics = request.metrics
+        target_features = request.target_features
+        predict_features = request.predict_features
+        spec = PipelineSpecification(pipeline_id, dataset_uri, task_type, metrics, target_features, predict_features)
+        logging.debug("Starting new problem for session %s", session_id)
+        session.new_problem(spec)
+
         output_file = os.path.join(OUTPUT_ROOT, pipeline_id + ".csv")
         output_uri = "file://" + output_file
         pipeline = core_pb2.Pipeline(
