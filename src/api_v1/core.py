@@ -18,6 +18,8 @@ import os
 import pandas as pd
 from urllib import request as url_request
 
+import util
+
 
 logging.basicConfig(level=logging.INFO)
 
@@ -361,8 +363,7 @@ class Core(core_pb2_grpc.CoreServicer):
             response_info=core_pb2.Response(
                 status=core_pb2.Status(code=core_pb2.OK)
             ),
-            # Sigh, importing the version string is screwy for no apparent reason
-            user_agent="cmu_ta2 0.1",
+            user_agent="cmu_ta2 " + util.__version__,
             version=version,
             context=core_pb2.SessionContext(session_id=session_id),
         )
@@ -376,7 +377,7 @@ class Core(core_pb2_grpc.CoreServicer):
                 status=core_pb2.Status(code=core_pb2.OK),
             )
         else:
-            logging.warn("Client tried to end session %s which does not exist", request.session_id)
+            logging.warning("Client tried to end session %s which does not exist", request.session_id)
             return core_pb2.Response(
                 status=core_pb2.Status(code=core_pb2.SESSION_UNKNOWN),
             )
