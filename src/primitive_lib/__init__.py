@@ -49,15 +49,15 @@ def list_primitives():
 
 class Primitive(object):
     def __init__(self, label):
-        self.__label = label
+        self._label = label
         schema_file = primitive_path_from_label(label)
         with open(schema_file, 'r') as f:
             schema = json.load(f)
-            self.__metadata = metadata.PrimitiveMetadata(schema)
-            try:
-                # Validation appears to never work...
-                self.__metadata._validate()
-                print("Primitive {}: validated".format(self.__metadata.query()['name']))
-            except:
-                pass
+            self._metadata = metadata.PrimitiveMetadata(schema)
+            # try:
+            #     # Validation appears to never work...
+            #     self._metadata._validate()
+            #     print("Primitive {}: validated".format(self._metadata.query()['name']))
+            # except:
+            #     pass
             

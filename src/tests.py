@@ -64,5 +64,18 @@ class TestCore(unittest.TestCase):
             self.assertTrue(response.response_info.status.code == core_pb2.OK)
 
 
+
+import problem
+import core_pb2
+class TestProblemSolver(unittest.TestCase):
+    def test_solution_finding(self):
+        # tasktype = core_pb2.TaskType
+        # print(tasktype.Value('CLASSIFICATION'))
+        # print(type(tasktype.Name(1)))
+        p = problem.ProblemDescription("test", "file:///home/sheath/projects/D3M/cmu-ta3/test-data/185_baseball/TRAIN/dataset_TRAIN/datasetDoc.json", core_pb2.CLASSIFICATION, [], [], [])
+        p.find_solutions()
+
+
+
 if __name__ == '__main__':
     unittest.main()
