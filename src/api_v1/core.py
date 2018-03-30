@@ -18,6 +18,7 @@ import os
 import pandas as pd
 from urllib import request as url_request
 
+import problem
 import util
 
 
@@ -174,28 +175,10 @@ class DatasetSpec(object):
             'about': self.about,
             'dataResources': list(map(lambda spec: spec.to_json_dict(), self.resource_specs))
         }
-
-class PipelineSpecification(object):
-    """
-    Basically a PipelineCreateRequest; it describes a problem to solve.
-    Each Pipeline object is then a possible solution for solving this problem.
-    """
-    def __init__(self, name, dataset_uri, task_type, metrics, target_features, predict_features):
-        self._name = name
-        self._dataset_uri = dataset_uri
-        self._task_type = task_type
-        # TODO
-        # self._task_subtype = ""
-        # Currently undefined, sigh
-        # self._output_type
-        self._evaluation_metrics = metrics
-        self._target_features = target_features
-        self._predict_features = predict_features
-
 class Pipeline(object):
     """
     A single model that is trying to solve a particular problem described
-    by the PipelineSpecification
+    by the ProblemDescription
     """
     def __init__(self, name, spec):
         self._name = name
@@ -209,8 +192,8 @@ class Session(object):
     """
     def __init__(self, name):
         self._name = name
-        # Dict of pipeline_id : pipeline pairs
-        self._pipelines_specifications = {}
+        # Dict of identifier : ProblemDescription pairs
+        self._problems = {}
 
     def new_problem(self, pipeline_spec):
         """
@@ -218,7 +201,7 @@ class Session(object):
         to solve the problem it presents.
         """
         specname = gensym(self._name + "_spec")
-        self._pipelines_specifications[specname] = pipeline_spec
+        self._problems[specname] = pipeline_spec
 
 class Core(core_pb2_grpc.CoreServicer):
     def __init__(self):
@@ -267,7 +250,7 @@ class Core(core_pb2_grpc.CoreServicer):
         metrics = request.metrics
         target_features = request.target_features
         predict_features = request.predict_features
-        spec = PipelineSpecification(pipeline_id, dataset_uri, task_type, metrics, target_features, predict_features)
+        spec = problem.ProblemDescription(pipeline_id, dataset_uri, task_type, metrics, target_features, predict_features)
         logging.debug("Starting new problem for session %s", session_id)
         session.new_problem(spec)
 

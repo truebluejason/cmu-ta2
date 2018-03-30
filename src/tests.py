@@ -49,7 +49,7 @@ class TestCore(unittest.TestCase):
 
         pipeline_request = core_pb2.PipelineCreateRequest(
             context=session.context,
-            dataset_uri="file:///foo",
+            dataset_uri="file:///home/sheath/projects/D3M/cmu-ta3/test-data/185_baseball/TRAIN/dataset_TRAIN/datasetDoc.json",
             task=core_pb2.TASK_TYPE_UNDEFINED,
             task_subtype=core_pb2.TASK_SUBTYPE_UNDEFINED,
             task_description="",
