@@ -33,12 +33,14 @@ class ProblemDescription(object):
 
     def find_solutions(self):
         """
-        First pass at just simply find primtives that match the given problem type.
+        First pass at just simply find primitives that match the given problem type.
         """
         logging.info("Listing prims")
         prims = [primitive_lib.Primitive(p) for p in primitive_lib.list_primitives()]
-        task_name = tasktype = core_pb2.TaskType.Name(self._task_type)
-        for p in prims:
-            if p._metadata.query()['primitive_family'] == task_name:
-                logging.info("Primitive %s has family %s", p._label, task_name)
-            # p._metadata.pretty_print()
+        task_name = core_pb2.TaskType.Name(self._task_type)
+        valid_prims = [
+            p for p in prims
+            if p._metadata.query()['primitive_family'] == task_name
+        ]
+        for p in valid_prims:
+            p._metadata.pretty_print()
