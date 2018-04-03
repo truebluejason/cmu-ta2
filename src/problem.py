@@ -1,9 +1,17 @@
 """
 This should be where everything comes together: Problem descriptions get matched up
 with the available primitives, and a plan for how to create a solution gets made.
+
+    So it needs to:
+    Choose hyperparameters for a primitive
+    Run the primitive
+    Measure the results
+    Feed the results and hyperparameters back into the chooser
 """
 
+import importlib
 
+import d3m.index
 import primitive_lib
 import logging
 import core_pb2
@@ -42,5 +50,64 @@ class ProblemDescription(object):
             p for p in prims
             if p._metadata.query()['primitive_family'] == task_name
         ]
+        prims = d3m.index.search()
         for p in valid_prims:
-            p._metadata.pretty_print()
+            name = p._metadata.query()['name']
+            path = p._metadata.query()['python_path']
+            if path in prims:
+                print(path, "found")
+                p._metadata.pretty_print()
+                prim = prims[path]
+                # Ok, prim is a class constructor.  We need to figure out what its
+                # hyperparameters are, then pass them to it as a dict(more or less;
+                # d3m.metadata.hyperparams.Hyperparams inherits from a dict and
+                # says it should be overridden but nothing seems to do that...)
+                # The metadata schema says what hyperparameters should be there and
+                # what their valid range is.
+                hyperparam_spec = p._metadata.query()['primitive_code']['hyperparams']
+                # aaaaaaa why are Python lambdas so shitty
+                # also JSON can't list 'None' properly apparently.
+                filter_hyperparam = lambda vl: None if vl == 'None' else vl
+                default_hyperparams = {name:filter_hyperparam(vl['default']) for name,vl in hyperparam_spec.items()}
+                prim_instance = prim(hyperparams=default_hyperparams)
+            else:
+                print("Primitive", path, "should be valid but isn't installed")
+
+class SolutionDescription(object):
+    """
+    The counterpart to a `Pipeline` without the protocol detail stuff.
+    A description
+
+    The idea is that this can be evaluated, produce a model and performance metrics,
+    and the hyperparameter tuning can consume that and choose what to do next.
+    """
+
+    def __init__(self, problem_desc):
+        self._problem = problem_desc
+
+    def evaluate(self):
+        """
+        Runs the solution.  Returns two things: a model, and a score.
+        """
+
+
+def install_primitive(prim_metadata):
+    """
+    Very ghetto way of installing primitives, but...
+
+    if there's a nicer method in the d3m package I can't find it.
+    d3m.index is useless 'cause none of the primitives are on `pip`.
+    And it has no way to install things anyway.
+    ...though once things ARE installed, d3m.index.search() Actually Magically Works.
+
+    This will ask for your gitlab password on the console as necessary,
+    which isn't really ideal, but oh well.  Only has to be run once per install.
+    """
+    import subprocess
+    m = prim_metadata.query()
+    for inst in m['installation']:
+        if inst['type'] == 'PIP':
+            print("Can install package", m['name'], "from", inst['package_uri'])
+            subprocess.run(['pip', 'install', inst['package_uri']], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            break
+        print("Can't install package", m['name'])
