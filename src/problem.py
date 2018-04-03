@@ -70,6 +70,26 @@ class ProblemDescription(object):
                 filter_hyperparam = lambda vl: None if vl == 'None' else vl
                 default_hyperparams = {name:filter_hyperparam(vl['default']) for name,vl in hyperparam_spec.items()}
                 prim_instance = prim(hyperparams=default_hyperparams)
+
+
+                print("Hyperparams:", default_hyperparams)
+                # print("Params:", prim_instance.get_params())
+
+                # Here we are with our d3m.primitive_interfaces.PrimitiveBase
+                # Now we have to shove the training data into it...
+                import numpy as np
+                # inputs = self._dataset_uri
+                inputs = np.zeros((10, 10))
+                # outputs = "file:///home/sheath/tmp/output"
+                outputs = np.zeros((10, 26))
+                # whyyyyyyyyyy is this even an option
+                input_spec = p._metadata.query()['primitive_code']['instance_methods']['set_params']
+                prim_instance.set_training_data(inputs=inputs, outputs=outputs)
+                run_inputs = np.zeros((10, 10))
+                prim_instance.fit()
+
+                res = prim_instance.produce(inputs=run_inputs, timeout=1000.0, iterations=1)
+                print("Result is:", res)
             else:
                 print("Primitive", path, "should be valid but isn't installed")
 
