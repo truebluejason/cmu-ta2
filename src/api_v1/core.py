@@ -89,7 +89,7 @@ class TaskClassification(object):
                 predictions,
                 columns=[target.feature_name]
             )
-            predictions_df.to_csv(os.path.join(self.dataset_root, output_path))
+            predictions_df.to_csv(os.path.join(self.dataset_root, "output", output_path))
             break
 
 
