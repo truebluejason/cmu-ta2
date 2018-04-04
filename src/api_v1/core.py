@@ -80,7 +80,8 @@ class TaskClassification(object):
         """
         import random
         import os
-        os.makedirs(self.dataset_root, exist_ok=True)
+        output_subdir = os.path.join(self.dataset_root, "output")
+        os.makedirs(output_subdir, exist_ok=True)
         for target in self.target_features:
             target_column = self.datasets[target.resource_id][target.feature_name]
             # possible_values = list(set(target_column.values))
@@ -89,7 +90,7 @@ class TaskClassification(object):
                 predictions,
                 columns=[target.feature_name]
             )
-            predictions_df.to_csv(os.path.join(self.dataset_root, "output", output_path))
+            predictions_df.to_csv(os.path.join(output_subdir, output_path))
             break
 
 
@@ -275,7 +276,7 @@ class Core(core_pb2_grpc.CoreServicer):
 
         output_file = pipeline_id + ".csv"
         classifier = TaskClassification(request.dataset_uri, request.target_features, request.predict_features)
-        output_uri = "file://" + classifier.dataset_root + "/" + output_file
+        output_uri = "file://" + classifier.dataset_root + "/output/" + output_file
         pipeline = core_pb2.Pipeline(
             predict_result_uri = output_uri,
             output = core_pb2.OUTPUT_TYPE_UNDEFINED,
