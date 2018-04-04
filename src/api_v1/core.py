@@ -50,6 +50,7 @@ class TaskClassification(object):
             self.dataset_root = dataset_path[:filename_start_loc]
 
             self.dataset_spec = DatasetSpec.from_json_str(res, self.dataset_root)
+            logging.info("Task created, outputting to %s", self.dataset_root)
 
         self.resource_specs = {
             resource.res_id:resource for resource in self.dataset_spec.resource_specs
