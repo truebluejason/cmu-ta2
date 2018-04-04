@@ -292,8 +292,8 @@ class Core(core_pb2_grpc.CoreServicer):
                 status=core_pb2.Status(code=core_pb2.OK),
             ),
             progress_info=core_pb2.COMPLETED,
-            pipeline_id=1,
-            result_uri=1,
+            pipeline_id=request.pipeline_id,
+            result_uri="file://TODO, return valid pipeline URI"
         )
         
 
