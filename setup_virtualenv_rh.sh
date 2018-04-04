@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # Not necessarily functional since getting the right version of python3.6 on CentOS is a PITA
 # and there appear to be multiple options.  x_X
