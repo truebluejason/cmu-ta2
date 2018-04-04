@@ -12,4 +12,4 @@ pip install --process-dependency-links git+https://gitlab.com/datadrivendiscover
 pip install --process-dependency-links git+https://gitlab.com/datadrivendiscovery/d3m.git
 pip install docker grpcio-tools grpcio celery sphinx
 
-echo You gotta also install pytorch by hand I think, as well as python36-devel packages
+echo You gotta also install pytorch by hand I think

@@ -17,6 +17,7 @@ import json
 import os
 import pandas as pd
 from urllib import request as url_request
+from urllib import parse as url_parse
 
 import problem
 import util
@@ -37,7 +38,18 @@ class TaskClassification(object):
     def __init__(self, dataset_uri, target_features, predict_features):
         with url_request.urlopen(dataset_uri) as uri:
             res = uri.read()
-            self.dataset_spec = DatasetSpec.from_json_str(res)
+            # We need to pull the file root path out of the dataset
+            # source the TA3 gave us and give it to the DatasetSpec so it
+            # knows where to find the actual files
+            parsed_url = url_parse.urlparse(dataset_uri)
+            assert parsed_url.scheme == 'file'
+            dataset_path = parsed_url.path
+            # Find the last / and chop off any file after it
+            filename_start_loc = dataset_path.rfind('/')
+            assert filename_start_loc > 0
+            path_root = dataset_path[:filename_start_loc]
+
+            self.dataset_spec = DatasetSpec.from_json_str(res, path_root)
 
         self.resource_specs = {
             resource.res_id:resource for resource in self.dataset_spec.resource_specs
@@ -102,18 +114,19 @@ class Column(object):
         }
 
 # TODO: sigh
-DATASET_ROOT = "/home/sheath/projects/D3M/cmu-ta3/test-data/185_baseball/TRAIN/dataset_TRAIN/"
-OUTPUT_ROOT = "/home/sheath/projects/D3M/cmu-ta2/test_output/"
+#DATASET_ROOT = "/home/sheath/projects/D3M/cmu-ta3/test-data/185_baseball/TRAIN/dataset_TRAIN/"
+DATASET_ROOT = "/"
+OUTPUT_ROOT = "test_output/"
 
 class DataResource(object):
-    def __init__(self, res_id, path, type, format, is_collection, columns):
+    def __init__(self, res_id, path, type, format, is_collection, columns, dataset_root):
         self.res_id = res_id
         self.path = path
         self.type = type
         self.format = format
         self.is_collection = is_collection
         self.columns = columns
-        self.full_path = os.path.join(DATASET_ROOT, path)
+        self.full_path = os.path.join(dataset_root, path)
 
     def load(self):
         """
@@ -125,7 +138,7 @@ class DataResource(object):
         return df
 
     @staticmethod
-    def from_json_dict(json_dct):
+    def from_json_dict(json_dct, dataset_root):
         columns = [
             Column.from_json_dict(dct) for dct in json_dct['columns']
         ]
@@ -135,7 +148,8 @@ class DataResource(object):
             json_dct['resType'], 
             json_dct['resFormat'],
             json_dct['isCollection'],
-            columns)
+            columns,
+            dataset_root)
 
     @staticmethod
     def from_json_str(json_str):
@@ -152,23 +166,25 @@ class DataResource(object):
         }
 
 class DatasetSpec(object):
-    def __init__(self, about, resources):
+    def __init__(self, about, resources, root_path):
         self.about = about
         self.resource_specs = resources
+        self.root_path = root_path
 
     @staticmethod
-    def from_json_dict(json_dct):
+    def from_json_dict(json_dct, root_path):
         resources = [
-                DataResource.from_json_dict(dct) for dct in json_dct['dataResources']
+                DataResource.from_json_dict(dct, root_path) for dct in json_dct['dataResources']
             ]
         return DatasetSpec(
             json_dct['about'],
-            resources
+            resources,
+            root_path
         )
     @staticmethod
-    def from_json_str(json_str):
+    def from_json_str(json_str, root_path):
         s = json.loads(json_str)
-        return DatasetSpec.from_json_dict(s)
+        return DatasetSpec.from_json_dict(s, root_path)
 
     def to_json_dict(self):
         return {
