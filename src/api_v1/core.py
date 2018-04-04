@@ -47,9 +47,9 @@ class TaskClassification(object):
             # Find the last / and chop off any file after it
             filename_start_loc = dataset_path.rfind('/')
             assert filename_start_loc > 0
-            path_root = dataset_path[:filename_start_loc]
+            self.dataset_root = dataset_path[:filename_start_loc]
 
-            self.dataset_spec = DatasetSpec.from_json_str(res, path_root)
+            self.dataset_spec = DatasetSpec.from_json_str(res, self.dataset_root)
 
         self.resource_specs = {
             resource.res_id:resource for resource in self.dataset_spec.resource_specs
@@ -74,7 +74,12 @@ class TaskClassification(object):
         return self.dataset_spec.to_json_dict()
 
     def run(self, output_path):
+        """
+        Outputs a CSV file relative to self.dataset_root
+        """
         import random
+        import os
+        os.makedirs(self.dataset_root, exist_ok=True)
         for target in self.target_features:
             target_column = self.datasets[target.resource_id][target.feature_name]
             # possible_values = list(set(target_column.values))
@@ -114,9 +119,6 @@ class Column(object):
         }
 
 # TODO: sigh
-#DATASET_ROOT = "/home/sheath/projects/D3M/cmu-ta3/test-data/185_baseball/TRAIN/dataset_TRAIN/"
-DATASET_ROOT = "/"
-OUTPUT_ROOT = "test_output/"
 
 class DataResource(object):
     def __init__(self, res_id, path, type, format, is_collection, columns, dataset_root):
@@ -270,8 +272,9 @@ class Core(core_pb2_grpc.CoreServicer):
         logging.debug("Starting new problem for session %s", session_id)
         session.new_problem(spec)
 
-        output_file = os.path.join(OUTPUT_ROOT, pipeline_id + ".csv")
-        output_uri = "file://" + output_file
+        output_file = pipeline_id + ".csv"
+        classifier = TaskClassification(request.dataset_uri, request.target_features, request.predict_features)
+        output_uri = "file://" + classifier.dataset_root + "/" + output_file
         pipeline = core_pb2.Pipeline(
             predict_result_uri = output_uri,
             output = core_pb2.OUTPUT_TYPE_UNDEFINED,
@@ -292,9 +295,7 @@ class Core(core_pb2_grpc.CoreServicer):
         yield msg
 
 
-        classifier = TaskClassification(request.dataset_uri, request.target_features, request.predict_features)
         classifier.run(output_file)
-        print(classifier.to_json_dict())
 
         # Return pipeline results
         msg.progress_info = core_pb2.COMPLETED
