@@ -306,10 +306,15 @@ class Core(core_pb2_grpc.CoreServicer):
         msg.progress_info = core_pb2.RUNNING
 
 
-        for pipeline in spec.find_solutions():
+        pipelines = spec.find_solutions()
+        for pipeline in pipelines:
             pipeline.train(dataset_uri)
             yield msg
 
+
+        for pipeline in pipelines:
+            pipeline.evaluate(dataset_uri)
+            yield msg
         # classifier.run(output_file)
 
         # Return pipeline results

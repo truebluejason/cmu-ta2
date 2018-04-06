@@ -182,14 +182,56 @@ class PipelineDescription(object):
         """
         yield self.train_result.has_finished
 
-    def evaluate(self, test_data):
+    def evaluate(self, dataset_spec_uri):
         """
         Runs the solution.  Returns two things: a model, and a score.
         """
+
+        # <<<<<<<<<<<<<<<<<< identical to train() because I have 30 minutes
+        with url_request.urlopen(dataset_spec_uri) as uri:
+            res = uri.read()
+            # We need to pull the file root path out of the dataset
+            # source the TA3 gave us and give it to the DatasetSpec so it
+            # knows where to find the actual files
+            self.dataset_root = core.dataset_uri_path(dataset_spec_uri)
+
+            self.dataset_spec = core.DatasetSpec.from_json_str(res, self.dataset_root)
+            logging.info("Task created, outputting to %s", self.dataset_root)
+
+        self.resource_specs = {
+            resource.res_id:resource for resource in self.dataset_spec.resource_specs
+        }
+
+        self.datasets = {
+            resource.res_id:resource.load() for resource in self.dataset_spec.resource_specs
+        }
+
+        # input_spec = self._metadata.query()['primitive_code']['instance_methods']['set_params']
+        # outputs = "file:///home/sheath/tmp/output"
+        import numpy as np
+        # We have no good way of doign multiple datasets so we just grab the first one
+        (resource_name, test_data) = next(iter(self.datasets.items()))
+        logging.info(resource_name)
+
+        # Okay, you know what?  We're going to throw out any data that isn't numeric.
+        resource_spec = self.resource_specs[resource_name]
+        valid_column_names = [
+            column.col_name for column in resource_spec.columns
+            if column.col_type != 'categorical'
+        ]
+        logging.info("Resource: %s %s", resource_spec.type, valid_column_names)
+        # >>>>>>>>>>>>>>>>>>>>>
+
+        # I guess turn it from a pandas dataframe into a numpy array since that's
+        # what most things expect
+        test_data = test_data[valid_column_names].values
+        print(test_data)
+        # outputs = np.zeros(test_data.shape[0])
+
         assert self.train_result.has_finished
         res = self.primitive.produce(inputs=test_data, timeout=1000.0, iterations=1)
         #print("Result is:", res)
-        print("Done:", res.has_finished)
+        print("TESTING: Done:", res.has_finished)
         print("Iterations:", res.iterations_done)
         print("Value:", res.value)
         self.eval_result = res
