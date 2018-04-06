@@ -63,8 +63,9 @@ class ProblemDescription(object):
             path = p._metadata.query()['python_path']
             if path in prims:
                 print(path, "found")
-                p._metadata.pretty_print()
+                # p._metadata.pretty_print()
                 prim = prims[path]
+                # logging.info("Prim %s can accept: %s", path, prim.can_accept(method_name='fit', arguments={}))
                 # Ok, prim is a class constructor.  We need to figure out what its
                 # hyperparameters are, then pass them to it as a dict(more or less;
                 # d3m.metadata.hyperparams.Hyperparams inherits from a dict and
@@ -85,9 +86,9 @@ class ProblemDescription(object):
                 pipe = PipelineDescription(p._metadata, prim_instance, default_hyperparams)
                 # Here we are with our d3m.primitive_interfaces.PrimitiveBase
                 # Now we have to shove the training data into it...
-                import numpy as np
-                # inputs = self._dataset_uri
-                inputs = np.zeros((10, 10))
+                # import numpy as np
+                # # inputs = self._dataset_uri
+                # inputs = np.zeros((10, 10))
 
                 yield pipe
 
@@ -149,16 +150,25 @@ class PipelineDescription(object):
             resource.res_id:resource.load() for resource in self.dataset_spec.resource_specs
         }
 
-
         # input_spec = self._metadata.query()['primitive_code']['instance_methods']['set_params']
         # outputs = "file:///home/sheath/tmp/output"
         import numpy as np
         outputs = np.zeros((10, 26))
         # We have no good way of doign multiple datasets so we just grab the first one
-        (_resource_name, train_data) = next(iter(self.datasets.items()))
+        (resource_name, train_data) = next(iter(self.datasets.items()))
+        logging.info(resource_name)
+
+        # Okay, you know what?  We're going to throw out any data that isn't numeric.
+        resource_spec = self.resource_specs[resource_name]
+        valid_column_names = [
+            column.col_name for column in resource_spec.columns
+            if column.col_type != 'categorical'
+        ]
+        logging.info("Resource: %s %s", resource_spec.type, valid_column_names)
+
         # I guess turn it from a pandas dataframe into a numpy array since that's
         # what most things expect
-        train_data = train_data.values
+        train_data = train_data[valid_column_names].values
         print(train_data)
         self.primitive.set_training_data(inputs=train_data, outputs=outputs)
         res = self.primitive.fit()
