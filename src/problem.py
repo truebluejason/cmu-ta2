@@ -75,40 +75,78 @@ class ProblemDescription(object):
                 print("Hyperparams:", default_hyperparams)
                 # print("Params:", prim_instance.get_params())
 
+                pipe = PipelineDescription(p._metadata, prim_instance, default_hyperparams)
                 # Here we are with our d3m.primitive_interfaces.PrimitiveBase
                 # Now we have to shove the training data into it...
                 import numpy as np
                 # inputs = self._dataset_uri
                 inputs = np.zeros((10, 10))
-                # outputs = "file:///home/sheath/tmp/output"
-                outputs = np.zeros((10, 26))
-                # whyyyyyyyyyy is this even an option
-                input_spec = p._metadata.query()['primitive_code']['instance_methods']['set_params']
-                prim_instance.set_training_data(inputs=inputs, outputs=outputs)
-                run_inputs = np.zeros((10, 10))
-                prim_instance.fit()
 
-                res = prim_instance.produce(inputs=run_inputs, timeout=1000.0, iterations=1)
-                print("Result is:", res)
+                pipe.train(inputs)
+                pipe.evaluate(inputs)
+                break
             else:
+                #install_primitive(p._metadata)
                 print("Primitive", path, "should be valid but isn't installed")
 
-class SolutionDescription(object):
+class PipelineDescription(object):
     """
-    The counterpart to a `Pipeline` without the protocol detail stuff.
-    A description
+    A wrapper of a primitive instance and hyperparameters, ready to have inputs
+    fed into it.
 
     The idea is that this can be evaluated, produce a model and performance metrics,
     and the hyperparameter tuning can consume that and choose what to do next.
+
+    Output is fairly basic right now; it writes to a single numpy CSV file with a given name
+    based off the results of the primitive (numpy arrays only atm)
     """
 
-    def __init__(self, problem_desc):
-        self._problem = problem_desc
+    def __init__(self, metadata, prim_instance, hyperparams):
+        self._metadata = metadata
+        self.primitive = prim_instance
+        self.hyperparams = hyperparams
+        self.train_result  = "No result yet, call 'fit()'"
+        self.eval_result  = "No result yet, call 'fit()' followed by 'evaluate()'"
 
-    def evaluate(self):
+    def train(self, train_data):
+        """
+        Trains the model.
+        """
+        # set_training_data() apparently sometimes does not take an outputs argument
+        # whyyyyyyyyyy is this even an option
+        # For non-parametric models? I dunno
+        # BUT there is NO gorram way to tell what kind of "outputs" arg it needs; it's an ndarray.
+        # Gee how descriptive, how BIG does it have to be?
+        # Why does it not return a bloody value?
+        input_spec = self._metadata.query()['primitive_code']['instance_methods']['set_params']
+        # outputs = "file:///home/sheath/tmp/output"
+        import numpy as np
+        outputs = np.zeros((10, 26))
+        self.primitive.set_training_data(inputs=train_data, outputs=outputs)
+        res = self.primitive.fit()
+        print("Done:", res.has_finished)
+        print("Iterations:", res.iterations_done)
+        print("Value:", res.value)
+        self.train_result = res
+
+
+    def training_finished(self):
+        """
+        Yields false until the model is finished training, true otherwise.
+        """
+        yield self.fit_result.has_finished
+
+    def evaluate(self, test_data):
         """
         Runs the solution.  Returns two things: a model, and a score.
         """
+        assert self.train_result.has_finished
+        res = self.primitive.produce(inputs=test_data, timeout=1000.0, iterations=1)
+        #print("Result is:", res)
+        print("Done:", res.has_finished)
+        print("Iterations:", res.iterations_done)
+        print("Value:", res.value)
+        self.eval_result = res
 
 
 def install_primitive(prim_metadata):

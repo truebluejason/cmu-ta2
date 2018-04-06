@@ -195,14 +195,6 @@ class DatasetSpec(object):
             'about': self.about,
             'dataResources': list(map(lambda spec: spec.to_json_dict(), self.resource_specs))
         }
-class Pipeline(object):
-    """
-    A single model that is trying to solve a particular problem described
-    by the ProblemDescription
-    """
-    def __init__(self, name, spec):
-        self._name = name
-        self._spec = spec
 
 class Session(object):
     """
