@@ -72,8 +72,9 @@ class TestProblemSolver(unittest.TestCase):
         # tasktype = core_pb2.TaskType
         # print(tasktype.Value('CLASSIFICATION'))
         # print(type(tasktype.Name(1)))
-        p = problem.ProblemDescription("test", "file:///home/sheath/projects/D3M/cmu-ta3/test-data/185_baseball/TRAIN/dataset_TRAIN/datasetDoc.json", core_pb2.CLASSIFICATION, [], [], [])
-        p.find_solutions()
+        p = problem.ProblemDescription("test", "file:///home/sheath/projects/D3M/cmu-ta3/test-data/185_baseball/TRAIN/dataset_TRAIN/datasetDoc.json", "/home/sheath/projects/D3M/cmu-ta3/test-data/185_baseball/output", core_pb2.CLASSIFICATION, [], [], [])
+        for pipeline in p.find_solutions():
+            pipeline.train("file:///home/sheath/projects/D3M/cmu-ta3/test-data/185_baseball/TRAIN/dataset_TRAIN/datasetDoc.json")
 
 
 

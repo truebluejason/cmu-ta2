@@ -16,12 +16,18 @@ import primitive_lib
 import logging
 import core_pb2
 
+from  api_v1 import core
+
+
+from urllib import request as url_request
+from urllib import parse as url_parse
+
 class ProblemDescription(object):
     """
     Basically a PipelineCreateRequest; it describes a problem to solve.
     Each Pipeline object is then a possible solution for solving this problem.
     """
-    def __init__(self, name, dataset_uri, task_type, metrics, target_features, predict_features):
+    def __init__(self, name, dataset_uri, output_dir, task_type, metrics, target_features, predict_features):
         """
         This just takes core_pb2 types, which are not necessarily actually convenient,
         especially since that API is going to change.
@@ -37,6 +43,7 @@ class ProblemDescription(object):
         self._evaluation_metrics = metrics
         self._target_features = target_features
         self._predict_features = predict_features
+        self._output_dir = output_dir
 
 
     def find_solutions(self):
@@ -82,8 +89,10 @@ class ProblemDescription(object):
                 # inputs = self._dataset_uri
                 inputs = np.zeros((10, 10))
 
-                pipe.train(inputs)
-                pipe.evaluate(inputs)
+                yield pipe
+
+                # pipe.train(inputs)
+                # pipe.evaluate(inputs)
                 break
             else:
                 #install_primitive(p._metadata)
@@ -105,10 +114,11 @@ class PipelineDescription(object):
         self._metadata = metadata
         self.primitive = prim_instance
         self.hyperparams = hyperparams
-        self.train_result  = "No result yet, call 'fit()'"
-        self.eval_result  = "No result yet, call 'fit()' followed by 'evaluate()'"
+        self.train_result  = "No result yet, call 'train()'"
+        self.eval_result  = "No result yet, call 'train()' followed by 'evaluate()'"
 
-    def train(self, train_data):
+
+    def train(self, dataset_spec_uri):
         """
         Trains the model.
         """
@@ -118,10 +128,38 @@ class PipelineDescription(object):
         # BUT there is NO gorram way to tell what kind of "outputs" arg it needs; it's an ndarray.
         # Gee how descriptive, how BIG does it have to be?
         # Why does it not return a bloody value?
-        input_spec = self._metadata.query()['primitive_code']['instance_methods']['set_params']
+
+        # This gets all circular with DatasetSpec stuff in here, but forget it.
+
+        with url_request.urlopen(dataset_spec_uri) as uri:
+            res = uri.read()
+            # We need to pull the file root path out of the dataset
+            # source the TA3 gave us and give it to the DatasetSpec so it
+            # knows where to find the actual files
+            self.dataset_root = core.dataset_uri_path(dataset_spec_uri)
+
+            self.dataset_spec = core.DatasetSpec.from_json_str(res, self.dataset_root)
+            logging.info("Task created, outputting to %s", self.dataset_root)
+
+        self.resource_specs = {
+            resource.res_id:resource for resource in self.dataset_spec.resource_specs
+        }
+
+        self.datasets = {
+            resource.res_id:resource.load() for resource in self.dataset_spec.resource_specs
+        }
+
+
+        # input_spec = self._metadata.query()['primitive_code']['instance_methods']['set_params']
         # outputs = "file:///home/sheath/tmp/output"
         import numpy as np
         outputs = np.zeros((10, 26))
+        # We have no good way of doign multiple datasets so we just grab the first one
+        (_resource_name, train_data) = next(iter(self.datasets.items()))
+        # I guess turn it from a pandas dataframe into a numpy array since that's
+        # what most things expect
+        train_data = train_data.values
+        print(train_data)
         self.primitive.set_training_data(inputs=train_data, outputs=outputs)
         res = self.primitive.fit()
         print("Done:", res.has_finished)
@@ -134,7 +172,7 @@ class PipelineDescription(object):
         """
         Yields false until the model is finished training, true otherwise.
         """
-        yield self.fit_result.has_finished
+        yield self.train_result.has_finished
 
     def evaluate(self, test_data):
         """
@@ -151,7 +189,7 @@ class PipelineDescription(object):
 
 def install_primitive(prim_metadata):
     """
-    Very ghetto way of installing primitives, but...
+    Very ghetto way of downloading and installing primitives, but...
 
     if there's a nicer method in the d3m package I can't find it.
     d3m.index is useless 'cause none of the primitives are on `pip`.

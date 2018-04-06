@@ -15,6 +15,7 @@ import logging
 import primitive_lib
 import json
 import os
+import os.path
 import pandas as pd
 from urllib import request as url_request
 from urllib import parse as url_parse
@@ -32,6 +33,18 @@ def gensym(id="gensym"):
     __symbol_idx += 1
     return s
 
+def dataset_uri_path(dataset_uri):
+    """
+    Takes the dataset spec file URI passed as a dataset and returns a path to the directory containing it.
+    """
+    parsed_url = url_parse.urlparse(dataset_uri)
+    assert parsed_url.scheme == 'file'
+    dataset_path = parsed_url.path
+    # Find the last / and chop off any file after it
+    filename_start_loc = dataset_path.rfind('/')
+    assert filename_start_loc > 0
+    return dataset_path[:filename_start_loc]
+
 
 class TaskClassification(object):
     "Simple random classifier that just does the data loading etc."
@@ -41,13 +54,7 @@ class TaskClassification(object):
             # We need to pull the file root path out of the dataset
             # source the TA3 gave us and give it to the DatasetSpec so it
             # knows where to find the actual files
-            parsed_url = url_parse.urlparse(dataset_uri)
-            assert parsed_url.scheme == 'file'
-            dataset_path = parsed_url.path
-            # Find the last / and chop off any file after it
-            filename_start_loc = dataset_path.rfind('/')
-            assert filename_start_loc > 0
-            self.dataset_root = dataset_path[:filename_start_loc]
+            self.dataset_root = dataset_uri_path(dataset_uri)
 
             self.dataset_spec = DatasetSpec.from_json_str(res, self.dataset_root)
             logging.info("Task created, outputting to %s", self.dataset_root)
@@ -119,8 +126,6 @@ class Column(object):
             'colType':self.col_type,
             'role':self.role,
         }
-
-# TODO: sigh
 
 class DataResource(object):
     def __init__(self, res_id, path, type, format, is_collection, columns, dataset_root):
@@ -214,6 +219,11 @@ class Session(object):
         """
         specname = gensym(self._name + "_spec")
         self._problems[specname] = pipeline_spec
+        return specname
+
+
+    def get_problem(self, name):
+        return self._problems[name]
 
 class Core(core_pb2_grpc.CoreServicer):
     def __init__(self):
@@ -262,13 +272,21 @@ class Core(core_pb2_grpc.CoreServicer):
         metrics = request.metrics
         target_features = request.target_features
         predict_features = request.predict_features
-        spec = problem.ProblemDescription(pipeline_id, dataset_uri, task_type, metrics, target_features, predict_features)
-        logging.debug("Starting new problem for session %s", session_id)
-        session.new_problem(spec)
 
+        # We need to tell the TA1 where it can find output
+        dataset_directory = dataset_uri_path(request.dataset_uri)
         output_file = pipeline_id + ".csv"
-        classifier = TaskClassification(request.dataset_uri, request.target_features, request.predict_features)
-        output_uri = "file://" + classifier.dataset_root + "/output/" + output_file
+        output_directory = os.path.join(dataset_directory, "output")
+        output_uri = "file://" + output_directory + "/" + output_file
+
+        spec = problem.ProblemDescription(pipeline_id, dataset_uri, output_directory, task_type, metrics, target_features, predict_features)
+
+        logging.debug("Starting new problem for session %s", session_id)
+        problem_id = session.new_problem(spec)
+
+
+        # classifier = TaskClassification(request.dataset_uri, request.target_features, request.predict_features)
+
         pipeline = core_pb2.Pipeline(
             predict_result_uri = output_uri,
             output = core_pb2.OUTPUT_TYPE_UNDEFINED,
@@ -286,10 +304,13 @@ class Core(core_pb2_grpc.CoreServicer):
 
         # Actually do stuff
         msg.progress_info = core_pb2.RUNNING
-        yield msg
 
 
-        classifier.run(output_file)
+        for pipeline in spec.find_solutions():
+            pipeline.train(dataset_uri)
+            yield msg
+
+        # classifier.run(output_file)
 
         # Return pipeline results
         msg.progress_info = core_pb2.COMPLETED
