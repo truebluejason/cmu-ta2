@@ -92,11 +92,9 @@ class ProblemDescription(object):
 
                 yield pipe
 
-                # pipe.train(inputs)
-                # pipe.evaluate(inputs)
                 break
             else:
-                #install_primitive(p._metadata)
+                # install_primitive(p._metadata)
                 print("Primitive", path, "should be valid but isn't installed")
 
 class PipelineDescription(object):
@@ -153,7 +151,6 @@ class PipelineDescription(object):
         # input_spec = self._metadata.query()['primitive_code']['instance_methods']['set_params']
         # outputs = "file:///home/sheath/tmp/output"
         import numpy as np
-        outputs = np.zeros((10, 26))
         # We have no good way of doign multiple datasets so we just grab the first one
         (resource_name, train_data) = next(iter(self.datasets.items()))
         logging.info(resource_name)
@@ -170,6 +167,7 @@ class PipelineDescription(object):
         # what most things expect
         train_data = train_data[valid_column_names].values
         print(train_data)
+        outputs = np.zeros(train_data.shape[0])
         self.primitive.set_training_data(inputs=train_data, outputs=outputs)
         res = self.primitive.fit()
         print("Done:", res.has_finished)
