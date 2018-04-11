@@ -91,22 +91,15 @@ class ProblemDescription(object):
                 filter_hyperparam = lambda vl: None if vl == 'None' else vl
                 default_hyperparams = {name:filter_hyperparam(vl['default']) for name,vl in hyperparam_spec.items()}
                 prim_instance = prim(hyperparams=default_hyperparams)
-
-
-                print("Hyperparams:", default_hyperparams)
-                # print("Params:", prim_instance.get_params())
-
-                pipe = PipelineDescription(p._metadata, prim_instance, default_hyperparams)
                 # Here we are with our d3m.primitive_interfaces.PrimitiveBase
-                # Now we have to shove the training data into it...
-                # import numpy as np
-                # # inputs = self._dataset_uri
-                # inputs = np.zeros((10, 10))
-
+                # that has its hyperparams in it.
+                # Now we just return that, and the server will start training
+                # and testing it.
+                pipe = PipelineDescription(p._metadata, prim_instance, default_hyperparams)
                 yield pipe
-
-                # break
             else:
+                # Uncomment this to try to just install primitives if they aren't installed.
+                # Be prepared to enter your gitlab password many times.
                 # primitive_lib.install_primitive(p._metadata)
                 print("Primitive", path, "should be valid but isn't installed")
 
