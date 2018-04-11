@@ -65,3 +65,25 @@ class Primitive(object):
             # except:
             #     pass
             
+def install_primitive(prim_metadata):
+    """
+    Very ghetto way of downloading and installing primitives, but...
+
+    Takes a d3m.metadata.base.PrimitiveMetadata object or something
+
+    if there's a nicer method in the d3m package I can't find it.
+    d3m.index is useless 'cause none of the primitives are on `pip`.
+    And it has no way to install things anyway.
+    ...though once things ARE installed, d3m.index.search() Actually Magically Works.
+
+    This will ask for your gitlab password on the console as necessary,
+    which isn't really ideal, but oh well.  Only has to be run once per install.
+    """
+    import subprocess
+    m = prim_metadata.query()
+    for inst in m['installation']:
+        if inst['type'] == 'PIP':
+            print("Can install package", m['name'], "from", inst['package_uri'])
+            subprocess.run(['pip', 'install', inst['package_uri']], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            break
+        print("Can't install package", m['name'])

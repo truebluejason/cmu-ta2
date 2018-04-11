@@ -51,11 +51,24 @@ class ProblemDescription(object):
         First pass at just simply finding primitives that match the given problem type.
         """
         logging.info("Listing prims")
-        prims = [primitive_lib.Primitive(p) for p in primitive_lib.list_primitives()]
+
+        prims = [
+            primitive_lib.Primitive(p) for p in primitive_lib.list_primitives()
+        ]
+
+        # Find which primitives are applicable to the task.
+        # 
+        # The prim metadata is so partial (doesn't even say what actual data types
+        # it can handle, numerical vs. categorical for example) that we're just going
+        # to restrict primitives to ones we've vetted and know work for now.
+        good_prims = [
+            "sklearn.linear_model.logistic.LogisticRegression",
+        ]
         task_name = core_pb2.TaskType.Name(self._task_type)
         valid_prims = [
             p for p in prims
             if p._metadata.query()['primitive_family'] == task_name
+                and p._metadata.query()['name'] in good_prims
         ]
         prims = d3m.index.search()
         for p in valid_prims:
@@ -92,9 +105,9 @@ class ProblemDescription(object):
 
                 yield pipe
 
-                break
+                # break
             else:
-                # install_primitive(p._metadata)
+                # primitive_lib.install_primitive(p._metadata)
                 print("Primitive", path, "should be valid but isn't installed")
 
 class PipelineDescription(object):
@@ -122,13 +135,16 @@ class PipelineDescription(object):
         Trains the model.
         """
         # set_training_data() apparently sometimes does not take an outputs argument
-        # whyyyyyyyyyy is this even an option
+        # whyyyyyyyyyy is that even an option
         # For non-parametric models? I dunno
         # BUT there is NO gorram way to tell what kind of "outputs" arg it needs; it's an ndarray.
         # Gee how descriptive, how BIG does it have to be?
         # Why does it not return a bloody value?
 
-        # This gets all circular with DatasetSpec stuff in here, but forget it.
+        # This gets a little circular with DatasetSpec stuff, unfortunately.
+        # Basically we open the URL the client gives us telling us where the
+        # dataset description file for the train dataset is, load and parse it, then
+        # just grab the first resource it describes and use that.
 
         with url_request.urlopen(dataset_spec_uri) as uri:
             res = uri.read()
@@ -148,13 +164,12 @@ class PipelineDescription(object):
             resource.res_id:resource.load() for resource in self.dataset_spec.resource_specs
         }
 
-        # input_spec = self._metadata.query()['primitive_code']['instance_methods']['set_params']
-        # outputs = "file:///home/sheath/tmp/output"
         import numpy as np
-        # We have no good way of doign multiple datasets so we just grab the first one
+        # We have no good way of doing multiple datasets so we just grab the first one
         (resource_name, train_data) = next(iter(self.datasets.items()))
         logging.info(resource_name)
 
+        # Some primitives don't know how to take categorical data.
         # Okay, you know what?  We're going to throw out any data that isn't numeric.
         resource_spec = self.resource_specs[resource_name]
         valid_column_names = [
@@ -236,24 +251,3 @@ class PipelineDescription(object):
         print("Value:", res.value)
         self.eval_result = res
 
-
-def install_primitive(prim_metadata):
-    """
-    Very ghetto way of downloading and installing primitives, but...
-
-    if there's a nicer method in the d3m package I can't find it.
-    d3m.index is useless 'cause none of the primitives are on `pip`.
-    And it has no way to install things anyway.
-    ...though once things ARE installed, d3m.index.search() Actually Magically Works.
-
-    This will ask for your gitlab password on the console as necessary,
-    which isn't really ideal, but oh well.  Only has to be run once per install.
-    """
-    import subprocess
-    m = prim_metadata.query()
-    for inst in m['installation']:
-        if inst['type'] == 'PIP':
-            print("Can install package", m['name'], "from", inst['package_uri'])
-            subprocess.run(['pip', 'install', inst['package_uri']], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            break
-        print("Can't install package", m['name'])
