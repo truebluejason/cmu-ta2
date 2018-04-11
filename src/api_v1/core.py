@@ -2,11 +2,6 @@
 Implementation of the ta2ta3 API v1 (preprocessing extensions) -- core.proto
 """
 
-# Dataset solution locations expected by TA3:
-# {'dataset_schema': '/home/sheath/projects/D3M/cmu-ta3/test-data/185_baseball/TRAIN/dataset_TRAIN/datasetDoc.json', 'training_data_root': '/home/sheath/projects/D3M/cmu-ta3/test-data/185_baseball/TRAIN/dataset_TRAIN', 'problem_schema': '/home/sheath/projects/D3M/cmu-ta3/test-data/185_baseball/TRAIN/problem_TRAIN/problemDoc.json', 'problem_root': '/home/sheath/projects/D3M/cmu-ta3/test-data/185_baseball/TRAIN/problem_TRAIN', 'pipeline_logs_root': '/home/sheath/projects/D3M/cmu-ta3/test-data/185_baseball/logs', 'executables_root': '/home/sheath/projects/D3M/cmu-ta3/test-data/185_baseball/executables', 'results_root': '/home/sheath/projects/D3M/cmu-ta3/test-data/185_baseball/results', 'temp_storage_root': '/home/sheath/projects/D3M/cmu-ta3/test-data/185_baseball/temp', 'user_problems_root': '/home/sheath/projects/D3M/cmu-ta3/test-data/185_baseball/user_problems', 'timeout': 60, 'cpus': '16', 'ram': '64Gi'}
-# Okay we can just return a file:// URL of predictions, the prediction format 
-# being a CSV file loaded into a pandas DF
-# Expects a column of target_variable_name
 
 
 import core_pb2 as core_pb2
@@ -35,7 +30,8 @@ def gensym(id="gensym"):
 
 def dataset_uri_path(dataset_uri):
     """
-    Takes the dataset spec file URI passed as a dataset and returns a path to the directory containing it.
+    Takes the dataset spec file:// URI passed as a dataset and returns a file 
+    path to the directory containing it.
     """
     parsed_url = url_parse.urlparse(dataset_uri)
     assert parsed_url.scheme == 'file'
@@ -46,62 +42,65 @@ def dataset_uri_path(dataset_uri):
     return dataset_path[:filename_start_loc]
 
 
-class TaskClassification(object):
-    "Simple random classifier that just does the data loading etc."
-    def __init__(self, dataset_uri, target_features, predict_features):
-        with url_request.urlopen(dataset_uri) as uri:
-            res = uri.read()
-            # We need to pull the file root path out of the dataset
-            # source the TA3 gave us and give it to the DatasetSpec so it
-            # knows where to find the actual files
-            self.dataset_root = dataset_uri_path(dataset_uri)
+# class TaskClassification(object):
+#     "Simple random classifier that just does the data loading etc."
+#     def __init__(self, dataset_uri, target_features, predict_features):
+#         with url_request.urlopen(dataset_uri) as uri:
+#             res = uri.read()
+#             # We need to pull the file root path out of the dataset
+#             # source the TA3 gave us and give it to the DatasetSpec so it
+#             # knows where to find the actual files
+#             self.dataset_root = dataset_uri_path(dataset_uri)
 
-            self.dataset_spec = DatasetSpec.from_json_str(res, self.dataset_root)
-            logging.info("Task created, outputting to %s", self.dataset_root)
+#             self.dataset_spec = DatasetSpec.from_json_str(res, self.dataset_root)
+#             logging.info("Task created, outputting to %s", self.dataset_root)
 
-        self.resource_specs = {
-            resource.res_id:resource for resource in self.dataset_spec.resource_specs
-        }
+#         self.resource_specs = {
+#             resource.res_id:resource for resource in self.dataset_spec.resource_specs
+#         }
 
-        self.target_features = target_features
-        self.predict_features = predict_features
+#         self.target_features = target_features
+#         self.predict_features = predict_features
 
-        self.datasets = {
-            resource.res_id:resource.load() for resource in self.dataset_spec.resource_specs
-        }
+#         self.datasets = {
+#             resource.res_id:resource.load() for resource in self.dataset_spec.resource_specs
+#         }
 
-        # Resolve our (resource_name, feature_name) pairs
-        # to (resource_spec, feature_name)
-        # [
-        #     (self.data_resources[feature.resource_id],
-        #      feature.feature_name)
-        #     for feature in predict_features
-        # ]
+#         # Resolve our (resource_name, feature_name) pairs
+#         # to (resource_spec, feature_name)
+#         # [
+#         #     (self.data_resources[feature.resource_id],
+#         #      feature.feature_name)
+#         #     for feature in predict_features
+#         # ]
 
-    def to_json_dict(self):
-        return self.dataset_spec.to_json_dict()
+#     def to_json_dict(self):
+#         return self.dataset_spec.to_json_dict()
 
-    def run(self, output_path):
-        """
-        Outputs a CSV file relative to self.dataset_root
-        """
-        import random
-        import os
-        output_subdir = os.path.join(self.dataset_root, "output")
-        os.makedirs(output_subdir, exist_ok=True)
-        for target in self.target_features:
-            target_column = self.datasets[target.resource_id][target.feature_name]
-            # possible_values = list(set(target_column.values))
-            predictions = random.choices(target_column.values, k=len(target_column))
-            predictions_df = pd.DataFrame(
-                predictions,
-                columns=[target.feature_name]
-            )
-            predictions_df.to_csv(os.path.join(output_subdir, output_path))
-            break
+#     def run(self, output_path):
+#         """
+#         Outputs a CSV file relative to self.dataset_root
+#         """
+#         import random
+#         import os
+#         output_subdir = os.path.join(self.dataset_root, "output")
+#         os.makedirs(output_subdir, exist_ok=True)
+#         for target in self.target_features:
+#             target_column = self.datasets[target.resource_id][target.feature_name]
+#             # possible_values = list(set(target_column.values))
+#             predictions = random.choices(target_column.values, k=len(target_column))
+#             predictions_df = pd.DataFrame(
+#                 predictions,
+#                 columns=[target.feature_name]
+#             )
+#             predictions_df.to_csv(os.path.join(output_subdir, output_path))
+#             break
 
 
 class Column(object):
+    """
+    Metadata for a data column in a resource specification file.
+    """
     def __init__(self, colIndex, colName, colType, role):
         self.col_index = colIndex
         self.col_name = colName
@@ -128,6 +127,9 @@ class Column(object):
         }
 
 class DataResource(object):
+    """
+    Metadata for a resource in a resource specification file.
+    """
     def __init__(self, res_id, path, type, format, is_collection, columns, dataset_root):
         self.res_id = res_id
         self.path = path
@@ -175,6 +177,16 @@ class DataResource(object):
         }
 
 class DatasetSpec(object):
+    """
+    Parser/shortcut methods for a dataset specification file.
+
+    It is a JSON file that contains one or more DataResource's, each of which
+    contains one or more Column's.
+    Basically it is a collection of metadata about a dataset, including where to find
+    the actual data files (relative to its own location).
+    The TA3 client will pass a URI to a dataset spec file as a way of saying which
+    dataset it wants to operate on.
+    """
     def __init__(self, about, resources, root_path):
         self.about = about
         self.resource_specs = resources
@@ -203,7 +215,7 @@ class DatasetSpec(object):
 
 class Session(object):
     """
-    A single Session contains one or more PipelineSpecifications,
+    A single Session contains one or more ProblemDescription's,
     and keeps track of the Pipelines currently being trained to solve
     those problems.
     """
@@ -212,14 +224,14 @@ class Session(object):
         # Dict of identifier : ProblemDescription pairs
         self._problems = {}
 
-    def new_problem(self, pipeline_spec):
+    def new_problem(self, problem_desc):
         """
         Takes a new PipelineSpecification and starts trying
         to solve the problem it presents.
         """
-        specname = gensym(self._name + "_spec")
-        self._problems[specname] = pipeline_spec
-        return specname
+        problem_id = gensym(self._name + "_spec")
+        self._problems[problem_id] = problem_desc
+        return problem_id
 
 
     def get_problem(self, name):
@@ -273,19 +285,25 @@ class Core(core_pb2_grpc.CoreServicer):
         target_features = request.target_features
         predict_features = request.predict_features
 
-        # We need to tell the TA1 where it can find output
+        # We need to tell the TA1 where it can find output,
+        # which will be in a created subdirectory of the dataset URI
+        # This assumes the URI is always file:// but changing that will
+        # be Hard so it's an ok assumption for now.
         dataset_directory = dataset_uri_path(request.dataset_uri)
         output_file = pipeline_id + ".csv"
         output_directory = os.path.join(dataset_directory, "output")
         output_uri = "file://" + output_directory + "/" + output_file
 
+        # We describe a set of related pipelines with a ProblemDescription.
+        # This basically is all the parameters for the problem that the client
+        # wants us to solve, with the idea that it will do whatever metalearning
+        # stuff it wants and then produce a set of PipelineDescription,
+        # where each Pipeline is a particular attempt at solving that problem.
+
         spec = problem.ProblemDescription(pipeline_id, dataset_uri, output_directory, task_type, metrics, target_features, predict_features)
 
         logging.debug("Starting new problem for session %s", session_id)
         problem_id = session.new_problem(spec)
-
-
-        # classifier = TaskClassification(request.dataset_uri, request.target_features, request.predict_features)
 
         pipeline = core_pb2.Pipeline(
             predict_result_uri = output_uri,
@@ -302,9 +320,8 @@ class Core(core_pb2_grpc.CoreServicer):
         )
         yield msg
 
-        # Actually do stuff
+        # Actually ask the problem description to start finding solutions.
         msg.progress_info = core_pb2.RUNNING
-
 
         pipelines = spec.find_solutions()
         for pipeline in pipelines:
@@ -315,7 +332,6 @@ class Core(core_pb2_grpc.CoreServicer):
         for pipeline in pipelines:
             pipeline.evaluate(dataset_uri)
             yield msg
-        # classifier.run(output_file)
 
         # Return pipeline results
         msg.progress_info = core_pb2.COMPLETED
@@ -323,6 +339,7 @@ class Core(core_pb2_grpc.CoreServicer):
 
 
     def ExecutePipeline(self, request, context):
+        "Placeholder."
         logging.info("Message received: ExecutePipelines")
         yield core_pb2.PipelineExecuteResult(
             response_info=core_pb2.Response(
@@ -335,6 +352,7 @@ class Core(core_pb2_grpc.CoreServicer):
         
 
     def ListPipelines(self, request, context):
+        "Placeholder."
         logging.info("Message received: ListPipelines")
         return core_pb2.PipelineListResult(
             response_info = core_pb2.Response(
@@ -344,6 +362,7 @@ class Core(core_pb2_grpc.CoreServicer):
 
 
     def DeletePipelines(self, request, context):
+        "Placeholder."
         logging.info("Message received: DeletePipelines")
         return core_pb2.PipelineListResult(
             response_info = core_pb2.Response(
@@ -354,17 +373,22 @@ class Core(core_pb2_grpc.CoreServicer):
         )
 
     def GetCreatePipelineResults(self, request, context):
+        "Placeholder."
         logging.info("Message received: GetCreatePipelineResults")
         return core_pb2.Response(core_pb2.Status(code=core_pb2.OK))
+
     def GetExecutePipelineResults(self, request, context):
+        "Placeholder."
         logging.info("Message received: GetExecutePipelineResults")
         return core_pb2.Response(core_pb2.Status(code=core_pb2.OK))
 
     def ExportPipeline(self, request, context):
+        "Placeholder."
         logging.info("Message received: ExportPipeline")
         return core_pb2.Response(status=core_pb2.Status(code=core_pb2.OK))
 
     def UpdateProblemSchema(self, request, context):
+        "Placeholder."
         logging.info("Message received: UpdateProblemSchema")
         return core_pb2.Response(core_pb2.Status(code=core_pb2.OK))
 

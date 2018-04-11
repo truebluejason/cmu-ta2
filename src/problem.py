@@ -25,7 +25,7 @@ from urllib import parse as url_parse
 class ProblemDescription(object):
     """
     Basically a PipelineCreateRequest; it describes a problem to solve.
-    Each Pipeline object is then a possible solution for solving this problem.
+    Each PipelineDescription object is then a possible solution for solving this problem.
     """
     def __init__(self, name, dataset_uri, output_dir, task_type, metrics, target_features, predict_features):
         """
@@ -36,7 +36,7 @@ class ProblemDescription(object):
         self._name = name
         self._dataset_uri = dataset_uri
         self._task_type = task_type
-        # TODO
+        # TODO: Currently unused.
         # self._task_subtype = ""
         # Currently undefined, sigh
         # self._output_type
@@ -48,7 +48,7 @@ class ProblemDescription(object):
 
     def find_solutions(self):
         """
-        First pass at just simply find primitives that match the given problem type.
+        First pass at just simply finding primitives that match the given problem type.
         """
         logging.info("Listing prims")
         prims = [primitive_lib.Primitive(p) for p in primitive_lib.list_primitives()]

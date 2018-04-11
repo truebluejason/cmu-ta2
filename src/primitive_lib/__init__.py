@@ -1,5 +1,3 @@
-
-
 """
 A module for importing, validating, enumerating, running etc. primitives.
 
@@ -43,11 +41,17 @@ def list_primitives():
     """
     Returns a list of all primitives, as PrimitiveLabel's.
     """
+    # Not worth caching anything; I checked.
     prim_dir = os.path.join(PRIMITIVES_DIR, PRIMITIVES_VERSION)
-    return [primitive_label_from_str(path) for (path, names, filenames) in os.walk(prim_dir)
+    prims = [primitive_label_from_str(path) for (path, names, filenames) in os.walk(prim_dir)
             if 'primitive.json' in filenames]
+    return prims
 
 class Primitive(object):
+    """
+    A loader that mainly just contains primitive metadata.
+    Eventually it should be able to do more useful things too.
+    """
     def __init__(self, label):
         self._label = label
         schema_file = primitive_path_from_label(label)
@@ -55,7 +59,7 @@ class Primitive(object):
             schema = json.load(f)
             self._metadata = metadata.PrimitiveMetadata(schema)
             # try:
-            #     # Validation appears to never work...
+            #     # Validation appears to never work, so don't bother trying.
             #     self._metadata._validate()
             #     print("Primitive {}: validated".format(self._metadata.query()['name']))
             # except:
