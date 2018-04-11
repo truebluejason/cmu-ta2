@@ -161,7 +161,7 @@ class PipelineDescription(object):
             column.col_name for column in resource_spec.columns
             if column.col_type != 'categorical'
         ]
-        logging.info("Resource: %s %s", resource_spec.type, valid_column_names)
+        # logging.info("Resource: %s %s", resource_spec.type, valid_column_names)
 
         # I guess turn it from a pandas dataframe into a numpy array since that's
         # what most things expect
@@ -170,7 +170,7 @@ class PipelineDescription(object):
         outputs = np.zeros(train_data.shape[0])
         self.primitive.set_training_data(inputs=train_data, outputs=outputs)
         res = self.primitive.fit()
-        print("Done:", res.has_finished)
+        print("TRAINING Done:", res.has_finished)
         print("Iterations:", res.iterations_done)
         print("Value:", res.value)
         self.train_result = res
