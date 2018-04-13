@@ -56,13 +56,16 @@ class ProblemDescription(object):
             primitive_lib.Primitive(p) for p in primitive_lib.list_primitives()
         ]
 
+        # for p in prims:
+        #     print(p._metadata.query()['name'])
         # Find which primitives are applicable to the task.
         # 
         # The prim metadata is so partial (doesn't even say what actual data types
         # it can handle, numerical vs. categorical for example) that we're just going
         # to restrict primitives to ones we've vetted and know work for now.
         good_prims = [
-            "sklearn.linear_model.logistic.LogisticRegression",
+            # "sklearn.linear_model.logistic.LogisticRegression",
+            "sklearn.svm.classes.SVC",
         ]
         task_name = core_pb2.TaskType.Name(self._task_type)
         valid_prims = [
@@ -162,21 +165,58 @@ class PipelineDescription(object):
         (resource_name, train_data) = next(iter(self.datasets.items()))
         logging.info(resource_name)
 
-        # Some primitives don't know how to take categorical data.
-        # Okay, you know what?  We're going to throw out any data that isn't numeric.
+
+        # valid_column_names = [
+        #     column.col_name for column in resource_spec.columns
+        #     if column.col_type != 'categorical'
+        # ]
+
+        # Also filter out NaN's since pandas uses them for missing values.
+        # TODO: Right now we replace them with 0, which is not often what we want...
+        train_data.fillna(0, inplace=True)
+
+        # Some primitives don't know how to take string type data
+        # so we convert categorical to int's
         resource_spec = self.resource_specs[resource_name]
-        valid_column_names = [
-            column.col_name for column in resource_spec.columns
-            if column.col_type != 'categorical'
-        ]
+        # Convert categorical stuff from strings to category's
+        for column in resource_spec.columns:
+            if column.col_type == 'categorical':
+                name = column.col_name
+                train_data[name] = train_data[name].astype('category')
+                train_data[name] = train_data[name].cat.codes
+        # print(valid_column_names)
         # logging.info("Resource: %s %s", resource_spec.type, valid_column_names)
 
         # I guess turn it from a pandas dataframe into a numpy array since that's
         # what most things expect
-        train_data = train_data[valid_column_names].values
-        print(train_data)
+        # train_data = train_data[valid_column_names].values
+        # train_data_array = train_data.values
+
+
+        all_columns = [
+            column.col_name for column in resource_spec.columns
+        ]
+
+        label_columns = [
+            column.col_name for column in resource_spec.columns
+            if 'suggestedTarget' in column.role
+        ]
+
+        data_columns = [
+            column.col_name for column in resource_spec.columns
+            if 'suggestedTarget' not in column.role
+        ]
+
+        inputs = train_data[data_columns].values
+        labels = train_data[label_columns].values
+
+        # print("inputs isnan?", np.any(np.isnan(inputs)))
+        # print("labels isnan?", np.any(np.isnan(labels)))
+
+        print(inputs)
+        print(labels)
         outputs = np.zeros(train_data.shape[0])
-        self.primitive.set_training_data(inputs=train_data, outputs=outputs)
+        self.primitive.set_training_data(inputs=inputs, outputs=labels)
         res = self.primitive.fit()
         print("TRAINING Done:", res.has_finished)
         print("Iterations:", res.iterations_done)

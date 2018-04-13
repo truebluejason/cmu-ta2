@@ -8,6 +8,9 @@ import core_pb2_grpc as core_pb2_grpc
 from concurrent import futures
 import grpc
 
+import util
+import bo
+
 
 
 class TestCore(unittest.TestCase):
@@ -77,12 +80,12 @@ class TestProblemSolver(unittest.TestCase):
             pipeline.train("file:///home/sheath/projects/D3M/cmu-ta3/test-data/185_baseball/TRAIN/dataset_TRAIN/datasetDoc.json")
             pipeline.evaluate("file:///home/sheath/projects/D3M/cmu-ta3/test-data/185_baseball/TEST/dataset_TEST/datasetDoc.json")
 
-            import numpy as np
-            import bo
-            from bo.utils.function_caller import get_function_caller_from_function
+            # import numpy as np
+            # import bo
+            # from bo.utils.function_caller import get_function_caller_from_function
 
-            domain_bounds = np.array([])
-            caller = get_function_caller_from_function(pipeline.evaluate, domain_bounds, False)
+            # domain_bounds = np.array([])
+            # caller = get_function_caller_from_function(pipeline.evaluate, domain_bounds, False)
             # need domain bounds, hyperparameter bounds
 
 
