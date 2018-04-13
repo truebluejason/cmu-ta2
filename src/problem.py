@@ -64,8 +64,7 @@ class ProblemDescription(object):
         # it can handle, numerical vs. categorical for example) that we're just going
         # to restrict primitives to ones we've vetted and know work for now.
         good_prims = [
-            # "sklearn.linear_model.logistic.LogisticRegression",
-            "sklearn.svm.classes.SVC",
+            "sklearn.linear_model.logistic.LogisticRegression",
         ]
         task_name = core_pb2.TaskType.Name(self._task_type)
         valid_prims = [
@@ -106,6 +105,7 @@ class ProblemDescription(object):
                 # primitive_lib.install_primitive(p._metadata)
                 print("Primitive", path, "should be valid but isn't installed")
 
+
 class PipelineDescription(object):
     """
     A wrapper of a primitive instance and hyperparameters, ready to have inputs
@@ -126,21 +126,12 @@ class PipelineDescription(object):
         self.eval_result  = "No result yet, call 'train()' followed by 'evaluate()'"
 
 
-    def train(self, dataset_spec_uri):
-        """
-        Trains the model.
-        """
-        # set_training_data() apparently sometimes does not take an outputs argument
-        # whyyyyyyyyyy is that even an option
-        # For non-parametric models? I dunno
-        # BUT there is NO gorram way to tell what kind of "outputs" arg it needs; it's an ndarray.
-        # Gee how descriptive, how BIG does it have to be?
-        # Why does it not return a bloody value?
+    def _load_dataset(self, dataset_spec_uri):
+        """Loads a dataset spec URI and does all the annoying
+        preprocessing that needs to be done.
 
-        # This gets a little circular with DatasetSpec stuff, unfortunately.
-        # Basically we open the URL the client gives us telling us where the
-        # dataset description file for the train dataset is, load and parse it, then
-        # just grab the first resource it describes and use that.
+        Returns two numpy arrays: (inputs, labels)
+        """
 
         with url_request.urlopen(dataset_spec_uri) as uri:
             res = uri.read()
@@ -209,13 +200,16 @@ class PipelineDescription(object):
 
         inputs = train_data[data_columns].values
         labels = train_data[label_columns].values
+        return (inputs, labels)
 
-        # print("inputs isnan?", np.any(np.isnan(inputs)))
-        # print("labels isnan?", np.any(np.isnan(labels)))
+    def train(self, dataset_spec_uri):
+        """
+        Trains the model.
+        """
 
-        print(inputs)
-        print(labels)
-        outputs = np.zeros(train_data.shape[0])
+        (inputs, labels) = self._load_dataset(dataset_spec_uri)
+
+
         self.primitive.set_training_data(inputs=inputs, outputs=labels)
         res = self.primitive.fit()
         print("TRAINING Done:", res.has_finished)
@@ -234,50 +228,9 @@ class PipelineDescription(object):
         """
         Runs the solution.  Returns two things: a model, and a score.
         """
-
-        # <<<<<<<<<<<<<<<<<< identical to train() because I have 30 minutes
-        with url_request.urlopen(dataset_spec_uri) as uri:
-            res = uri.read()
-            # We need to pull the file root path out of the dataset
-            # source the TA3 gave us and give it to the DatasetSpec so it
-            # knows where to find the actual files
-            self.dataset_root = core.dataset_uri_path(dataset_spec_uri)
-
-            self.dataset_spec = core.DatasetSpec.from_json_str(res, self.dataset_root)
-            logging.info("Task created, outputting to %s", self.dataset_root)
-
-        self.resource_specs = {
-            resource.res_id:resource for resource in self.dataset_spec.resource_specs
-        }
-
-        self.datasets = {
-            resource.res_id:resource.load() for resource in self.dataset_spec.resource_specs
-        }
-
-        # input_spec = self._metadata.query()['primitive_code']['instance_methods']['set_params']
-        # outputs = "file:///home/sheath/tmp/output"
-        import numpy as np
-        # We have no good way of doign multiple datasets so we just grab the first one
-        (resource_name, test_data) = next(iter(self.datasets.items()))
-        logging.info(resource_name)
-
-        # Okay, you know what?  We're going to throw out any data that isn't numeric.
-        resource_spec = self.resource_specs[resource_name]
-        valid_column_names = [
-            column.col_name for column in resource_spec.columns
-            if column.col_type != 'categorical'
-        ]
-        logging.info("Resource: %s %s", resource_spec.type, valid_column_names)
-        # >>>>>>>>>>>>>>>>>>>>>
-
-        # I guess turn it from a pandas dataframe into a numpy array since that's
-        # what most things expect
-        test_data = test_data[valid_column_names].values
-        print(test_data)
-        # outputs = np.zeros(test_data.shape[0])
-
+        (inputs, _labels) = self._load_dataset(dataset_spec_uri)
         assert self.train_result.has_finished
-        res = self.primitive.produce(inputs=test_data, timeout=1000.0, iterations=1)
+        res = self.primitive.produce(inputs=inputs, timeout=1000.0, iterations=1)
         #print("Result is:", res)
         print("TESTING: Done:", res.has_finished)
         print("Iterations:", res.iterations_done)
