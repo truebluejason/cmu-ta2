@@ -12,7 +12,9 @@ class TestEnumeration(unittest.TestCase):
     def test_list(self):
         prims = list_primitives()
         # for p in prims:
-        #     print(p)
+        #     prim = Primitive(p)
+            # print(prim)
+            # install_primitive(prim._metadata)
         target_label = PrimitiveLabel(team='JPL', module='d3m.primitives.sklearn_wrap.SKRandomForestRegressor', version='0.1.0')
         self.assertIn(target_label, prims)
 
@@ -25,5 +27,7 @@ class TestEnumeration(unittest.TestCase):
         for label in prims:
             Primitive(label)
         
+
+
 if __name__ == '__main__':
     unittest.main()

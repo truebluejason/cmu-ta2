@@ -9,8 +9,9 @@ import collections
 import json
 import d3m.metadata.base as metadata
 
-PRIMITIVES_DIR = "../../primitives_repo"
-PRIMITIVES_VERSION = "v2018.1.26"
+PRIMITIVES_DIR = "../primitives_repo"
+# PRIMITIVES_VERSION = "v2018.1.26"
+PRIMITIVES_VERSION = "v2018.4.18"
 
 PrimitiveLabel = collections.namedtuple('PrimitiveLabel', ['team', 'module', 'version'])
 
@@ -43,6 +44,7 @@ def list_primitives():
     """
     # Not worth caching anything; I checked.
     prim_dir = os.path.join(PRIMITIVES_DIR, PRIMITIVES_VERSION)
+    # print(os.path.abspath(prim_dir))
     prims = [primitive_label_from_str(path) for (path, names, filenames) in os.walk(prim_dir)
             if 'primitive.json' in filenames]
     return prims
@@ -78,6 +80,8 @@ def install_primitive(prim_metadata):
 
     This will ask for your gitlab password on the console as necessary,
     which isn't really ideal, but oh well.  Only has to be run once per install.
+
+    TODO: make it not re-install packages that already exist
     """
     import subprocess
     m = prim_metadata.query()

@@ -103,7 +103,7 @@ class ProblemDescription(object):
             else:
                 # Uncomment this to try to just install primitives if they aren't installed.
                 # Be prepared to enter your gitlab password many times.
-                # primitive_lib.install_primitive(p._metadata)
+                primitive_lib.install_primitive(p._metadata)
                 print("Primitive", path, "should be valid but isn't installed")
 
 
