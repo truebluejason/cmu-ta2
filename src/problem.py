@@ -15,6 +15,7 @@ import d3m.index
 import primitive_lib
 import logging
 import core_pb2
+import pandas as pd
 
 from  api_v1 import core
 
@@ -156,12 +157,6 @@ class PipelineDescription(object):
         (resource_name, train_data) = next(iter(self.datasets.items()))
         logging.info(resource_name)
 
-
-        # valid_column_names = [
-        #     column.col_name for column in resource_spec.columns
-        #     if column.col_type != 'categorical'
-        # ]
-
         # Also filter out NaN's since pandas uses them for missing values.
         # TODO: Right now we replace them with 0, which is not often what we want...
         train_data.fillna(0, inplace=True)
@@ -175,18 +170,6 @@ class PipelineDescription(object):
                 name = column.col_name
                 train_data[name] = train_data[name].astype('category')
                 train_data[name] = train_data[name].cat.codes
-        # print(valid_column_names)
-        # logging.info("Resource: %s %s", resource_spec.type, valid_column_names)
-
-        # I guess turn it from a pandas dataframe into a numpy array since that's
-        # what most things expect
-        # train_data = train_data[valid_column_names].values
-        # train_data_array = train_data.values
-
-
-        all_columns = [
-            column.col_name for column in resource_spec.columns
-        ]
 
         label_columns = [
             column.col_name for column in resource_spec.columns
@@ -198,8 +181,8 @@ class PipelineDescription(object):
             if 'suggestedTarget' not in column.role
         ]
 
-        inputs = train_data[data_columns].values
-        labels = train_data[label_columns].values
+        inputs = train_data[data_columns]
+        labels = train_data[label_columns]
         return (inputs, labels)
 
     def train(self, dataset_spec_uri):
@@ -208,9 +191,7 @@ class PipelineDescription(object):
         """
 
         (inputs, labels) = self._load_dataset(dataset_spec_uri)
-
-
-        self.primitive.set_training_data(inputs=inputs, outputs=labels)
+        self.primitive.set_training_data(inputs=inputs.values, outputs=labels.values)
         res = self.primitive.fit()
         print("TRAINING Done:", res.has_finished)
         print("Iterations:", res.iterations_done)
@@ -230,10 +211,19 @@ class PipelineDescription(object):
         """
         (inputs, _labels) = self._load_dataset(dataset_spec_uri)
         assert self.train_result.has_finished
-        res = self.primitive.produce(inputs=inputs, timeout=1000.0, iterations=1)
+        res = self.primitive.produce(inputs=inputs.values, timeout=1000.0, iterations=1)
         #print("Result is:", res)
         print("TESTING: Done:", res.has_finished)
         print("Iterations:", res.iterations_done)
         print("Value:", res.value)
+        
         self.eval_result = res
+
+        # GREAT now we need to actually measure the results.
+        # This means loading the source data and pulling things out of 
+        # it by index, I guess.
+        # print()
+        
+        inputs['prediction'] = pd.Series(res.value)
+        print(inputs[['d3mIndex', 'prediction']])
 
