@@ -1,7 +1,10 @@
-from registry.gitlab.com/datadrivendiscovery/images/base:ubuntu-artful-python36
+from registry.datadrivendiscovery.org/jpl/docker_images/complete:ubuntu-xenial-python36-v2018.1.26-20180515-235715
 maintainer "Donghan Wang<donghanw@cs.cmu.edu>, Simon Heath <sheath@andrew.cmu.edu>"
 
 user root
+
+RUN apt-get update
+RUN apt-get install -y libcurl4-openssl-dev # for pycurl
 
 run pip3 install --upgrade pip
 run pip3 install --process-dependency-links git+https://gitlab.com/datadrivendiscovery/primitive-interfaces.git
@@ -11,7 +14,6 @@ run pip3 install --process-dependency-links git+https://gitlab.com/datadrivendis
 RUN pip3 install --upgrade grpcio grpcio-tools
 
 # Install fortran, a bayesian_optimization dependency
-RUN apt-get update
 RUN apt-get install -y gfortran
 
 # Install bayesian_optimiaztion
