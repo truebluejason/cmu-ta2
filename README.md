@@ -90,7 +90,7 @@ cd /home/sheath/projects/D3M/cmu-ta2
 Now we can hit "start session" in the thing and, lo and behold, it actually talks to our TA2!  Magic.
 
 # Building docker image
-Prerequists:
+Prerequisites:
 1. [Install docker](https://docs.docker.com/install/).
     1. Check docker ```docker --version```
 1. Create a [Gitlab access token](https://docs.gitlab.com/ee/user/profile/personal_access_tokens.html) for your Gitlab account
