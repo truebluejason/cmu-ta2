@@ -95,7 +95,7 @@ Prerequisites:
     1. Check docker ```docker --version```
 1. [For building docker] Create a [Gitlab access token](https://docs.gitlab.com/ee/user/profile/personal_access_tokens.html) for your Gitlab account
     1. Use ```read_repository``` for ```scope```
-    1. This is used to clone the repository--[bayesian_optimization](https://gitlab.datadrivendiscovery.org/sray/bayesian_optimization) during the docker image creation
+    1. This is used to clone the repository--[bayesian_optimization](https://gitlab.datadrivendiscovery.org/sray/bayesian_optimization)--during the docker image creation
 
 Run all commands as root.
 
