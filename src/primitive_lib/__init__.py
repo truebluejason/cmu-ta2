@@ -9,7 +9,7 @@ import collections
 import json
 import d3m.metadata.base as metadata
 
-PRIMITIVES_DIR = "../primitives_repo"
+PRIMITIVES_DIR = "/home/sray/DARPA-D3M-newrepo/cmu-ta2_original/primitives_repo"
 # PRIMITIVES_VERSION = "v2018.1.26"
 PRIMITIVES_VERSION = "v2018.4.18"
 
@@ -44,6 +44,7 @@ def list_primitives():
     """
     # Not worth caching anything; I checked.
     prim_dir = os.path.join(PRIMITIVES_DIR, PRIMITIVES_VERSION)
+    print("Prim dir:", prim_dir)
     # print(os.path.abspath(prim_dir))
     prims = [primitive_label_from_str(path) for (path, names, filenames) in os.walk(prim_dir)
             if 'primitive.json' in filenames]
