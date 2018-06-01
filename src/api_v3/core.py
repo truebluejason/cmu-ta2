@@ -8,6 +8,8 @@ import core_pb2 as core_pb2
 import core_pb2_grpc as core_pb2_grpc
 import value_pb2 as value_pb2
 import value_pb2_grpc as value_pb2_grpc
+import primitive_pb2 as primitive_pb2
+import primitive_pb2_grpc as primitive_pb2_grpc
 import logging
 import primitive_lib
 import json
@@ -37,6 +39,7 @@ def dataset_uri_path(dataset_uri):
     path to the directory containing it.
     """
     parsed_url = url_parse.urlparse(dataset_uri)
+    print(parsed_url.scheme)
     assert parsed_url.scheme == 'file'
     dataset_path = parsed_url.path
     # Find the last / and chop off any file after it
@@ -202,23 +205,6 @@ class Core(core_pb2_grpc.CoreServicer):
         "Returns an identifier string for a new pipeline."
         return gensym("pipeline")
 
-    def _response_session_invalid(self, session_id):
-        "Returns a message that the given session does not exist"
-        pipeline = core_pb2.Pipeline(
-            predict_result_uri = "invalid",
-            output = core_pb2.OUTPUT_TYPE_UNDEFINED,
-            scores = []
-        )
-        msg = core_pb2.PipelineCreateResult(
-            response_info=core_pb2.Response(
-                status=core_pb2.Status(code=core_pb2.SESSION_UNKNOWN),
-            ),
-            progress_info=core_pb2.ERRORED,
-            pipeline_id="invalid",
-            pipeline_info=pipeline
-        )
-        return msg
-    
     def evaluate_solution(task):
         score = task['solution'].score_solution(task['X'], task['y'], -1)
         return score
@@ -233,14 +219,13 @@ class Core(core_pb2_grpc.CoreServicer):
 
         problem = request.problem
         template = request.template
-
+        task_name = problem.task_type
         solutions = []
         self._search_solutions[search_id_str] = solutions
 
-        for ip in problem.inputs:
-            dataset_id = ip.dataset_id
+        for ip in request.inputs:
+            dataset_id = ip
             dataset_directory = dataset_uri_path(dataset_id)
-            task_name = problem.task_type
             (X, y) = problem.load_dataset(dataset_directory)
 
             for p in self._primitives:
@@ -374,8 +359,8 @@ class Core(core_pb2_grpc.CoreServicer):
 
         primitives = []
         for p in self._primitives:
-            primtives.append(Primitive(id=p.id, version=p.version, python_path=p.python_module, name=p.name, digest=None))
-        return core_pb2.ListPrimitivesResponse(primitives)
+            primitives.append(primitive_pb2.Primitive(id=p.id, version=p.version, python_path=p.python_path, name=p.name, digest=None))
+        return core_pb2.ListPrimitivesResponse(primitives=primitives)
 
     def Hello(self, request, context):
         logging.info("Message received: Hello")
