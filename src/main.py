@@ -19,6 +19,7 @@ def main():
     server_string = '{}:{}'.format(TA2_API_HOST, TA2_API_PORT)
     server.add_insecure_port(server_string)
     logging.info("Starting server on %s", server_string)
+    #prims = primitive_lib.list_primitives()
     server.start()
     logging.info("Server started, waiting.")
     try:

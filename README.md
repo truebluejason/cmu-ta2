@@ -88,3 +88,46 @@ cd /home/sheath/projects/D3M/cmu-ta2
 ```
 
 Now we can hit "start session" in the thing and, lo and behold, it actually talks to our TA2!  Magic.
+
+# Building docker image
+Prerequisites:
+1. [Install docker](https://docs.docker.com/install/).
+    1. Check docker ```docker --version```
+1. [For building docker] Create a [Gitlab access token](https://docs.gitlab.com/ee/user/profile/personal_access_tokens.html) for your Gitlab account
+    1. Use ```read_repository``` for ```scope```
+    1. This is used to clone the repository--[bayesian_optimization](https://gitlab.datadrivendiscovery.org/sray/bayesian_optimization)--during the docker image creation
+
+Run all commands as root.
+
+## Create a docker image
+Create a docker image by running the following command
+```bash
+docker build -t registry.datadrivendiscovery.org/sheath/cmu-ta2 . --build-arg gitlab_token=<access_token> --build-arg gitlab_user=<user>
+```
+where ```<access_token>``` is the Gitlab access token, 
+and ```<user>``` is your Gitlab account.
+
+This creates an image--```cmu-ta2```--in your machine’s local Docker image registry.
+
+List docker images:
+```bash
+docker image ls
+```
+
+Finally, push the image to the D3M registory
+```bash
+docker push registry.datadrivendiscovery.org/sheath/cmu-ta2
+```
+
+## Pull the docker image from the D3M registory
+```bash
+docker push registry.datadrivendiscovery.org/sheath/cmu-ta2
+```
+
+## Run the docker image
+Run the docker image, mapping your machine’s port 45042 to the container’s published port 45042 using ```-p```
+```bash
+docker run -i -t \
+-p 45042:45042
+docker push registry.datadrivendiscovery.org/sheath/cmu-ta2
+```

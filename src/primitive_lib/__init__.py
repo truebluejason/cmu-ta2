@@ -1,7 +1,5 @@
 """
 A module for importing, validating, enumerating, running etc. primitives.
-
-The primitives themselves can be attained from https://gitlab.datadrivendiscovery.org/jpl/primitives_repo.git
 """
 
 import d3m.index
@@ -16,18 +14,17 @@ def list_primitives():
     primcs = [PrimitiveClass(pc.metadata, pc) for p,pc in prims.items()]
     
     #(X, y) = problem.load_dataset("file:///home/sray/DARPA_D3M/185_baseball/TRAIN/dataset_TRAIN/datasetDoc.json")
-
     #for p in primcs:
         #if p.name == 'sklearn.ensemble.weight_boosting.AdaBoostClassifier':
-        #    continue
+            #continue
         #if p.name == 'sklearn.ensemble.gradient_boosting.GradientBoostingClassifier':
-        #    continue
+            #continue
 
         #if p._metadata.query()['primitive_family'] == "CLASSIFICATION":
-        #    print(p.python_path)
-        #    pipe = problem.SolutionDescription(p._metadata, p.classname, None)
-        #    score = pipe.score_solution(X, y, -1)
-        #    print(score)
+            #print(p.python_path)
+            #pipe = problem.SolutionDescription(p._metadata, p.classname, None)
+            #score = pipe.score_solution(X, y, -1)
+            #print(score)
     return primcs
 
 class PrimitiveClass(object):

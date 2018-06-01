@@ -276,7 +276,6 @@ class Core(core_pb2_grpc.CoreServicer):
         session = self._sessions[session_id]
 
         # Setup pipeline specification
-        pipeline_id = self._new_pipeline_id()
         dataset_uri = request.dataset_uri
         task_type = request.task
         # TODO: task_subtype is currently ignored.
@@ -290,9 +289,7 @@ class Core(core_pb2_grpc.CoreServicer):
         # This assumes the URI is always file:// but changing that will
         # be Hard so it's an ok assumption for now.
         dataset_directory = dataset_uri_path(request.dataset_uri)
-        output_file = pipeline_id + ".csv"
         output_directory = os.path.join(dataset_directory, "output")
-        output_uri = "file://" + output_directory + "/" + output_file
 
         # We describe a set of related pipelines with a ProblemDescription.
         # This basically is all the parameters for the problem that the client
@@ -300,42 +297,39 @@ class Core(core_pb2_grpc.CoreServicer):
         # stuff it wants and then produce a set of PipelineDescription,
         # where each Pipeline is a particular attempt at solving that problem.
 
-        spec = problem.ProblemDescription(pipeline_id, dataset_uri, output_directory, task_type, metrics, target_features, predict_features)
+        spec = problem.ProblemDescription(session_id, dataset_uri, output_directory, task_type, metrics, target_features, predict_features)
 
-        logging.debug("Starting new problem for session %s", session_id)
+        logging.info("Starting new problem for session %s", session_id)
         problem_id = session.new_problem(spec)
 
-        pipeline = core_pb2.Pipeline(
-            predict_result_uri = output_uri,
-            output = core_pb2.OUTPUT_TYPE_UNDEFINED,
-            scores = []
-        )
-        msg = core_pb2.PipelineCreateResult(
-            response_info=core_pb2.Response(
-                status=core_pb2.Status(code=core_pb2.OK),
-            ),
-            progress_info=core_pb2.SUBMITTED,
-            pipeline_id=pipeline_id,
-            pipeline_info=pipeline
-        )
-        yield msg
-
-        # Actually ask the problem description to start finding solutions.
-        msg.progress_info = core_pb2.RUNNING
-
-        pipelines = spec.find_solutions()
+        pipelines = spec.find_solutions(dataset_uri)
         for pipeline in pipelines:
+            pipeline_id = self._new_pipeline_id()
+            output_file = pipeline_id + ".csv"
+            output_uri = "file://" + output_directory + "/" + output_file
+            pb2_pipeline = core_pb2.Pipeline(
+                predict_result_uri = output_uri,
+                output = core_pb2.OUTPUT_TYPE_UNDEFINED,
+                scores = []
+            )
+            msg = core_pb2.PipelineCreateResult(
+                response_info=core_pb2.Response(
+                    status=core_pb2.Status(code=core_pb2.OK),
+                ),
+                progress_info=core_pb2.SUBMITTED,
+                pipeline_id=pipeline_id,
+                pipeline_info=pb2_pipeline
+            )
+            yield msg
+    
+            # Actually ask the problem description to start finding solutions.
+            msg.progress_info = core_pb2.RUNNING
+
             pipeline.train(dataset_uri)
             yield msg
-
-
-        for pipeline in pipelines:
-            pipeline.evaluate(dataset_uri)
+            pipeline.evaluate(dataset_uri, os.path.join(output_directory, output_file), target_features)
+            msg.progress_info = core_pb2.COMPLETED
             yield msg
-
-        # Return pipeline results
-        msg.progress_info = core_pb2.COMPLETED
-        yield msg
 
 
     def ExecutePipeline(self, request, context):
