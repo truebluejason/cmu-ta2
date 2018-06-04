@@ -27,18 +27,9 @@ class ProblemDescription(object):
     Each PipelineDescription object is then a possible solution for solving this problem.
     """
     def __init__(self, name, dataset_uri, output_dir, task_type, metrics, target_features, predict_features):
-        """
-        This just takes core_pb2 types, which are not necessarily actually convenient,
-        especially since that API is going to change.
-        But, to get it working, I guess that's something.
-        """
         self._name = name
         self._dataset_uri = dataset_uri
         self._task_type = task_type
-        # TODO: Currently unused.
-        # self._task_subtype = ""
-        # Currently undefined, sigh
-        # self._output_type
         self._evaluation_metrics = metrics
         self._target_features = target_features
         self._predict_features = predict_features
@@ -50,7 +41,6 @@ def load_dataset(dataset_spec_uri):
 
     Returns two numpy arrays: (inputs, labels)
     """
-
     with url_request.urlopen(dataset_spec_uri) as uri:
         res = uri.read()
         # We need to pull the file root path out of the dataset
@@ -114,9 +104,9 @@ class SolutionDescription(object):
     based off the results of the primitive (numpy arrays only atm)
     """
 
-    def __init__(self, metadata, primitive, hyperparams):
-        self.id = uuid.uuid4()
-        self._metadata = metadata
+    def __init__(self, hyperparam_spec, primitive, hyperparams):
+        self.id = str(uuid.uuid4())
+        self.hyperparam_spec = hyperparam_spec
         self.primitive = primitive
         self.hyperparams = hyperparams
         self.prim_instance = None
@@ -133,6 +123,8 @@ class SolutionDescription(object):
         self.prim_instance.set_training_data(inputs=X.values, outputs=y.values)
         res = self.prim_instance.fit()
         print("TRAINING Done:", res.has_finished)
+        print("Iterations:", res.iterations_done)
+        print("Value:", res.value)
 
     def score_solution(self, X, y, mode):
         """
@@ -177,7 +169,9 @@ class SolutionDescription(object):
         assert self.train_result.has_finished
         res = self.prim_instance.produce(inputs=X.values, timeout=1000.0, iterations=1)
         print("TESTING: Done:", res.has_finished)
-        return res.value
+        
+        inputs['prediction'] = pd.Series(res.value)
+        print(inputs[['d3mIndex', 'prediction']])
 
     def evaluate_metric(self, predictions, Ytest):
         """
@@ -284,8 +278,6 @@ class SolutionDescription(object):
         return default_params
 
     def find_optimal_hyperparams(self, train, output):
-        hyperparam_spec = self._metadata.query()['primitive_code']['hyperparams']
-
         filter_hyperparam = lambda vl: None if vl == 'None' else vl
         default_hyperparams = {name:filter_hyperparam(vl['default']) for name,vl in hyperparam_spec.items()}
         hyperparam_lower_ranges = {name:filter_hyperparam(vl['lower']) for name,vl in hyperparam_spec.items() if 'lower' in vl.keys()}
