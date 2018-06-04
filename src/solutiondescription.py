@@ -17,7 +17,7 @@ import pandas as pd
 
 from  api_v3 import core
 
-import uuid
+import uuid, sys
 from urllib import request as url_request
 from urllib import parse as url_parse
 
@@ -143,17 +143,21 @@ class SolutionDescription(object):
         metric_sum = 0
 
         prim_instance = self.primitive(hyperparams=optimal_params)
-        for train_index, test_index in kf.split(X):
-            X_train, X_test = X.iloc[train_index], X.iloc[test_index]
-            y_train, y_test = y.iloc[train_index], y.iloc[test_index]
+        score = 0.0
+        try:
+            for train_index, test_index in kf.split(X):
+                X_train, X_test = X.iloc[train_index], X.iloc[test_index]
+                y_train, y_test = y.iloc[train_index], y.iloc[test_index]
 
-            prim_instance.set_training_data(inputs=X_train.values, outputs=y_train.values)
-            prim_instance.fit()
-            predictions = prim_instance.produce(inputs=X_test).value                        
-            metric = self.evaluate_metric(predictions, y_test)     
-            metric_sum += metric
+                prim_instance.set_training_data(inputs=X_train.values, outputs=y_train.values)
+                prim_instance.fit()
+                predictions = prim_instance.produce(inputs=X_test).value                        
+                metric = self.evaluate_metric(predictions, y_test)     
+                metric_sum += metric
 
-        score = metric_sum/splits
+            score = metric_sum/splits
+        except:
+             score = 0.0
         return score
  
     def training_finished(self):
@@ -185,6 +189,117 @@ class SolutionDescription(object):
                 correct=correct+1
 
         return (correct/count)
+
+    def compute_metric(self, predictions, Ytest, metric):
+        count = len(Ytest)
+        
+        if metric is problem_pb2.PerformanceMetric.ACCURACY:
+            for i in range(count):
+                if predictions[i] == Ytest.iloc[i,0]:
+                    correct=correct+1
+            return (correct/count)
+        elif metric is problem_pb2.PerformanceMetric.PRECISION:
+            class_count = 0
+            for i in range(count):
+                if predictions[i] == Ytest.iloc[i,0]:
+                    correct=correct+1
+                if predictions[i] == 1:
+                    class_count=class_count+1
+            return (correct/class_count)
+        elif metric is problem_pb2.PerformanceMetric.RECALL:
+            class_count = 0
+            for i in range(count):
+                if predictions[i] == Ytest.iloc[i,0]:
+                    correct=correct+1
+                if Ytest.iloc[i,0] == 1:
+                    class_count=class_count+1
+            return (correct/class_count)
+        elif metric is problem_pb2.PerformanceMetric.F1:
+            class_count = 0
+            true_class_count = 0
+            for i in range(count):
+                if predictions[i] == Ytest.iloc[i,0]:
+                    correct=correct+1
+                if Ytest.iloc[i,0] == 1:
+                    true_class_count=true_class_count+1
+                if predictions[i] == 1:
+                    class_count=class_count+1
+                precision = (correct/class_count)
+                recall = (correct/true_class_count)
+            return (2.0*precision*recall/(precision+recall))
+        elif metric is problem_pb2.PerformanceMetric.F1_MICRO:
+            for i in range(count):
+                if predictions[i] == Ytest.iloc[i,0]:
+                    correct=correct+1
+            return (correct/count)
+        elif metric is problem_pb2.PerformanceMetric.F1_MACRO:
+            for i in range(count):
+                if predictions[i] == Ytest.iloc[i,0]:
+                    correct=correct+1
+            return (correct/count)
+        elif metric is problem_pb2.PerformanceMetric.ROC_AUC:
+            for i in range(count):
+                if predictions[i] == Ytest.iloc[i,0]:
+                    correct=correct+1
+            return (correct/count)
+        elif metric is problem_pb2.PerformanceMetric.ROC_AUC_MICRO:
+            for i in range(count):
+                if predictions[i] == Ytest.iloc[i,0]:
+                    correct=correct+1
+            return (correct/count)
+        elif metric is problem_pb2.PerformanceMetric.ROC_AUC_MACRO:
+            for i in range(count):
+                if predictions[i] == Ytest.iloc[i,0]:
+                    correct=correct+1
+            return (correct/count)
+        elif metric is problem_pb2.PerformanceMetric.MEAN_SQUARED_ERROR:
+            for i in range(count):
+                if predictions[i] == Ytest.iloc[i,0]:
+                    correct=correct+1
+            return (correct/count)
+        elif metric is problem_pb2.PerformanceMetric.ROOT_MEAN_SQUARED_ERROR:
+            for i in range(count):
+                if predictions[i] == Ytest.iloc[i,0]:
+                    correct=correct+1
+            return (correct/count)
+        elif metric is problem_pb2.PerformanceMetric.ROOT_MEAN_SQUARED_ERROR_AVG:
+            for i in range(count):
+                if predictions[i] == Ytest.iloc[i,0]:
+                    correct=correct+1
+            return (correct/count)
+        elif metric is problem_pb2.PerformanceMetric.MEAN_ABSOLUTE_ERROR:
+            for i in range(count):
+                if predictions[i] == Ytest.iloc[i,0]:
+                    correct=correct+1
+            return (correct/count)
+        elif metric is problem_pb2.PerformanceMetric.R_SQUARED:
+            for i in range(count):
+                if predictions[i] == Ytest.iloc[i,0]:
+                    correct=correct+1
+            return (correct/count)
+        elif metric is problem_pb2.PerformanceMetric.NORMALIZED_MUTUAL_INFORMATION:
+            for i in range(count):
+                if predictions[i] == Ytest.iloc[i,0]:
+                    correct=correct+1
+            return (correct/count)
+        elif metric is problem_pb2.PerformanceMetric.JACCARD_SIMILARITY_SCORE:
+            for i in range(count):
+                if predictions[i] == Ytest.iloc[i,0]:
+                    correct=correct+1
+            return (correct/count)
+        elif metric is problem_pb2.PerformanceMetric.PRECISION_AT_TOP_K:
+            for i in range(count):
+                if predictions[i] == Ytest.iloc[i,0]:
+                    correct=correct+1
+            return (correct/count)
+        elif metric is problem_pb2.PerformanceMetric.OBJECT_DETECTION_AVERAGE_PRECISION:
+            for i in range(count):
+                if predictions[i] == Ytest.iloc[i,0]:
+                    correct=correct+1
+            return (correct/count)
+        else:
+            return -1
+
 
     def evaluate_regression_metric(self, predictions, Ytest):
         """
@@ -266,7 +381,16 @@ class SolutionDescription(object):
             index =index+1
 
         func = lambda inputs : self.optimize_primitive(train, output, inputs, default_params, optimal_params, hyperparam_types)
-        (curr_opt_val, curr_opt_pt) = bo.gp_call.fmax(func, domain_bounds, 10)
+        try:
+            (curr_opt_val, curr_opt_pt) = bo.gp_call.fmax(func, domain_bounds, 10)
+        except:
+            print(sys.exc_info()[0])
+            curr_opt_val = 0.0
+            curr_opt_pt = []
+            print(optimal_params)
+            print(lower_bounds)
+            for i in range(len(optimal_params)):
+                curr_opt_pt.append(lower_bounds[optimal_params[i]])
 
         # Map optimal parameter values found
         for index,name in optimal_params.items():
@@ -279,10 +403,10 @@ class SolutionDescription(object):
 
     def find_optimal_hyperparams(self, train, output):
         filter_hyperparam = lambda vl: None if vl == 'None' else vl
-        default_hyperparams = {name:filter_hyperparam(vl['default']) for name,vl in hyperparam_spec.items()}
-        hyperparam_lower_ranges = {name:filter_hyperparam(vl['lower']) for name,vl in hyperparam_spec.items() if 'lower' in vl.keys()}
-        hyperparam_upper_ranges = {name:filter_hyperparam(vl['upper']) for name,vl in hyperparam_spec.items() if 'upper' in vl.keys()}
-        hyperparam_types = {name:filter_hyperparam(vl['structural_type']) for name,vl in hyperparam_spec.items() if 'structural_type' in vl.keys()}
+        default_hyperparams = {name:filter_hyperparam(vl['default']) for name,vl in self.hyperparam_spec.items()}
+        hyperparam_lower_ranges = {name:filter_hyperparam(vl['lower']) for name,vl in self.hyperparam_spec.items() if 'lower' in vl.keys()}
+        hyperparam_upper_ranges = {name:filter_hyperparam(vl['upper']) for name,vl in self.hyperparam_spec.items() if 'upper' in vl.keys()}
+        hyperparam_types = {name:filter_hyperparam(vl['structural_type']) for name,vl in self.hyperparam_spec.items() if 'structural_type' in vl.keys()}
         print(default_hyperparams)
         if len(hyperparam_lower_ranges) > 0:
             print(hyperparam_lower_ranges)

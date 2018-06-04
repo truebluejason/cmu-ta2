@@ -326,15 +326,15 @@ class Core(core_pb2_grpc.CoreServicer):
         msg = core_pb2.Progress(state=core_pb2.RUNNING, status="", start=start, end=self.compute_timestamp())
         
         send_scores = []
+        print(request_params)
         for i in range(len(request_params.inputs)):
             ip = request_params.inputs[i]
-            dataset_id = ip.dataset_id
-            (X, y) = solutiondescription.load_dataset(dataset_id.dataset_uri)
+            (X, y) = solutiondescription.load_dataset(ip.dataset_uri)
 
             task = {'solution': self._solutions[solution_id], 'X': X, 'y': y} 
             score = self.evaluate_solution(task)
             print(score)
-            send_scores.append(Score(metric=request_params.performance_metrics[i], fold=request_params.configuration.folds, targets=[], value=score))
+            send_scores.append(core_pb2.Score(metric=request_params.performance_metrics[i], fold=request_params.configuration.folds, targets=[], value=value_pb2.Value(double=score)))
 
             yield core_pb2.GetScoreSolutionResultsResponse(progress=msg, scores=[]) 
 
