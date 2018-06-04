@@ -322,7 +322,7 @@ class Core(core_pb2_grpc.CoreServicer):
         request_params = self._solution_score_map[request_id]
         
         start=self.compute_timestamp()
-        solution_id = request.solution_id
+        solution_id = request_params.solution_id
         msg = core_pb2.Progress(state=core_pb2.RUNNING, status="", start=start, end=self.compute_timestamp())
         
         send_scores = []
@@ -333,6 +333,7 @@ class Core(core_pb2_grpc.CoreServicer):
 
             task = {'solution': self._solutions[solution_id], 'X': X, 'y': y} 
             score = self.evaluate_solution(task)
+            print(score)
             send_scores.append(Score(metric=request_params.performance_metrics[i], fold=request_params.configuration.folds, targets=[], value=score))
 
             yield core_pb2.GetScoreSolutionResultsResponse(progress=msg, scores=[]) 
