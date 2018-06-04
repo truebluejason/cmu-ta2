@@ -22,7 +22,7 @@ from urllib import request as url_request
 from urllib import parse as url_parse
 
 import solutiondescription
-from multiprocessing import Pool, cpu_count
+#from multiprocessing import Pool, cpu_count
 import time
 from time import sleep
 import uuid
@@ -239,7 +239,7 @@ class Core(core_pb2_grpc.CoreServicer):
 
             for p in primitives:
                 if p.family == task_name:
-                    pipe = problem.SolutionDescription(p.hyperparam_spec, p.classname, None)
+                    pipe = solutiondescription.SolutionDescription(p.hyperparam_spec, p.classname, None)
                     solutions.append(pipe)
 
         return solutions
@@ -248,18 +248,13 @@ class Core(core_pb2_grpc.CoreServicer):
         logging.info("Message received: SearchSolutions")
         search_id_str = str(uuid.uuid4())
 
-        task = [{'request': request, 'primitives': self._primitives}]        
-    
+        #task = [{'request': request, 'primitives': self._primitives}]        
         #p = Pool(cpu_count())
         #results = p.map_async(self.search_solutions, task, chunksize=1)
         #p.close()
         #self._solution_score_map[search_id_str] = results
 
-        self._search_solutions[search_id_str] = []
-        solutions = self.search_solutions(task)
-        for sol in solutions:
-            self._solutions[sol.id] = sol
-            self._search_solutions[search_id_str].append(sol.id) 
+        self._solution_score_map[search_id_str] = request
         return core_pb2.SearchSolutionsResponse(search_id = search_id_str)
 
     def GetSearchSolutionsResults(self, request, context):
@@ -271,23 +266,22 @@ class Core(core_pb2_grpc.CoreServicer):
         yield core_pb2.GetSearchSolutionsResultsResponse(progress=msg, done_ticks=0, all_ticks=0, solution_id="",
                      internal_score=0.0, scores=[])
 
-        #results = self._solution_score_map[search_id_str]
-        #while not results.ready():
-            #sleep(1)
+        request_params = self._solution_score_map[search_id_str]
+        task = [{'request': request_params, 'primitives': self._primitives}]
+        solutions = self.search_solutions(task)
 
-        #solutions = results.get()
-        #self._search_solutions[search_id_str] = []
-        solutions = self._search_solutions[search_id_str]
         msg = core_pb2.Progress(state=core_pb2.RUNNING, status="", start=start, end=self.compute_timestamp())
         count = 0
+        self._search_solutions[search_id_str] = []
+
         for sol in solutions:
             count = count + 1
-            #self._solutions[sol.id] = sol
-            #self._search_solutions[search_id_str].append(sol.id)
-            yield core_pb2.GetSearchSolutionsResultsResponse(progress=msg, done_ticks=count, all_ticks=len(solutions), solution_id=sol_id,
+            self._solutions[sol.id] = sol
+            self._search_solutions[search_id_str].append(sol.id)
+            yield core_pb2.GetSearchSolutionsResultsResponse(progress=msg, done_ticks=count, all_ticks=len(solutions), solution_id=sol.id,
              internal_score=0.0, scores=[])
 
-        #del self._solution_score_map[search_id_str]
+        self._solution_score_map.pop(search_id_str, None)
        
         msg = core_pb2.Progress(state=core_pb2.COMPLETED, status="", start=start, end=self.compute_timestamp()) 
         yield core_pb2.GetSearchSolutionsResultsResponse(progress=msg, done_ticks=len(solutions), all_ticks=len(solutions),
@@ -298,7 +292,7 @@ class Core(core_pb2_grpc.CoreServicer):
         search_id_str = request.search_id
 
         for sol_id in self._search_solutions[search_id_str]:
-            del self._solutions[sol_id]
+            self._solutions.pop(sol_id, None)
 
         self._search_solutions[search_id_str].clear()
         return core_pb2.EndSearchSolutionsResponse()
@@ -316,42 +310,35 @@ class Core(core_pb2_grpc.CoreServicer):
 
     def ScoreSolution(self, request, context):
         logging.info("Message received: ScoreSolution")
-        solution_id = request.solution_id
-        configuration = request.configuration
 
         request_id = str(uuid.uuid4())
-        p = Pool(cpu_count())
-        tasks = []
-
-        for i in range(len(request.inputs)):
-            ip = request.inputs[i]
-            dataset_id = ip.dataset_id
-            (X, y) = solutiondescription.load_dataset(dataset_id.dataset_uri) 
-            tasks.append({'solution': self._solutions[solution_id], 'X': X, 'y': y})
-
-        results = p.map_async(self.evaluate_solution, tasks, chunksize=1)
-        p.close()
-        self._solution_score_map[request_id] = (request, results) 
+        self._solution_score_map[request_id] = request
 
         return core_pb2.ScoreSolutionResponse(request_id = request_id)
 
     def GetScoreSolutionResults(self, request, context):
         logging.info("Message received: GetScoreSolutionResults")
         request_id = request.request_id
-        (request_params, results) = self._solution_score_map[request_id]
+        request_params = self._solution_score_map[request_id]
         
         start=self.compute_timestamp()
-        msg = core_pb2.Progress(state=core_pb2.RUNNING, status="", start=start, end=self.compute_timestamp()) 
-        while not results.ready():
-            sleep(1)
+        solution_id = request.solution_id
+        msg = core_pb2.Progress(state=core_pb2.RUNNING, status="", start=start, end=self.compute_timestamp())
+        
+        send_scores = []
+        for i in range(len(request_params.inputs)):
+            ip = request_params.inputs[i]
+            dataset_id = ip.dataset_id
+            (X, y) = solutiondescription.load_dataset(dataset_id.dataset_uri)
+
+            task = {'solution': self._solutions[solution_id], 'X': X, 'y': y} 
+            score = self.evaluate_solution(task)
+            send_scores.append(Score(metric=request_params.performance_metrics[i], fold=request_params.configuration.folds, targets=[], value=score))
+
             yield core_pb2.GetScoreSolutionResultsResponse(progress=msg, scores=[]) 
 
-        send_scores = []
-        for i, r in enumerate(results.get()):
-            send_scores.append(Score(metric=request_params.performance_metrics[i], fold=request_params.configuration.folds, targets=[], value=r)) 
-        
         # Clean up
-        del self._solution_score_map[solution_id]
+        self._solution_score_map.pop(request_id, None)
 
         msg = core_pb2.Progress(state=core_pb2.COMPLETED, status="", start=start, end=self.compute_timestamp())
         yield core_pb2.GetScoreSolutionResultsResponse(progress=msg, scores=send_scores)
@@ -359,13 +346,13 @@ class Core(core_pb2_grpc.CoreServicer):
     def FitSolution(self, request, context):
         logging.info("Message received: FitSolution")
         request_id = str(uuid.uuid4())
-        self._solution_score_map[request_id] = (request, None)
+        self._solution_score_map[request_id] = request
         return core_pb2.FitSolutionResponse(request_id = request_id)
 
     def GetFitSolutionResults(self, request, context):
         logging.info("Message received: GetFitSolutionResults")
         request_id = request.request_id
-        (request_params, results) = self._solution_score_map[request_id]
+        request_params = self._solution_score_map[request_id]
         start=self.compute_timestamp()
 
         solution_id = request_params.solution_id
@@ -381,7 +368,7 @@ class Core(core_pb2_grpc.CoreServicer):
             fitted_solution.train(X, y)
             yield core_pb2.GetFitSolutionResultsResponse(progress=msg, steps=[], exposed_outputs=[], fitted_solution_id=fitted_solution.id)
 
-        del self._solution_score_map[request_id]
+        self._solution_score_map.pop(request_id, None)
 
         msg = core_pb2.Progress(state=core_pb2.COMPLETED, status="", start=start, end=self.compute_timestamp())
         yield core_pb2.GetFitSolutionResultsResponse(progress=msg, steps=[], exposed_outputs=[], fitted_solution_id="")
@@ -389,14 +376,14 @@ class Core(core_pb2_grpc.CoreServicer):
     def ProduceSolution(self, request, context):
         logging.info("Message received: ProduceSolution")
         request_id = str(uuid.uuid4())
-        self._solution_score_map[request_id] = (request, None)
+        self._solution_score_map[request_id] = request
 
         return core_pb2.ProduceSolutionResponse(request_id = request_id)
 
     def GetProduceSolutionResults(self, request, context):
         logging.info("Message received: GetProduceSolutionResults")
         request_id = request.request_id
-        (request_params, results) = self._solution_score_map[request_id]
+        request_params = self._solution_score_map[request_id]
         start=self.compute_timestamp()
 
         solution_id = request_params.fitted_solution_id
@@ -405,7 +392,7 @@ class Core(core_pb2_grpc.CoreServicer):
         (X, y) = solutiondescription.load_dataset(inputs[0].dataset_uri)
         solution.produce(X)
         
-        del self._solution_score_map[request_id]
+        self._solution_score_map.pop(request_id, None)
 
         msg = core_pb2.Progress(state=core_pb2.COMPLETED, status="", start=start, end=self.compute_timestamp())
         return core_pb2.GetProduceSolutionResultsResponse(progress=msg, steps=[], exposed_outputs=[])
