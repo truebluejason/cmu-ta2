@@ -12,7 +12,7 @@ with the available primitives, and a plan for how to create a solution gets made
 import importlib
 
 import logging
-import problem_pb2, pipeline_pb2, primitive_pb2
+import core_pb2, problem_pb2, pipeline_pb2, primitive_pb2, value_pb2
 import pandas as pd
 
 from  api_v3 import core
@@ -25,19 +25,7 @@ import time
 from time import sleep
 from google.protobuf.timestamp_pb2 import Timestamp
 
-class ProblemDescription(object):
-    """
-    Basically a PipelineCreateRequest; it describes a problem to solve.
-    Each PipelineDescription object is then a possible solution for solving this problem.
-    """
-    def __init__(self, name, dataset_uri, output_dir, task_type, metrics, target_features, predict_features):
-        self._name = name
-        self._dataset_uri = dataset_uri
-        self._task_type = task_type
-        self._evaluation_metrics = metrics
-        self._target_features = target_features
-        self._predict_features = predict_features
-        self._output_dir = output_dir
+from sklearn import metrics
 
 def load_dataset(dataset_spec_uri):
     """Loads a dataset spec URI and does all the annoying
@@ -127,18 +115,28 @@ class SolutionDescription(object):
     def add_step(self, prim):
         self.steps.append(prim)
 
+    def add_inputs(self, inputs):
+        for ip in inputs:
+            self.inputs.append(ip)
+
     def score_solution(self, X, y, metric):
         prim = self.steps[0]
         score = prim.score_primitive(X, y, metric)
         return score
 
+    def fit_solution(self, inputs):
+        for i in range(len(self.steps)):
+            p = self.steps[i]
+            p.set_training_data()
+            p.fit()
+            
     def describe_solution(self, prim_dict):
         inputs = []
         inputs.append(pipeline_pb2.PipelineDescriptionInput(name="dataframe inputs"))
         inputs.append(pipeline_pb2.PipelineDescriptionInput(name="dataframe outputs"))
 
         outputs=[]
-        outputs.append(pipeline_pb2.PipelineDescriptionOutput(name="dataframe predictions", data="steps.0.produce"))
+        outputs.append(pipeline_pb2.PipelineDescriptionOutput(name="dataframe predictions", data="steps."+str(len(self.steps)-1)+".produce"))
 
         steps=[]
         for s in self.steps:
@@ -154,6 +152,42 @@ class SolutionDescription(object):
                 step_outputs.append(pipeline_pb2.StepOutput(id=a))
             steps.append(pipeline_pb2.PipelineDescriptionStep(primitive=pipeline_pb2.PrimitivePipelineDescriptionStep(primitive=p, arguments=arguments, outputs=step_outputs)))
         return pipeline_pb2.PipelineDescription(id=self.id, source=self.source, created=self.created, context=self.context, name=self.name, description=self.description, inputs=inputs, outputs=outputs, steps=steps)
+
+    def num_steps(self):
+        return len(self.steps)
+
+    def get_hyperparams(self, step):
+        p = self.steps[step]
+
+        if p.hyperparams is not None:
+            hyperparams = p.hyperparams
+        else:    
+            filter_hyperparam = lambda vl: None if vl == 'None' else vl
+            hyperparams = {name:filter_hyperparam(vl['default']) for name,vl in p.hyperparam_spec.items()}
+
+        hyperparam_types = {name:filter_hyperparam(vl['structural_type']) for name,vl in p.hyperparam_spec.items() if 'structural_type' in vl.keys()}
+        send_params={}
+        for name, value in hyperparams.items():
+            tp = hyperparam_types[name]
+            if tp is int:
+               send_params[name]=value_pb2.Value(int64=value)
+            elif tp is float:
+                send_params[name]=value_pb2.Value(double=value)
+            elif tp is bool:
+                send_params[name]=value_pb2.Value(bool=value)
+            elif tp is str:
+                send_params[name]=value_pb2.Value(string=value)
+            else:
+                if isinstance(value, int):
+                    send_params[name]=value_pb2.Value(int64=value)
+                elif isinstance(value, float):
+                    send_params[name]=value_pb2.Value(double=value)
+                elif isinstance(value, bool):
+                    send_params[name]=value_pb2.Value(bool=value)
+                elif isinstance(value, str):
+                    send_params[name]=value_pb2.Value(string=value)
+            
+        return core_pb2.PrimitiveStepDescription(hyperparams=send_params)
 
 
 class PrimitiveDescription(object):
@@ -236,115 +270,43 @@ class PrimitiveDescription(object):
         count = len(Ytest)
        
         if metric is problem_pb2.ACCURACY:
-            for i in range(count):
-                if predictions[i] == Ytest.iloc[i,0]:
-                    correct=correct+1
-            return (correct/count)
+             return metrics.accuracy_score(Ytest, predictions)
         elif metric is problem_pb2.PRECISION:
-            class_count = 0
-            for i in range(count):
-                if predictions[i] == Ytest.iloc[i,0]:
-                    correct=correct+1
-                if predictions[i] == 1:
-                    class_count=class_count+1
-                precision = (correct/class_count)
-            return precision
+             return metrics.precision_score(Ytest, predictions)
         elif metric is problem_pb2.RECALL:
-            true_class_count = 0
-            for i in range(count):
-                if predictions[i] == Ytest.iloc[i,0]:
-                    correct=correct+1
-                if Ytest.iloc[i,0] == 1:
-                    true_class_count=true_class_count+1
-                recall = (correct/true_class_count)
-            return recall
+             return metrics.recall_score(Ytest, predictions)
         elif metric is problem_pb2.F1:
-            class_count = 0
-            true_class_count = 0
-            for i in range(count):
-                if predictions[i] == Ytest.iloc[i,0]:
-                    correct=correct+1
-                if Ytest.iloc[i,0] == 1:
-                    true_class_count=true_class_count+1
-                if predictions[i] == 1:
-                    class_count=class_count+1
-                precision = (correct/class_count)
-                recall = (correct/true_class_count)
-            return (2.0*precision*recall/(precision+recall))
+            return metrics.f1_score(Ytest, predictions)
         elif metric is problem_pb2.F1_MICRO:
-            for i in range(count):
-                if predictions[i] == Ytest.iloc[i,0]:
-                    correct=correct+1
-            return (correct/count)
+            return metrics.f1_score(Ytest, predictions, average='micro')
         elif metric is problem_pb2.F1_MACRO:
-            for i in range(count):
-                if predictions[i] == Ytest.iloc[i,0]:
-                    correct=correct+1
-            return (correct/count)
+            return metrics.f1_score(Ytest, predictions, average='macro')
         elif metric is problem_pb2.ROC_AUC:
-            for i in range(count):
-                if predictions[i] == Ytest.iloc[i,0]:
-                    correct=correct+1
-            return (correct/count)
+            return metrics.roc_auc_score(Ytest, predictions)
         elif metric is problem_pb2.ROC_AUC_MICRO:
-            for i in range(count):
-                if predictions[i] == Ytest.iloc[i,0]:
-                    correct=correct+1
-            return (correct/count)
+            return metrics.roc_auc_score(Ytest, predictions, average='micro')
         elif metric is problem_pb2.ROC_AUC_MACRO:
-            for i in range(count):
-                if predictions[i] == Ytest.iloc[i,0]:
-                    correct=correct+1
-            return (correct/count)
+            return metrics.roc_auc_score(Ytest, predictions, average='macro')
         elif metric is problem_pb2.MEAN_SQUARED_ERROR:
-            (sum_pred_error, sum_true_error) = self.evaluate_regression_metric(predictions, Ytest)
-            return (sum_pred_error/count)
+            return metrics.mean_squared_error(Ytest, predictions)
         elif metric is problem_pb2.ROOT_MEAN_SQUARED_ERROR:
-            (sum_pred_error, sum_true_error) = self.evaluate_regression_metric(predictions, Ytest)
-            return math.sqrt(sum_pred_error/count)
+            return math.sqrt(metrics.mean_squared_error(Ytest, predictions))
         elif metric is problem_pb2.ROOT_MEAN_SQUARED_ERROR_AVG:
-            (sum_pred_error, sum_true_error) = self.evaluate_regression_metric(predictions, Ytest)
-            return math.sqrt(sum_pred_error/count)
+            return math.sqrt(metrics.mean_squared_error(Ytest, predictions))
         elif metric is problem_pb2.MEAN_ABSOLUTE_ERROR:
-            (sum_pred_error, sum_true_error) = self.evaluate_regression_metric(predictions, Ytest)
-            return math.sqrt(sum_pred_error)/count
+            return metrics.mean_absolute_error(Ytest, predictions)
         elif metric is problem_pb2.R_SQUARED:
-            (sum_pred_error, sum_true_error) = self.evaluate_regression_metric(predictions, Ytest)
-            return (1.0 - (sum_pred_error/sum_true_error))
+            return metrics.r2_score(Ytest, predictions)
         elif metric is problem_pb2.NORMALIZED_MUTUAL_INFORMATION:
-            return 0.0
+            return metrics.normalized_mutual_info_score(Ytest, predictions)
         elif metric is problem_pb2.JACCARD_SIMILARITY_SCORE:
-            return 0.0
+            return metrics.jaccard_similarity_score(Ytest, predictions)
         elif metric is problem_pb2.PRECISION_AT_TOP_K:
             return 0.0
         elif metric is problem_pb2.OBJECT_DETECTION_AVERAGE_PRECISION:
             return 0.0
         else:
-            correct = 0
-            for i in range(count):
-                if predictions[i] == Ytest.iloc[i,0]:
-                    correct=correct+1
-            return (correct/count)
-            #return -1
-
-    def evaluate_regression_metric(self, predictions, Ytest):
-        """
-        Function to compute R2 for regressors.
-        """
-        count = len(Ytest)
-        sum_pred_error = 0
-        sum_true_error = 0
-        mean = Ytest.mean()
-        for i in range(count):
-            pred_error = predictions[i] - Ytest.iloc[i,0]
-            pred_error = pred_error * pred_error
-            sum_pred_error = sum_pred_error + pred_error
-
-            true_error = Ytest.iloc[i,0] - mean
-            true_error = true_error * true_error
-            sum_true_error = sum_true_error + true_error
-
-        return (sum_pred_error, sum_true_error)
+            return metrics.accuracy_score(Ytest, predictions)
 
     def optimize_primitive(self, train, output, inputs, default_params, optimal_params, hyperparam_types, metric):
         """
@@ -412,8 +374,6 @@ class PrimitiveDescription(object):
             print(sys.exc_info()[0])
             curr_opt_val = 0.0
             curr_opt_pt = []
-            print(optimal_params)
-            print(lower_bounds)
             for i in range(len(optimal_params)):
                 curr_opt_pt.append(lower_bounds[optimal_params[i]])
 
@@ -437,7 +397,7 @@ class PrimitiveDescription(object):
             print(hyperparam_lower_ranges)
             print(hyperparam_upper_ranges)
             print(hyperparam_types)
-            self.optimize_hyperparams(train, output, hyperparam_lower_ranges, hyperparam_upper_ranges, default_hyperparams, hyperparam_types, metric)
+            default_hyperparams = self.optimize_hyperparams(train, output, hyperparam_lower_ranges, hyperparam_upper_ranges, default_hyperparams, hyperparam_types, metric)
             print(default_hyperparams)
 
         return default_hyperparams

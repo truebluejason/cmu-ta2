@@ -276,7 +276,13 @@ class Core(core_pb2_grpc.CoreServicer):
         solution_id = request.solution_id
         solution = self._solutions[solution_id]
         desc = solution.describe_solution(self._primitives)
-        return core_pb2.DescribeSolutionResponse(desc)
+
+        param_map = []
+        num_steps = self._solutions[solution_id].num_steps()
+        for j in range(num_steps):
+            param_map.append(core_pb2.StepDescription(primitive=self._solutions[solution_id].get_hyperparams(j)))
+
+        return core_pb2.DescribeSolutionResponse(pipeline=desc, steps=param_map)
 
     def ScoreSolution(self, request, context):
         logging.info("Message received: ScoreSolution")
@@ -301,8 +307,6 @@ class Core(core_pb2_grpc.CoreServicer):
             (X, y) = solutiondescription.load_dataset(ip.dataset_uri)
 
             task = {'solution': self._solutions[solution_id], 'X': X, 'y': y}
-            #desc = self._solutions[solution_id].describe_solution(self._primitives)
-            #print(desc) 
             score = self.evaluate_solution(task, request_params.performance_metrics[0])
             print(score)
             send_scores.append(core_pb2.Score(metric=request_params.performance_metrics[i], fold=request_params.configuration.folds, targets=[], value=value_pb2.Value(double=score)))
