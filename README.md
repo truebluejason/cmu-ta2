@@ -121,7 +121,7 @@ docker push registry.datadrivendiscovery.org/sheath/cmu-ta2
 
 ## Pull the docker image from the D3M registory
 ```bash
-docker push registry.datadrivendiscovery.org/sheath/cmu-ta2
+docker pull registry.datadrivendiscovery.org/sheath/cmu-ta2
 ```
 
 ## Run the docker image
