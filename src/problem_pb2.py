@@ -21,7 +21,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   name='problem.proto',
   package='',
   syntax='proto3',
-  serialized_pb=_b('\n\rproblem.proto\x1a google/protobuf/descriptor.proto\"\\\n\x18ProblemPerformanceMetric\x12\"\n\x06metric\x18\x01 \x01(\x0e\x32\x12.PerformanceMetric\x12\t\n\x01k\x18\x02 \x01(\x05\x12\x11\n\tpos_label\x18\x03 \x01(\t\"\xc3\x01\n\x07Problem\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0f\n\x07version\x18\x02 \x01(\t\x12\x0c\n\x04name\x18\x03 \x01(\t\x12\x13\n\x0b\x64\x65scription\x18\x04 \x01(\t\x12\x1c\n\ttask_type\x18\x05 \x01(\x0e\x32\t.TaskType\x12\"\n\x0ctask_subtype\x18\x06 \x01(\x0e\x32\x0c.TaskSubtype\x12\x36\n\x13performance_metrics\x18\x07 \x03(\x0b\x32\x19.ProblemPerformanceMetric\"e\n\rProblemTarget\x12\x14\n\x0ctarget_index\x18\x01 \x01(\x05\x12\x13\n\x0bresource_id\x18\x02 \x01(\t\x12\x14\n\x0c\x63olumn_index\x18\x03 \x01(\x05\x12\x13\n\x0b\x63olumn_name\x18\x04 \x01(\t\"C\n\x0cProblemInput\x12\x12\n\ndataset_id\x18\x01 \x01(\t\x12\x1f\n\x07targets\x18\x02 \x03(\x0b\x32\x0e.ProblemTarget\"N\n\x12ProblemDescription\x12\x19\n\x07problem\x18\x01 \x01(\x0b\x32\x08.Problem\x12\x1d\n\x06inputs\x18\x02 \x03(\x0b\x32\r.ProblemInput*\x80\x02\n\x08TaskType\x12\x17\n\x13TASK_TYPE_UNDEFINED\x10\x00\x12\x12\n\x0e\x43LASSIFICATION\x10\x01\x12\x0e\n\nREGRESSION\x10\x02\x12\x0e\n\nCLUSTERING\x10\x03\x12\x13\n\x0fLINK_PREDICTION\x10\x04\x12\x15\n\x11VERTEX_NOMINATION\x10\x05\x12\x17\n\x13\x43OMMUNITY_DETECTION\x10\x06\x12\x14\n\x10GRAPH_CLUSTERING\x10\x07\x12\x12\n\x0eGRAPH_MATCHING\x10\x08\x12\x1b\n\x17TIME_SERIES_FORECASTING\x10\t\x12\x1b\n\x17\x43OLLABORATIVE_FILTERING\x10\n*\xa6\x01\n\x0bTaskSubtype\x12\x1a\n\x16TASK_SUBTYPE_UNDEFINED\x10\x00\x12\x08\n\x04NONE\x10\x01\x12\n\n\x06\x42INARY\x10\x02\x12\x0e\n\nMULTICLASS\x10\x03\x12\x0e\n\nMULTILABEL\x10\x04\x12\x0e\n\nUNIVARIATE\x10\x05\x12\x10\n\x0cMULTIVARIATE\x10\x06\x12\x0f\n\x0bOVERLAPPING\x10\x07\x12\x12\n\x0eNONOVERLAPPING\x10\x08*\xef\x02\n\x11PerformanceMetric\x12\x14\n\x10METRIC_UNDEFINED\x10\x00\x12\x0c\n\x08\x41\x43\x43URACY\x10\x01\x12\x06\n\x02\x46\x31\x10\x02\x12\x0c\n\x08\x46\x31_MICRO\x10\x03\x12\x0c\n\x08\x46\x31_MACRO\x10\x04\x12\x0b\n\x07ROC_AUC\x10\x05\x12\x11\n\rROC_AUC_MICRO\x10\x06\x12\x11\n\rROC_AUC_MACRO\x10\x07\x12\x16\n\x12MEAN_SQUARED_ERROR\x10\x08\x12\x1b\n\x17ROOT_MEAN_SQUARED_ERROR\x10\t\x12\x1f\n\x1bROOT_MEAN_SQUARED_ERROR_AVG\x10\n\x12\x17\n\x13MEAN_ABSOLUTE_ERROR\x10\x0b\x12\r\n\tR_SQUARED\x10\x0c\x12!\n\x1dNORMALIZED_MUTUAL_INFORMATION\x10\r\x12\x1c\n\x18JACCARD_SIMILARITY_SCORE\x10\x0e\x12\x16\n\x12PRECISION_AT_TOP_K\x10\x0f\x12\x08\n\x04LOSS\x10\x64\x42\nZ\x08pipelineb\x06proto3')
+  serialized_pb=_b('\n\rproblem.proto\x1a google/protobuf/descriptor.proto\"\\\n\x18ProblemPerformanceMetric\x12\"\n\x06metric\x18\x01 \x01(\x0e\x32\x12.PerformanceMetric\x12\t\n\x01k\x18\x02 \x01(\x05\x12\x11\n\tpos_label\x18\x03 \x01(\t\"\xc3\x01\n\x07Problem\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0f\n\x07version\x18\x02 \x01(\t\x12\x0c\n\x04name\x18\x03 \x01(\t\x12\x13\n\x0b\x64\x65scription\x18\x04 \x01(\t\x12\x1c\n\ttask_type\x18\x05 \x01(\x0e\x32\t.TaskType\x12\"\n\x0ctask_subtype\x18\x06 \x01(\x0e\x32\x0c.TaskSubtype\x12\x36\n\x13performance_metrics\x18\x07 \x03(\x0b\x32\x19.ProblemPerformanceMetric\"~\n\rProblemTarget\x12\x14\n\x0ctarget_index\x18\x01 \x01(\x05\x12\x13\n\x0bresource_id\x18\x02 \x01(\t\x12\x14\n\x0c\x63olumn_index\x18\x03 \x01(\x05\x12\x13\n\x0b\x63olumn_name\x18\x04 \x01(\t\x12\x17\n\x0f\x63lusters_number\x18\x05 \x01(\x05\"C\n\x0cProblemInput\x12\x12\n\ndataset_id\x18\x01 \x01(\t\x12\x1f\n\x07targets\x18\x02 \x03(\x0b\x32\x0e.ProblemTarget\"N\n\x12ProblemDescription\x12\x19\n\x07problem\x18\x01 \x01(\x0b\x32\x08.Problem\x12\x1d\n\x06inputs\x18\x02 \x03(\x0b\x32\r.ProblemInput*\x96\x02\n\x08TaskType\x12\x17\n\x13TASK_TYPE_UNDEFINED\x10\x00\x12\x12\n\x0e\x43LASSIFICATION\x10\x01\x12\x0e\n\nREGRESSION\x10\x02\x12\x0e\n\nCLUSTERING\x10\x03\x12\x13\n\x0fLINK_PREDICTION\x10\x04\x12\x15\n\x11VERTEX_NOMINATION\x10\x05\x12\x17\n\x13\x43OMMUNITY_DETECTION\x10\x06\x12\x14\n\x10GRAPH_CLUSTERING\x10\x07\x12\x12\n\x0eGRAPH_MATCHING\x10\x08\x12\x1b\n\x17TIME_SERIES_FORECASTING\x10\t\x12\x1b\n\x17\x43OLLABORATIVE_FILTERING\x10\n\x12\x14\n\x10OBJECT_DETECTION\x10\x0b*\xa6\x01\n\x0bTaskSubtype\x12\x1a\n\x16TASK_SUBTYPE_UNDEFINED\x10\x00\x12\x08\n\x04NONE\x10\x01\x12\n\n\x06\x42INARY\x10\x02\x12\x0e\n\nMULTICLASS\x10\x03\x12\x0e\n\nMULTILABEL\x10\x04\x12\x0e\n\nUNIVARIATE\x10\x05\x12\x10\n\x0cMULTIVARIATE\x10\x06\x12\x0f\n\x0bOVERLAPPING\x10\x07\x12\x12\n\x0eNONOVERLAPPING\x10\x08*\xb2\x03\n\x11PerformanceMetric\x12\x14\n\x10METRIC_UNDEFINED\x10\x00\x12\x0c\n\x08\x41\x43\x43URACY\x10\x01\x12\r\n\tPRECISION\x10\x02\x12\n\n\x06RECALL\x10\x03\x12\x06\n\x02\x46\x31\x10\x04\x12\x0c\n\x08\x46\x31_MICRO\x10\x05\x12\x0c\n\x08\x46\x31_MACRO\x10\x06\x12\x0b\n\x07ROC_AUC\x10\x07\x12\x11\n\rROC_AUC_MICRO\x10\x08\x12\x11\n\rROC_AUC_MACRO\x10\t\x12\x16\n\x12MEAN_SQUARED_ERROR\x10\n\x12\x1b\n\x17ROOT_MEAN_SQUARED_ERROR\x10\x0b\x12\x1f\n\x1bROOT_MEAN_SQUARED_ERROR_AVG\x10\x0c\x12\x17\n\x13MEAN_ABSOLUTE_ERROR\x10\r\x12\r\n\tR_SQUARED\x10\x0e\x12!\n\x1dNORMALIZED_MUTUAL_INFORMATION\x10\x0f\x12\x1c\n\x18JACCARD_SIMILARITY_SCORE\x10\x10\x12\x16\n\x12PRECISION_AT_TOP_K\x10\x11\x12&\n\"OBJECT_DETECTION_AVERAGE_PRECISION\x10\x12\x12\x08\n\x04LOSS\x10\x64\x42\nZ\x08pipelineb\x06proto3')
   ,
   dependencies=[google_dot_protobuf_dot_descriptor__pb2.DESCRIPTOR,])
 
@@ -75,11 +75,15 @@ _TASKTYPE = _descriptor.EnumDescriptor(
       name='COLLABORATIVE_FILTERING', index=10, number=10,
       options=None,
       type=None),
+    _descriptor.EnumValueDescriptor(
+      name='OBJECT_DETECTION', index=11, number=11,
+      options=None,
+      type=None),
   ],
   containing_type=None,
   options=None,
-  serialized_start=596,
-  serialized_end=852,
+  serialized_start=621,
+  serialized_end=899,
 )
 _sym_db.RegisterEnumDescriptor(_TASKTYPE)
 
@@ -129,8 +133,8 @@ _TASKSUBTYPE = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   options=None,
-  serialized_start=855,
-  serialized_end=1021,
+  serialized_start=902,
+  serialized_end=1068,
 )
 _sym_db.RegisterEnumDescriptor(_TASKSUBTYPE)
 
@@ -150,70 +154,82 @@ _PERFORMANCEMETRIC = _descriptor.EnumDescriptor(
       options=None,
       type=None),
     _descriptor.EnumValueDescriptor(
-      name='F1', index=2, number=2,
+      name='PRECISION', index=2, number=2,
       options=None,
       type=None),
     _descriptor.EnumValueDescriptor(
-      name='F1_MICRO', index=3, number=3,
+      name='RECALL', index=3, number=3,
       options=None,
       type=None),
     _descriptor.EnumValueDescriptor(
-      name='F1_MACRO', index=4, number=4,
+      name='F1', index=4, number=4,
       options=None,
       type=None),
     _descriptor.EnumValueDescriptor(
-      name='ROC_AUC', index=5, number=5,
+      name='F1_MICRO', index=5, number=5,
       options=None,
       type=None),
     _descriptor.EnumValueDescriptor(
-      name='ROC_AUC_MICRO', index=6, number=6,
+      name='F1_MACRO', index=6, number=6,
       options=None,
       type=None),
     _descriptor.EnumValueDescriptor(
-      name='ROC_AUC_MACRO', index=7, number=7,
+      name='ROC_AUC', index=7, number=7,
       options=None,
       type=None),
     _descriptor.EnumValueDescriptor(
-      name='MEAN_SQUARED_ERROR', index=8, number=8,
+      name='ROC_AUC_MICRO', index=8, number=8,
       options=None,
       type=None),
     _descriptor.EnumValueDescriptor(
-      name='ROOT_MEAN_SQUARED_ERROR', index=9, number=9,
+      name='ROC_AUC_MACRO', index=9, number=9,
       options=None,
       type=None),
     _descriptor.EnumValueDescriptor(
-      name='ROOT_MEAN_SQUARED_ERROR_AVG', index=10, number=10,
+      name='MEAN_SQUARED_ERROR', index=10, number=10,
       options=None,
       type=None),
     _descriptor.EnumValueDescriptor(
-      name='MEAN_ABSOLUTE_ERROR', index=11, number=11,
+      name='ROOT_MEAN_SQUARED_ERROR', index=11, number=11,
       options=None,
       type=None),
     _descriptor.EnumValueDescriptor(
-      name='R_SQUARED', index=12, number=12,
+      name='ROOT_MEAN_SQUARED_ERROR_AVG', index=12, number=12,
       options=None,
       type=None),
     _descriptor.EnumValueDescriptor(
-      name='NORMALIZED_MUTUAL_INFORMATION', index=13, number=13,
+      name='MEAN_ABSOLUTE_ERROR', index=13, number=13,
       options=None,
       type=None),
     _descriptor.EnumValueDescriptor(
-      name='JACCARD_SIMILARITY_SCORE', index=14, number=14,
+      name='R_SQUARED', index=14, number=14,
       options=None,
       type=None),
     _descriptor.EnumValueDescriptor(
-      name='PRECISION_AT_TOP_K', index=15, number=15,
+      name='NORMALIZED_MUTUAL_INFORMATION', index=15, number=15,
       options=None,
       type=None),
     _descriptor.EnumValueDescriptor(
-      name='LOSS', index=16, number=100,
+      name='JACCARD_SIMILARITY_SCORE', index=16, number=16,
+      options=None,
+      type=None),
+    _descriptor.EnumValueDescriptor(
+      name='PRECISION_AT_TOP_K', index=17, number=17,
+      options=None,
+      type=None),
+    _descriptor.EnumValueDescriptor(
+      name='OBJECT_DETECTION_AVERAGE_PRECISION', index=18, number=18,
+      options=None,
+      type=None),
+    _descriptor.EnumValueDescriptor(
+      name='LOSS', index=19, number=100,
       options=None,
       type=None),
   ],
   containing_type=None,
   options=None,
-  serialized_start=1024,
-  serialized_end=1391,
+  serialized_start=1071,
+  serialized_end=1505,
 )
 _sym_db.RegisterEnumDescriptor(_PERFORMANCEMETRIC)
 
@@ -229,6 +245,7 @@ GRAPH_CLUSTERING = 7
 GRAPH_MATCHING = 8
 TIME_SERIES_FORECASTING = 9
 COLLABORATIVE_FILTERING = 10
+OBJECT_DETECTION = 11
 TASK_SUBTYPE_UNDEFINED = 0
 NONE = 1
 BINARY = 2
@@ -240,20 +257,23 @@ OVERLAPPING = 7
 NONOVERLAPPING = 8
 METRIC_UNDEFINED = 0
 ACCURACY = 1
-F1 = 2
-F1_MICRO = 3
-F1_MACRO = 4
-ROC_AUC = 5
-ROC_AUC_MICRO = 6
-ROC_AUC_MACRO = 7
-MEAN_SQUARED_ERROR = 8
-ROOT_MEAN_SQUARED_ERROR = 9
-ROOT_MEAN_SQUARED_ERROR_AVG = 10
-MEAN_ABSOLUTE_ERROR = 11
-R_SQUARED = 12
-NORMALIZED_MUTUAL_INFORMATION = 13
-JACCARD_SIMILARITY_SCORE = 14
-PRECISION_AT_TOP_K = 15
+PRECISION = 2
+RECALL = 3
+F1 = 4
+F1_MICRO = 5
+F1_MACRO = 6
+ROC_AUC = 7
+ROC_AUC_MICRO = 8
+ROC_AUC_MACRO = 9
+MEAN_SQUARED_ERROR = 10
+ROOT_MEAN_SQUARED_ERROR = 11
+ROOT_MEAN_SQUARED_ERROR_AVG = 12
+MEAN_ABSOLUTE_ERROR = 13
+R_SQUARED = 14
+NORMALIZED_MUTUAL_INFORMATION = 15
+JACCARD_SIMILARITY_SCORE = 16
+PRECISION_AT_TOP_K = 17
+OBJECT_DETECTION_AVERAGE_PRECISION = 18
 LOSS = 100
 
 
@@ -411,6 +431,13 @@ _PROBLEMTARGET = _descriptor.Descriptor(
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='clusters_number', full_name='ProblemTarget.clusters_number', index=4,
+      number=5, type=5, cpp_type=1, label=1,
+      has_default_value=False, default_value=0,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      options=None, file=DESCRIPTOR),
   ],
   extensions=[
   ],
@@ -424,7 +451,7 @@ _PROBLEMTARGET = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=343,
-  serialized_end=444,
+  serialized_end=469,
 )
 
 
@@ -461,8 +488,8 @@ _PROBLEMINPUT = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=446,
-  serialized_end=513,
+  serialized_start=471,
+  serialized_end=538,
 )
 
 
@@ -499,8 +526,8 @@ _PROBLEMDESCRIPTION = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=515,
-  serialized_end=593,
+  serialized_start=540,
+  serialized_end=618,
 )
 
 _PROBLEMPERFORMANCEMETRIC.fields_by_name['metric'].enum_type = _PERFORMANCEMETRIC

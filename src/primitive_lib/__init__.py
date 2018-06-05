@@ -27,3 +27,16 @@ class PrimitiveClass(object):
         self.python_path = metadata.query()['python_path'] 
         self.classname = classname
         self.family = metadata.query()['primitive_family']
+        self.digest = metadata.query()['digest']
+
+        self.arguments=[]
+        args = metadata.query()['primitive_code']['arguments']
+        for name,value in args.items():
+            if value['kind'] == "PIPELINE":
+                self.arguments.append(name)
+
+        self.produce_methods=[]
+        args = metadata.query()['primitive_code']['instance_methods']
+        for name,value in args.items():
+            if value['kind'] == "PRODUCE":
+                self.produce_methods.append(name)

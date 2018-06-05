@@ -23,10 +23,7 @@ from urllib import parse as url_parse
 
 import solutiondescription
 #from multiprocessing import Pool, cpu_count
-import time
-from time import sleep
 import uuid
-from google.protobuf.timestamp_pb2 import Timestamp
 
 logging.basicConfig(level=logging.INFO)
 
@@ -168,34 +165,10 @@ class DatasetSpec(object):
             'dataResources': list(map(lambda spec: spec.to_json_dict(), self.resource_specs))
         }
 
-class Session(object):
-    """
-    A single Session contains one or more ProblemDescription's,
-    and keeps track of the Pipelines currently being trained to solve
-    those problems.
-    """
-    def __init__(self, name):
-        self._name = name
-        # Dict of identifier : ProblemDescription pairs
-        self._problems = {}
-
-    def new_problem(self, problem_desc):
-        """
-        Takes a new PipelineSpecification and starts trying
-        to solve the problem it presents.
-        """
-        problem_id = gensym(self._name + "_spec")
-        self._problems[problem_id] = problem_desc
-        return problem_id
-
-
-    def get_problem(self, name):
-        return self._problems[name]
-
 class Core(core_pb2_grpc.CoreServicer):
     def __init__(self):
         self._sessions = {}
-        self._primitives = []
+        self._primitives = {}
         self._solutions = {}
         self._solution_score_map = {}
         self._search_solutions = {}
@@ -205,7 +178,7 @@ class Core(core_pb2_grpc.CoreServicer):
                 continue
             if p.name == 'sklearn.ensemble.gradient_boosting.GradientBoostingClassifier':
                continue
-            self._primitives.append(p)
+            self._primitives[p.classname] = p
 
     def _new_session_id(self):
         "Returns an identifier string for a new session."
@@ -220,8 +193,8 @@ class Core(core_pb2_grpc.CoreServicer):
         seconds = int(now)
         return Timestamp(seconds=seconds)
 
-    def evaluate_solution(self, task):
-        score = task['solution'].score_solution(task['X'], task['y'], -1)
+    def evaluate_solution(self, task, metric):
+        score = task['solution'].score_solution(task['X'], task['y'], metric)
         return score
 
     def search_solutions(self, task):
@@ -237,9 +210,11 @@ class Core(core_pb2_grpc.CoreServicer):
             print(ip)
             (X, y) = solutiondescription.load_dataset(ip.dataset_uri)
 
-            for p in primitives:
+            for classname, p in primitives.items():
                 if p.family == task_name:
-                    pipe = solutiondescription.SolutionDescription(p.hyperparam_spec, p.classname, None)
+                    prim = solutiondescription.PrimitiveDescription(p.id, p.hyperparam_spec, p.classname)
+                    pipe = solutiondescription.SolutionDescription()
+                    pipe.add_step(prim)
                     solutions.append(pipe)
 
         return solutions
@@ -248,12 +223,6 @@ class Core(core_pb2_grpc.CoreServicer):
         logging.info("Message received: SearchSolutions")
         search_id_str = str(uuid.uuid4())
 
-        #task = [{'request': request, 'primitives': self._primitives}]        
-        #p = Pool(cpu_count())
-        #results = p.map_async(self.search_solutions, task, chunksize=1)
-        #p.close()
-        #self._solution_score_map[search_id_str] = results
-
         self._solution_score_map[search_id_str] = request
         return core_pb2.SearchSolutionsResponse(search_id = search_id_str)
 
@@ -261,8 +230,8 @@ class Core(core_pb2_grpc.CoreServicer):
         logging.info("Message received: GetSearchSolutionsRequest")
         search_id_str = request.search_id
         
-        start=self.compute_timestamp()
-        msg = core_pb2.Progress(state=core_pb2.PENDING, status="", start=start, end=self.compute_timestamp())
+        start=solutiondescription.compute_timestamp()
+        msg = core_pb2.Progress(state=core_pb2.PENDING, status="", start=start, end=solutiondescription.compute_timestamp())
         yield core_pb2.GetSearchSolutionsResultsResponse(progress=msg, done_ticks=0, all_ticks=0, solution_id="",
                      internal_score=0.0, scores=[])
 
@@ -270,7 +239,7 @@ class Core(core_pb2_grpc.CoreServicer):
         task = [{'request': request_params, 'primitives': self._primitives}]
         solutions = self.search_solutions(task)
 
-        msg = core_pb2.Progress(state=core_pb2.RUNNING, status="", start=start, end=self.compute_timestamp())
+        msg = core_pb2.Progress(state=core_pb2.RUNNING, status="", start=start, end=solutiondescription.compute_timestamp())
         count = 0
         self._search_solutions[search_id_str] = []
 
@@ -283,7 +252,7 @@ class Core(core_pb2_grpc.CoreServicer):
 
         self._solution_score_map.pop(search_id_str, None)
        
-        msg = core_pb2.Progress(state=core_pb2.COMPLETED, status="", start=start, end=self.compute_timestamp()) 
+        msg = core_pb2.Progress(state=core_pb2.COMPLETED, status="", start=start, end=solutiondescription.compute_timestamp()) 
         yield core_pb2.GetSearchSolutionsResultsResponse(progress=msg, done_ticks=len(solutions), all_ticks=len(solutions),
                           solution_id="", internal_score=0.0, scores=[])
 
@@ -305,7 +274,8 @@ class Core(core_pb2_grpc.CoreServicer):
     def DescribeSolution(self, request, context):
         logging.info("Message received: DescribeSolution")
         solution_id = request.solution_id
-        desc = ""
+        solution = self._solutions[solution_id]
+        desc = solution.describe_solution(self._primitives)
         return core_pb2.DescribeSolutionResponse(desc)
 
     def ScoreSolution(self, request, context):
@@ -321,18 +291,19 @@ class Core(core_pb2_grpc.CoreServicer):
         request_id = request.request_id
         request_params = self._solution_score_map[request_id]
         
-        start=self.compute_timestamp()
+        start=solutiondescription.compute_timestamp()
         solution_id = request_params.solution_id
-        msg = core_pb2.Progress(state=core_pb2.RUNNING, status="", start=start, end=self.compute_timestamp())
+        msg = core_pb2.Progress(state=core_pb2.RUNNING, status="", start=start, end=solutiondescription.compute_timestamp())
         
         send_scores = []
-        print(request_params)
         for i in range(len(request_params.inputs)):
             ip = request_params.inputs[i]
             (X, y) = solutiondescription.load_dataset(ip.dataset_uri)
 
-            task = {'solution': self._solutions[solution_id], 'X': X, 'y': y} 
-            score = self.evaluate_solution(task)
+            task = {'solution': self._solutions[solution_id], 'X': X, 'y': y}
+            #desc = self._solutions[solution_id].describe_solution(self._primitives)
+            #print(desc) 
+            score = self.evaluate_solution(task, request_params.performance_metrics[0])
             print(score)
             send_scores.append(core_pb2.Score(metric=request_params.performance_metrics[i], fold=request_params.configuration.folds, targets=[], value=value_pb2.Value(double=score)))
 
@@ -341,7 +312,7 @@ class Core(core_pb2_grpc.CoreServicer):
         # Clean up
         self._solution_score_map.pop(request_id, None)
 
-        msg = core_pb2.Progress(state=core_pb2.COMPLETED, status="", start=start, end=self.compute_timestamp())
+        msg = core_pb2.Progress(state=core_pb2.COMPLETED, status="", start=start, end=solutiondescription.compute_timestamp())
         yield core_pb2.GetScoreSolutionResultsResponse(progress=msg, scores=send_scores)
 
     def FitSolution(self, request, context):
@@ -354,13 +325,13 @@ class Core(core_pb2_grpc.CoreServicer):
         logging.info("Message received: GetFitSolutionResults")
         request_id = request.request_id
         request_params = self._solution_score_map[request_id]
-        start=self.compute_timestamp()
+        start=solutiondescription.compute_timestamp()
 
         solution_id = request_params.solution_id
         solution = self._solutions[solution_id]
         inputs = request_params.inputs
 
-        msg = core_pb2.Progress(state=core_pb2.RUNNING, status="", start=start, end=self.compute_timestamp())
+        msg = core_pb2.Progress(state=core_pb2.RUNNING, status="", start=start, end=solutiondescription.compute_timestamp())
         for ip in inputs:
             (X, y) = solutiondescription.load_dataset(ip.dataset_uri)
             fitted_solution = copy.deepcopy(solution)
@@ -371,7 +342,7 @@ class Core(core_pb2_grpc.CoreServicer):
 
         self._solution_score_map.pop(request_id, None)
 
-        msg = core_pb2.Progress(state=core_pb2.COMPLETED, status="", start=start, end=self.compute_timestamp())
+        msg = core_pb2.Progress(state=core_pb2.COMPLETED, status="", start=start, end=solutiondescription.compute_timestamp())
         yield core_pb2.GetFitSolutionResultsResponse(progress=msg, steps=[], exposed_outputs=[], fitted_solution_id="")
 
     def ProduceSolution(self, request, context):
@@ -385,7 +356,7 @@ class Core(core_pb2_grpc.CoreServicer):
         logging.info("Message received: GetProduceSolutionResults")
         request_id = request.request_id
         request_params = self._solution_score_map[request_id]
-        start=self.compute_timestamp()
+        start=solutiondescription.compute_timestamp()
 
         solution_id = request_params.fitted_solution_id
         solution = self._solutions[solution_id]
@@ -395,7 +366,7 @@ class Core(core_pb2_grpc.CoreServicer):
         
         self._solution_score_map.pop(request_id, None)
 
-        msg = core_pb2.Progress(state=core_pb2.COMPLETED, status="", start=start, end=self.compute_timestamp())
+        msg = core_pb2.Progress(state=core_pb2.COMPLETED, status="", start=start, end=solutiondescription.compute_timestamp())
         return core_pb2.GetProduceSolutionResultsResponse(progress=msg, steps=[], exposed_outputs=[])
 
     def SolutionExport(self, request, context):
@@ -427,19 +398,5 @@ class Core(core_pb2_grpc.CoreServicer):
         allowed_value_types = [value_pb2.RAW, value_pb2.DATASET_URI, value_pb2.CSV_URI],
         supported_extensions = [])
         
-    def EndSession(self, request, context):
-        logging.info("Message received: EndSession")
-        if request.session_id in self._sessions.keys():
-            _session = self._sessions.pop(request.session_id)
-            logging.info("Session terminated: %s", request.session_id)
-            return core_pb2.Response(
-                status=core_pb2.Status(code=core_pb2.OK),
-            )
-        else:
-            logging.warning("Client tried to end session %s which does not exist", request.session_id)
-            return core_pb2.Response(
-                status=core_pb2.Status(code=core_pb2.SESSION_UNKNOWN),
-            )
-
 def add_to_server(server):
     core_pb2_grpc.add_CoreServicer_to_server(Core(), server)
