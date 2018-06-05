@@ -1,0 +1,23 @@
+build_image:  
+  stage: build  
+
+  image: docker:stable
+
+
+  before_script:
+    - docker info
+
+  script:
+    - docker login -u gitlab-ci-token -p "$CI_BUILD_TOKEN" $CI_REGISTRY
+    - docker build -t "$CI_REGISTRY_IMAGE:live" -f Dockerfile .
+    - docker push "$CI_REGISTRY_IMAGE:live"
+
+  only:
+    - master
+
+  #uncomment to specify which executor to use
+  tags:
+    #uncomment to run with docker runner
+    - docker
+    #uncomment to  run with shell runner
+    #- shell
