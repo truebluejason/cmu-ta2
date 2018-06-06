@@ -9,12 +9,12 @@
 
 [submodule "ta3ta2-api-v1"]
 	path = ta3ta2-api-v1
-	url = https://gitlab.com:datadrivendiscovery/ta3ta2-api.git
+	url = https://gitlab.com/datadrivendiscovery/ta3ta2-api.git
 	branch = preprocessing_api
 
 [submodule "ta3ta2-api-v2"]
 	path = ta3ta2-api-v2
-	url = https://gitlab.com:datadrivendiscovery/ta3ta2-api.git
+	url = https://gitlab.com/datadrivendiscovery/ta3ta2-api.git
 	branch = preprocessing_api2
 [submodule "bayesian_optimization"]
 	path = bayesian_optimization
