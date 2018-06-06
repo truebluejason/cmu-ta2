@@ -16,3 +16,6 @@
 	path = ta3ta2-api-v2
 	url = git@gitlab.com:datadrivendiscovery/ta3ta2-api.git
 	branch = preprocessing_api2
+[submodule "bayesian_optimization"]
+	path = bayesian_optimization
+	url = git@gitlab.datadrivendiscovery.org:/sray/bayesian_optimization.git

@@ -17,10 +17,8 @@ RUN pip3 install --upgrade grpcio grpcio-tools
 RUN apt-get install -y gfortran
 
 # Install bayesian_optimiaztion
-ARG gitlab_user
-ARG gitlab_token
-run git clone https://$gitlab_user:$gitlab_token@gitlab.datadrivendiscovery.org/sray/bayesian_optimization.git /tmp/bayesian_optimization; \
-    cd /tmp/bayesian_optimization/bo/utils/direct_fortran; \
+COPY bayesian_optimization /tmp/bayesian_optimization
+RUN cd /tmp/bayesian_optimization/bo/utils/direct_fortran; \
     bash make_direct.sh; \
     cd /tmp/bayesian_optimization; \
     python3 setup.py bdist_wheel; \
