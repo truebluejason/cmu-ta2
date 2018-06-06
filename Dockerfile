@@ -18,8 +18,7 @@ RUN apt-get install -y gfortran
 
 # Install bayesian_optimiaztion
 COPY bayesian_optimization /tmp/bayesian_optimization
-RUN find /tmp/bayesian_optimization; \
-    cd /tmp/bayesian_optimization/bo/utils/direct_fortran; \
+RUN cd /tmp/bayesian_optimization/bo/utils/direct_fortran; \
     bash make_direct.sh; \
     cd /tmp/bayesian_optimization; \
     python3 setup.py bdist_wheel; \

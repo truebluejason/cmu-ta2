@@ -3,6 +3,8 @@ build_image:
 
   image: docker:stable
 
+  variables:
+        GIT_SUBMODULE_STRATEGY: recursive
 
   before_script:
     - docker info
@@ -11,7 +13,6 @@ build_image:
     - git fetch
     - git checkout master
     - git merge origin/master
-    - find .
     - cd -
     - git status # should show that your submodule changed
 
