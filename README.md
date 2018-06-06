@@ -115,7 +115,7 @@ git submodule update --init --recursive
 
 ## Create a docker image
 Run all commands as root.
-Create a docker image by running the following command
+Create a docker image by running the following commands
 ```bash
 docker build -t registry.datadrivendiscovery.org/sheath/cmu-ta2 . 
 ```
