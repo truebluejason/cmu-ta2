@@ -4,7 +4,7 @@ build_image:
   image: docker:stable
 
   variables:
-        GIT_SUBMODULE_STRATEGY: recursive
+    GIT_SUBMODULE_STRATEGY: recursive
 
   before_script:
     - docker info
