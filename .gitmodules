@@ -1,3 +1,21 @@
+[submodule "primitives_repo"]
+	path = primitives_repo
+	url = git@gitlab.datadrivendiscovery.org:jpl/primitives_repo.git
+[submodule "ta3ta2-api"]
+	path = ta3ta2-api
+	# You really want to be using commit ae5e3131edb8c018ce42a5b33b2984195a887afb here
+	# since that is the stable tag
+	url = git@gitlab.com:datadrivendiscovery/ta3ta2-api.git
+
+[submodule "ta3ta2-api-v1"]
+	path = ta3ta2-api-v1
+	url = git@gitlab.com:datadrivendiscovery/ta3ta2-api.git
+	branch = preprocessing_api
+
+[submodule "ta3ta2-api-v2"]
+	path = ta3ta2-api-v2
+	url = git@gitlab.com:datadrivendiscovery/ta3ta2-api.git
+	branch = preprocessing_api2
 [submodule "bayesian_optimization"]
 	path = bayesian_optimization
 	url = ../../sray/bayesian_optimization.git
