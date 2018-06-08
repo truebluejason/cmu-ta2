@@ -18,71 +18,17 @@ import pandas as pd
 from  api_v3 import core
 
 import uuid, sys, math
-from urllib import request as url_request
-from urllib import parse as url_parse
-
 import time
 from time import sleep
 from google.protobuf.timestamp_pb2 import Timestamp
 
 from sklearn import metrics
 
-def load_dataset(dataset_spec_uri):
-    """Loads a dataset spec URI and does all the annoying
-    preprocessing that needs to be done.
+from d3m.metadata.pipeline import Pipeline, PrimitiveStep
+from d3m.primitive_interfaces.base import PrimitiveBaseMeta
+import d3m.index
 
-    Returns two numpy arrays: (inputs, labels)
-    """
-    with url_request.urlopen(dataset_spec_uri) as uri:
-        res = uri.read()
-        # We need to pull the file root path out of the dataset
-        # source the TA3 gave us and give it to the DatasetSpec so it
-        # knows where to find the actual files
-        dataset_root = core.dataset_uri_path(dataset_spec_uri)
-
-        dataset_spec = core.DatasetSpec.from_json_str(res, dataset_root)
-        logging.info("Task created, outputting to %s", dataset_root)
-
-    resource_specs = {
-        resource.res_id:resource for resource in dataset_spec.resource_specs
-    }
-
-    datasets = {
-        resource.res_id:resource.load() for resource in dataset_spec.resource_specs
-    }
-
-    import numpy as np
-    # We have no good way of doing multiple datasets so we just grab the first one
-    (resource_name, train_data) = next(iter(datasets.items()))
-    logging.info(resource_name)
-
-    # Also filter out NaN's since pandas uses them for missing values.
-    # TODO: Right now we replace them with 0, which is not often what we want...
-    train_data.fillna(0, inplace=True)
-
-    # Some primitives don't know how to take string type data
-    # so we convert categorical to int's
-    resource_spec = resource_specs[resource_name]
-    # Convert categorical stuff from strings to category's
-    for column in resource_spec.columns:
-        if column.col_type == 'categorical':
-            name = column.col_name
-            train_data[name] = train_data[name].astype('category')
-            train_data[name] = train_data[name].cat.codes
-
-    label_columns = [
-        column.col_name for column in resource_spec.columns
-        if 'suggestedTarget' in column.role
-    ]
-
-    data_columns = [
-        column.col_name for column in resource_spec.columns
-        if 'suggestedTarget' not in column.role
-    ]
-
-    inputs = train_data[data_columns]
-    labels = train_data[label_columns]
-    return (inputs, labels)
+import networkx as nx
 
 def compute_timestamp():
     now = time.time()
@@ -100,7 +46,7 @@ class SolutionDescription(object):
     Output is fairly basic right now; it writes to a single numpy CSV file with a given name
     based off the results of the primitive (numpy arrays only atm)
     """
-    def __init__(self):
+    def __init__(self, problem):
         self.id = str(uuid.uuid4())
         self.source = None
         self.created = compute_timestamp()
@@ -109,63 +55,534 @@ class SolutionDescription(object):
         self.description = None
         self.users = None
         self.inputs = []
-        self.outputs = []
-        self.steps = []
-
-    def add_step(self, prim):
-        self.steps.append(prim)
-
-    def add_inputs(self, inputs):
-        for ip in inputs:
-            self.inputs.append(ip)
-
-    def score_solution(self, X, y, metric):
-        prim = self.steps[0]
-        score = prim.score_primitive(X, y, metric)
-        return score
-
-    def fit_solution(self, inputs):
-        for i in range(len(self.steps)):
-            p = self.steps[i]
-            p.set_training_data()
-            p.fit()
-            
-    def describe_solution(self, prim_dict):
-        inputs = []
-        inputs.append(pipeline_pb2.PipelineDescriptionInput(name="dataframe inputs"))
-        inputs.append(pipeline_pb2.PipelineDescriptionInput(name="dataframe outputs"))
-
-        outputs=[]
-        outputs.append(pipeline_pb2.PipelineDescriptionOutput(name="dataframe predictions", data="steps."+str(len(self.steps)-1)+".produce"))
-
-        steps=[]
-        for s in self.steps:
-            prim = prim_dict[s.primitive]
-            p = primitive_pb2.Primitive(id=prim.id, version=prim.version, python_path=prim.python_path, name=prim.name, digest=prim.digest)
-            arguments=[]
-            i = 0
-            for a in prim.arguments:
-                arguments.append({a: {"type": "CONTAINER", "data": "inputs."+str(i)}})
-                i=i+1
-            step_outputs = []
-            for a in prim.produce_methods:
-                step_outputs.append(pipeline_pb2.StepOutput(id=a))
-            steps.append(pipeline_pb2.PipelineDescriptionStep(primitive=pipeline_pb2.PrimitivePipelineDescriptionStep(primitive=p, arguments=arguments, outputs=step_outputs)))
-        return pipeline_pb2.PipelineDescription(id=self.id, source=self.source, created=self.created, context=self.context, name=self.name, description=self.description, inputs=inputs, outputs=outputs, steps=steps)
+        
+        self.outputs = None
+        self.execution_order = None
+        self.primitives_arguments = None
+        self.primitives = None
+        self.pipeline = None
+        self.produce_order = None
+        self.hyperparams = None
+        self.problem = problem
 
     def num_steps(self):
-        return len(self.steps)
+        if bool(self.primitives_arguments):
+            return len(self.primitives_arguments)
+        else:
+            return 0
 
-    def get_hyperparams(self, step):
-        p = self.steps[step]
+    def create_from_pipeline(self, pipeline_description: Pipeline) -> None:
+        n_steps = len(pipeline_description.steps)
 
-        if p.hyperparams is not None:
-            hyperparams = p.hyperparams
-        else:    
-            filter_hyperparam = lambda vl: None if vl == 'None' else vl
-            hyperparams = {name:filter_hyperparam(vl['default']) for name,vl in p.hyperparam_spec.items()}
+        self.inputs = pipeline_description.inputs
+        self.id = pipeline_description.id
+        self.source = pipeline_description.source
+        self.name = pipeline_description.name
+        self.description = pipeline_description.description
+        self.users = pipeline_description.users
 
-        hyperparam_types = {name:filter_hyperparam(vl['structural_type']) for name,vl in p.hyperparam_spec.items() if 'structural_type' in vl.keys()}
+        self.primitives_arguments = {}
+        self.primitives = {}
+        self.hyperparams = {}
+        for i in range(0, n_steps):
+            self.primitives_arguments[i] = {}
+            self.hyperparams[i] = None
+
+        self.execution_order = None
+
+        self.pipeline = [None] * n_steps
+
+        # Constructing DAG to determine the execution order
+        execution_graph = nx.DiGraph()
+        for i in range(0, n_steps):
+            self.primitives[i] = pipeline_description.steps[i].primitive
+            for argument, data in pipeline_description.steps[i].arguments.items():
+                argument_edge = data['data']
+                origin = argument_edge.split('.')[0]
+                source = argument_edge.split('.')[1]
+
+                self.primitives_arguments[i][argument] = {'origin': origin, 'source': int(source), 'data': argument_edge}
+
+                if origin == 'steps':
+                    execution_graph.add_edge(str(source), str(i))
+                else:
+                    execution_graph.add_edge(origin, str(i))
+
+            hyperparams = pipeline_description.steps[i].hyperparams
+            if bool(hyperparams):
+                self.hyperparams[i] = {}
+                for name,argument in hyperparams.items():
+                    self.hyperparams[i][name] = argument['data']
+
+        execution_order = list(nx.topological_sort(execution_graph))
+
+        # Removing non-step inputs from the order
+        execution_order = list(filter(lambda x: x.isdigit(), execution_order))
+        self.execution_order = [int(x) for x in execution_order]
+
+        # Creating set of steps to be call in produce
+        self.outputs = []
+        self.produce_order = set()
+        for output in pipeline_description.outputs:
+            origin = output['data'].split('.')[0]
+            source = output['data'].split('.')[1]
+            self.outputs.append((origin, int(source)))
+
+            if origin != 'steps':
+                continue
+            else:
+                current_step = int(source)
+                self.produce_order.add(current_step)
+                for i in range(0, len(execution_order)):
+                    step_origin = self.primitives_arguments[current_step]['inputs']['origin']
+                    step_source = self.primitives_arguments[current_step]['inputs']['source']
+                    if step_origin != 'steps':
+                        break
+                    else:
+                        self.produce_order.add(step_source)
+                        current_step = step_source
+
+    def create_from_pipelinedescription(self, pipeline_description: pipeline_pb2.PipelineDescription) -> None:
+        n_steps = len(pipeline_description.steps)
+
+        self.inputs = pipeline_description.inputs
+        self.source = pipeline_description.source
+        self.created = pipeline_description.created
+        self.name = pipeline_description.name
+        self.description = pipeline_description.description
+        self.users = pipeline_description.users
+
+        self.primitives_arguments = {}
+        self.primitives = {}
+        self.hyperparams = {}
+        for i in range(0, n_steps):
+            self.primitives_arguments[i] = {}
+            self.hyperparams[i] = None
+
+        self.execution_order = None
+
+        self.pipeline = [None] * n_steps
+        self.outputs = []
+
+        # Constructing DAG to determine the execution order
+        execution_graph = nx.DiGraph()
+        for i in range(0, n_steps):
+            s = pipeline_description.steps[i].primitive
+            python_path = s.primitive.python_path
+            prim = d3m.index.search(primitive_path_prefix=python_path)[python_path]
+            self.primitives[i] = prim
+
+            arguments = s.arguments
+            for name,argument in arguments.items():
+                if argument.HasField("container") == True:
+                    data = argument.container.data
+                else:
+                    data = argument.data.data
+                origin = data.split('.')[0]
+                source = data.split('.')[1]
+                self.primitives_arguments[i][name] = {'origin': origin, 'source': int(source), 'data': data}
+
+                if origin == 'steps':
+                    execution_graph.add_edge(str(source), str(i))
+                else:
+                    execution_graph.add_edge(origin, str(i))
+            
+            hyperparams = s.hyperparams
+            if bool(hyperparams):
+                self.hyperparams[i] = {}
+                for name,argument in hyperparams.items():
+                    self.hyperparams[i][name] = argument['data']
+
+        self.hyperparams[3] = {}
+        self.hyperparams[3]['min_samples_split'] = pipeline_pb2.PrimitiveStepHyperparameter(value=pipeline_pb2.ValueArgument(data=value_pb2.Value(int64=5))).value
+
+        execution_order = list(nx.topological_sort(execution_graph))
+
+        # Removing non-step inputs from the order
+        execution_order = list(filter(lambda x: x.isdigit(), execution_order))
+        self.execution_order = [int(x) for x in execution_order]
+
+        # Creating set of steps to be call in produce
+        self.produce_order = set()
+        for i in range(len(pipeline_description.outputs)):
+            output = pipeline_description.outputs[i]
+            origin = output.data.split('.')[0]
+            source = output.data.split('.')[1]
+            self.outputs.append((origin, int(source)))
+
+            if origin != 'steps':
+                continue
+            else:
+                current_step = int(source)
+                self.produce_order.add(current_step)
+                for i in range(0, len(execution_order)):
+                    step_origin = self.primitives_arguments[current_step]['inputs']['origin']
+                    step_source = self.primitives_arguments[current_step]['inputs']['source']
+                    if step_origin != 'steps':
+                        break
+                    else:
+                        self.produce_order.add(step_source)
+                        current_step = step_source
+
+    def fit(self, **arguments) -> None:
+        """
+        Train all steps in the pipeline.
+
+        Paramters
+        ---------
+        arguments
+            Arguments required to train the Pipeline
+        """
+        primitives_outputs = [None] * len(self.execution_order)
+
+        for i in range(0, len(self.execution_order)):
+            primitive_arguments = {}
+            n_step = self.execution_order[i]
+            for argument, value in self.primitives_arguments[n_step].items():
+                print("value = ", value)
+                print("name = ", argument)
+                if value['origin'] == 'steps':
+                    primitive_arguments[argument] = primitives_outputs[value['source']]
+                else:
+                    primitive_arguments[argument] = arguments[argument][value['source']]
+
+            if isinstance(self.primitives[n_step], PrimitiveBaseMeta):
+                primitives_outputs[n_step] = self._primitive_step_fit(n_step, self.primitives[n_step], primitive_arguments)
+
+    def _primitive_step_fit(self, n_step: int, primitive: PrimitiveBaseMeta, primitive_arguments):
+        """
+        Execute a step and train it with primitive arguments.
+
+        Paramters
+        ---------
+        n_step: int
+            An integer of the actual step.
+        step: PrimitiveStep
+            A primitive step.
+        primitive_arguments
+            Arguments for set_training_data, fit, produce of the primitive for this step.
+        """
+        primitive_hyperparams = primitive.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
+        primitive_family = primitive.metadata.query()['primitive_family']
+
+        custom_hyperparams = dict()
+  
+        hyperparams = self.hyperparams[n_step]
+        if bool(hyperparams):
+            for hyperparam, value in hyperparams.items():
+                if isinstance(value, dict):
+                    custom_hyperparams[hyperparam] = value['data']
+                else:
+                    custom_hyperparams[hyperparam] = value
+
+        training_arguments_primitive = self._primitive_arguments(primitive, 'set_training_data')
+        training_arguments = {}
+        produce_params_primitive = self._primitive_arguments(primitive, 'produce')
+        produce_params = {}
+
+        for param, value in primitive_arguments.items():
+            if len(training_arguments_primitive) > 1 and isinstance(value, pd.DataFrame) and value.ndim > 1 and len(value.columns) > 1:
+                print('param', param)
+                print(value.shape)
+                value = value.fillna('0').replace('', '0')
+                value = value.apply(pd.to_numeric,errors="ignore")
+                value = value.select_dtypes(['number'])
+                print(value.shape)
+
+            if param in produce_params_primitive:
+                produce_params[param] = value
+            if param in training_arguments_primitive:
+                training_arguments[param] = value
+
+        model = primitive(hyperparams=primitive_hyperparams(
+                    primitive_hyperparams.defaults(), **custom_hyperparams))
+        print('*'*10)
+        print('step', n_step, 'primitive', primitive)
+
+        if len(training_arguments) > 1:
+            trg_data = None
+            
+        model.set_training_data(**training_arguments)
+        model.fit()
+        self.pipeline[n_step] = model
+        return model.produce(**produce_params).value
+
+    def _primitive_arguments(self, primitive, method: str) -> set:
+        """
+        Get the arguments of a primitive given a function.
+
+        Paramters
+        ---------
+        primitive
+            A primitive.
+        method
+            A method of the primitive.
+        """
+        return set(primitive.metadata.query()['primitive_code']['instance_methods'][method]['arguments'])
+
+    def produce(self, **arguments):
+        """
+        Train all steps in the pipeline.
+
+        Paramters
+        ---------
+        arguments
+            Arguments required to execute the Pipeline
+        """
+        steps_outputs = [None] * len(self.execution_order)
+
+        for i in range(0, len(self.execution_order)):
+            n_step = self.execution_order[i]
+            primitive = self.primitives[n_step]
+            produce_arguments_primitive = self._primitive_arguments(primitive, 'produce')
+            produce_arguments = {}
+
+            python_path = primitive.metadata.query()['python_path']
+            for argument, value in self.primitives_arguments[n_step].items():
+                if argument in produce_arguments_primitive:
+                    if value['origin'] == 'steps':
+                        produce_arguments[argument] = steps_outputs[value['source']]
+                    else:
+                        produce_arguments[argument] = arguments[argument][value['source']]
+                    if produce_arguments[argument] is None:
+                        continue
+                    v = produce_arguments[argument]
+                    if python_path == 'd3m.primitives.sklearn_wrap.SKRandomForestClassifier' and isinstance(v, pd.DataFrame) and v.ndim > 1 and len(v.columns) > 1:
+                        print(argument)
+                        print(v.shape)
+                        v = v.fillna('0').replace('', '0')
+                        v = v.apply(pd.to_numeric,errors="ignore")
+                        v = v.select_dtypes(['number'])
+                        print(v.shape)
+                        produce_arguments[argument] = v
+
+            if isinstance(self.primitives[n_step], PrimitiveBaseMeta):
+                if n_step in self.produce_order:
+                    print('-'*100)
+                    print('step', n_step, 'primitive', primitive)
+                    steps_outputs[n_step] = self.pipeline[n_step].produce(**produce_arguments).value
+                else:
+                    steps_outputs[n_step] = None
+
+        # Create output
+        pipeline_output = []
+        for output in self.outputs:
+            if output[0] == 'steps':
+                pipeline_output.append(steps_outputs[output[1]])
+            else:
+                pipeline_output.append(arguments[output[0][output[1]]])
+        return pipeline_output
+
+    def initialize_solution(self, taskname):
+        python_paths = ['d3m.primitives.datasets.DatasetToDataFrame', 'd3m.primitives.data.ExtractAttributes', 'd3m.primitives.data.ExtractTargets']
+        num = len(python_paths)
+
+        if taskname != 'CLASSIFICATION' and taskname != 'REGRESSION':
+            print("One less")
+            num = num - 1 
+       
+        self.primitives_arguments = {}
+        self.primitives = {}
+        self.hyperparams = {}
+        for i in range(0, num):
+            self.primitives_arguments[i] = {}
+            self.hyperparams[i] = None
+
+        self.execution_order = None
+
+        self.pipeline = [None] * num
+        self.inputs = []
+        self.inputs.append({"name": "dataset inputs"})
+
+        # Constructing DAG to determine the execution order
+        execution_graph = nx.DiGraph()
+  
+        for i in range(num):
+            prim = d3m.index.search(primitive_path_prefix=python_paths[i])[python_paths[i]]
+            self.primitives[i] = prim          
+
+            data = 'inputs.0'
+            if i > 0:
+                data = 'steps.0.produce'
+            
+            origin = data.split('.')[0]
+            source = data.split('.')[1]
+            self.primitives_arguments[i]['inputs'] = {'origin': origin, 'source': int(source), 'data': data}
+            
+            if i == 0:
+                execution_graph.add_edge(origin, str(i))
+            else:
+                execution_graph.add_edge(str(source), str(i))
+
+        execution_order = list(nx.topological_sort(execution_graph))
+
+        # Removing non-step inputs from the order
+        execution_order = list(filter(lambda x: x.isdigit(), execution_order))
+        self.execution_order = [int(x) for x in execution_order]
+
+        # Creating set of steps to be call in produce
+        self.produce_order = set()
+
+        data = 'steps.' + str(num-1) + '.produce'
+        origin = data.split('.')[0]
+        source = data.split('.')[1]
+
+        current_step = int(source)
+        self.produce_order.add(current_step)
+        for i in range(0, len(execution_order)):
+            step_origin = self.primitives_arguments[current_step]['inputs']['origin']
+            step_source = self.primitives_arguments[current_step]['inputs']['source']
+            if step_origin != 'steps':
+                 break
+            else:
+                 self.produce_order.add(step_source)
+                 current_step = step_source   
+       
+    def add_step(self, python_path):
+        n_steps = len(self.primitives_arguments) + 1
+        i = n_steps-1
+        self.primitives_arguments[i] = {}
+        self.hyperparams[i] = None
+
+        self.pipeline.append([None])
+        self.outputs = []
+
+        prim = d3m.index.search(primitive_path_prefix=python_path)[python_path]
+        self.primitives[i] = prim
+
+        data = 'steps.' + str(1) + str('.produce')
+        origin = data.split('.')[0]
+        source = data.split('.')[1]
+        self.primitives_arguments[i]['inputs'] = {'origin': origin, 'source': int(source), 'data': data}
+        taskname = problem_pb2.TaskType.Name(self.problem.problem.task_type)
+        if taskname == 'CLASSIFICATION' or taskname == 'REGRESSION':
+            data = 'steps.' + str(2) + str('.produce')
+            origin = data.split('.')[0]
+            source = data.split('.')[1]
+            self.primitives_arguments[i]['outputs'] = {'origin': origin, 'source': int(source), 'data': data}
+            
+        self.execution_order.append(i)
+
+        # Creating set of steps to be call in produce
+        self.produce_order = set()
+
+        data = 'steps.' + str(n_steps-1) + '.produce'
+        origin = data.split('.')[0]
+        source = data.split('.')[1]
+        self.outputs.append((origin, int(source)))
+
+        self.produce_order.add(i)
+
+        self.outputs = []
+        self.outputs.append((origin, int(source)))
+
+    def score_solution(self, **arguments):
+        score = 0.0
+        primitives_outputs = [None] * len(self.execution_order)
+       
+        print(self.execution_order)
+        for i in range(0, len(self.execution_order)): 
+            primitive_arguments = {}
+            n_step = self.execution_order[i]
+            for argument, value in self.primitives_arguments[n_step].items():
+                print("value = ", value)
+                print("name = ", argument)
+                if value['origin'] == 'steps':
+                    primitive_arguments[argument] = primitives_outputs[value['source']]
+                else:
+                    primitive_arguments[argument] = arguments[argument][value['source']]
+
+            if n_step == len(self.execution_order)-1:
+                primitive = self.primitives[n_step]
+                prim_dict = arguments['primitive_dict']
+                primitive_desc = prim_dict[primitive]
+                score = self.last_step(primitive, primitive_arguments, arguments['metric'], primitive_desc, self.hyperparams[n_step])
+            else:
+                if isinstance(self.primitives[n_step], PrimitiveBaseMeta):
+                    primitives_outputs[n_step] = self._primitive_step_fit(n_step, self.primitives[n_step], primitive_arguments)
+        return score
+
+    def last_step(self, primitive: PrimitiveBaseMeta, primitive_arguments, metric, primitive_desc, hyperparams):
+        primitive_family = primitive.metadata.query()['primitive_family']
+
+        training_arguments_primitive = self._primitive_arguments(primitive, 'set_training_data')
+        training_arguments = {}
+
+        custom_hyperparams = dict()
+        if bool(hyperparams):
+            for hyperparam, value in hyperparams.items():
+                if isinstance(value, dict):
+                    custom_hyperparams[hyperparam] = value['data']
+                else:
+                    custom_hyperparams[hyperparam] = value
+
+        for param, value in primitive_arguments.items():
+            if len(training_arguments_primitive) > 1 and isinstance(value, pd.DataFrame) and value.ndim > 1 and len(value.columns) > 1:
+                value = value.fillna('0').replace('', '0')
+                value = value.apply(pd.to_numeric,errors="ignore")
+                value = value.select_dtypes(['number'])
+
+            if param in training_arguments_primitive:
+                training_arguments[param] = value
+
+        print('*'*10)
+        print('Last step primitive', primitive)
+        score = primitive_desc.score_primitive(training_arguments['inputs'], training_arguments['outputs'], metric, custom_hyperparams)
+
+        return score 
+ 
+    def describe_solution(self, prim_dict):
+        inputs = []
+        for i in range(len(self.inputs)):
+            inputs.append(pipeline_pb2.PipelineDescriptionInput(name=self.inputs[i]["name"]))
+
+        outputs=[]
+        outputs.append(pipeline_pb2.PipelineDescriptionOutput(name="predictions", data=str(self.outputs[0][0])+str(".")+str(self.outputs[0][1])))
+
+        steps=[]
+        
+        for j in range(len(self.primitives_arguments)):
+            s = self.primitives[j]
+            prim = prim_dict[s]
+            p = primitive_pb2.Primitive(id=prim.id, version=prim.primitive_class.version, python_path=prim.primitive_class.python_path,
+            name=prim.primitive_class.name, digest=prim.primitive_class.digest)
+
+            arguments={}
+
+            for argument, data in self.primitives_arguments[j].items():
+                argument_edge = data['data']
+                origin = argument_edge.split('.')[0]
+                source = argument_edge.split('.')[1]
+                
+                if origin == 'steps':
+                    sa = pipeline_pb2.PrimitiveStepArgument(data = pipeline_pb2.DataArgument(data=argument_edge))
+                else:
+                    sa = pipeline_pb2.PrimitiveStepArgument(container = pipeline_pb2.ContainerArgument(data=argument_edge))
+                arguments[argument] = sa
+
+            step_outputs = []
+            for a in prim.primitive_class.produce_methods:
+                step_outputs.append(pipeline_pb2.StepOutput(id=a))
+
+            steps.append(pipeline_pb2.PipelineDescriptionStep(primitive=pipeline_pb2.PrimitivePipelineDescriptionStep(primitive=p,
+             arguments=arguments, outputs=step_outputs)))
+           
+        return pipeline_pb2.PipelineDescription(id=self.id, source=self.source, created=self.created, context=self.context,
+         name=self.name, description=self.description, inputs=inputs, outputs=outputs, steps=steps)
+
+    def get_hyperparams(self, step, prim_dict):
+        p = prim_dict[self.primitives[step]]
+        custom_hyperparams = self.hyperparams[step]
+        hyperparam_spec = p.primitive_class.hyperparam_spec
+
+        filter_hyperparam = lambda vl: None if vl == 'None' else vl
+        hyperparams = {name:filter_hyperparam(vl['default']) for name,vl in hyperparam_spec.items()}
+
+        if bool(custom_hyperparams):
+            for name, value in custom_hyperparams.items():
+                hyperparams[name] = value
+
+        hyperparam_types = {name:filter_hyperparam(vl['structural_type']) for name,vl in hyperparam_spec.items() if 'structural_type' in vl.keys()}
         send_params={}
         for name, value in hyperparams.items():
             tp = hyperparam_types[name]
@@ -186,40 +603,24 @@ class SolutionDescription(object):
                     send_params[name]=value_pb2.Value(bool=value)
                 elif isinstance(value, str):
                     send_params[name]=value_pb2.Value(string=value)
-            
+           
         return core_pb2.PrimitiveStepDescription(hyperparams=send_params)
 
 
 class PrimitiveDescription(object):
-    def __init__(self, id, hyperparam_spec, primitive):
-        self.id = id
-        self.hyperparam_spec = hyperparam_spec
+    def __init__(self, primitive, primitive_class):
+        self.id = primitive_class.id
         self.primitive = primitive
-        self.hyperparams = None
-        self.prim_instance = None
+        self.primitive_class = primitive_class
 
-    def train(self, X, y):
-        """
-        Trains the model.
-        """
-        if self.hyperparams == None:
-            optimal_params = self.find_optimal_hyperparams(train=X, output=y) 
-            self.hyperparams = optimal_params
-
-        self.prim_instance = self.primitive(self.hyperparams)
-        self.prim_instance.set_training_data(inputs=X.values, outputs=y.values)
-        res = self.prim_instance.fit()
-        print("TRAINING Done:", res.has_finished)
-        print("Iterations:", res.iterations_done)
-
-    def score_primitive(self, X, y, metric):
+    def score_primitive(self, X, y, metric, custom_hyperparams):
         """
         Learns optimal hyperparameters for the primitive
         Evaluates model on inputs X and outputs y
         Returns metric.
         """
-        optimal_params = self.find_optimal_hyperparams(train=X, output=y, metric=metric) 
-        self.hyperparams = optimal_params
+        optimal_params = self.find_optimal_hyperparams(train=X, output=y, hyperparam_spec=self.primitive_class.hyperparam_spec,
+ metric=metric, custom_hyperparams=custom_hyperparams) 
 
         from sklearn.model_selection import KFold
 
@@ -230,7 +631,8 @@ class PrimitiveDescription(object):
 
         prim_instance = self.primitive(hyperparams=optimal_params)
         score = 0.0
-        try:
+       
+        try: 
             for train_index, test_index in kf.split(X):
                 X_train, X_test = X.iloc[train_index], X.iloc[test_index]
                 y_train, y_test = y.iloc[train_index], y.iloc[test_index]
@@ -241,28 +643,11 @@ class PrimitiveDescription(object):
                 metric = self.evaluate_metric(predictions, y_test, metric)     
                 metric_sum += metric
 
-            score = metric_sum/splits
+                score = metric_sum/splits
         except:
             score = 0.0
         return score
  
-    def training_finished(self):
-        """
-        Yields false until the model is finished training, true otherwise.
-        """
-        yield self.train_result.has_finished
-
-    def produce(self, X):
-        """
-        Runs the solution.  Returns two things: a model, and a score.
-        """
-        assert self.train_result.has_finished
-        res = self.prim_instance.produce(inputs=X.values, timeout=1000.0, iterations=1)
-        print("TESTING: Done:", res.has_finished)
-        
-        inputs['prediction'] = pd.Series(res.value)
-        print(inputs[['d3mIndex', 'prediction']])
-
     def evaluate_metric(self, predictions, Ytest, metric):
         """
         Function to compute prediction accuracy for classifiers.
@@ -346,7 +731,7 @@ class PrimitiveDescription(object):
         print('Metric: %f' %(metric))
         return metric
 
-    def optimize_hyperparams(self, train, output, lower_bounds, upper_bounds, default_params, hyperparam_types, metric):
+    def optimize_hyperparams(self, train, output, lower_bounds, upper_bounds, default_params, hyperparam_types, metric, custom_hyperparams):
         """
         Optimize primitive's hyper parameters using Bayesian Optimization package 'bo'.
         Optimization is done for the parameters with specified range(lower - upper).
@@ -361,11 +746,16 @@ class PrimitiveDescription(object):
         # Create parameter ranges in domain_bounds. 
         # Map parameter names to indices in optimal_params
         for name,value in lower_bounds.items():
+            if bool(custom_hyperparams) and name in custom_hyperparams.keys():
+                continue
             lower = lower_bounds[name]
             upper = upper_bounds[name]
             domain_bounds.append([lower,upper])
             optimal_params[index] = name
             index =index+1
+
+        if index == 0:
+            return default_params
 
         func = lambda inputs : self.optimize_primitive(train, output, inputs, default_params, optimal_params, hyperparam_types, metric)
         try:
@@ -384,20 +774,22 @@ class PrimitiveDescription(object):
                 value = (int)(curr_opt_pt[index]+0.5)
             default_params[name] = value
 
+        if bool(custom_hyperparams):
+            for name,value in custom_hyperparams.items():
+                default_params[name] = value
+
         return default_params
 
-    def find_optimal_hyperparams(self, train, output, metric):
+    def find_optimal_hyperparams(self, train, output, hyperparam_spec, metric, custom_hyperparams):
         filter_hyperparam = lambda vl: None if vl == 'None' else vl
-        default_hyperparams = {name:filter_hyperparam(vl['default']) for name,vl in self.hyperparam_spec.items()}
-        hyperparam_lower_ranges = {name:filter_hyperparam(vl['lower']) for name,vl in self.hyperparam_spec.items() if 'lower' in vl.keys()}
-        hyperparam_upper_ranges = {name:filter_hyperparam(vl['upper']) for name,vl in self.hyperparam_spec.items() if 'upper' in vl.keys()}
-        hyperparam_types = {name:filter_hyperparam(vl['structural_type']) for name,vl in self.hyperparam_spec.items() if 'structural_type' in vl.keys()}
+        default_hyperparams = {name:filter_hyperparam(vl['default']) for name,vl in hyperparam_spec.items()}
+        hyperparam_lower_ranges = {name:filter_hyperparam(vl['lower']) for name,vl in hyperparam_spec.items() if 'lower' in vl.keys()}
+        hyperparam_upper_ranges = {name:filter_hyperparam(vl['upper']) for name,vl in hyperparam_spec.items() if 'upper' in vl.keys()}
+        hyperparam_types = {name:filter_hyperparam(vl['structural_type']) for name,vl in hyperparam_spec.items() if 'structural_type' in vl.keys()}
         print(default_hyperparams)
         if len(hyperparam_lower_ranges) > 0:
-            print(hyperparam_lower_ranges)
-            print(hyperparam_upper_ranges)
-            print(hyperparam_types)
-            default_hyperparams = self.optimize_hyperparams(train, output, hyperparam_lower_ranges, hyperparam_upper_ranges, default_hyperparams, hyperparam_types, metric)
+            default_hyperparams = self.optimize_hyperparams(train, output, hyperparam_lower_ranges, hyperparam_upper_ranges,
+ default_hyperparams, hyperparam_types, metric, custom_hyperparams)
             print(default_hyperparams)
 
         return default_hyperparams

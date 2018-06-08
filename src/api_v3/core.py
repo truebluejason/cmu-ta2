@@ -7,17 +7,15 @@ Implementation of the ta2ta3 API v2 (preprocessing extensions) -- core.proto
 import core_pb2 as core_pb2
 import core_pb2_grpc as core_pb2_grpc
 import value_pb2 as value_pb2
-import value_pb2_grpc as value_pb2_grpc
 import primitive_pb2 as primitive_pb2
-import primitive_pb2_grpc as primitive_pb2_grpc
 import problem_pb2 as problem_pb2
-import problem_pb2_grpc as problem_pb2_grpc
 import logging
 import primitive_lib
 import json
 import os
 import os.path
 import pandas as pd
+import pickle, copy
 from urllib import request as url_request
 from urllib import parse as url_parse
 
@@ -27,143 +25,81 @@ import uuid
 
 logging.basicConfig(level=logging.INFO)
 
-__symbol_idx = 0
-def gensym(id="gensym"):
-    global __symbol_idx
-    s = "{}_{}".format(id, __symbol_idx)
-    __symbol_idx += 1
-    return s
+from d3m.metadata.pipeline import Pipeline, PrimitiveStep
+from d3m.container.dataset import D3MDatasetLoader, Dataset
+from d3m.metadata import base as metadata_base
+from d3m.metadata.base import Metadata
 
-def dataset_uri_path(dataset_uri):
-    """
-    Takes the dataset spec file:// URI passed as a dataset and returns a file 
-    path to the directory containing it.
-    """
-    parsed_url = url_parse.urlparse(dataset_uri)
-    assert parsed_url.scheme == 'file'
-    dataset_path = parsed_url.path
-    # Find the last / and chop off any file after it
-    filename_start_loc = dataset_path.rfind('/')
-    assert filename_start_loc > 0
-    return dataset_path[:filename_start_loc]
+def load_problem_doc(problem_doc_uri: str):
+    """     Load problem_doc from problem_doc_uri     
+    Paramters     ---------     problem_doc_uri
+         Uri where the problemDoc.json is located
+    """     
+    with open(problem_doc_uri) as file:         
+        problem_doc = json.load(file)     
+    problem_doc_metadata = Metadata(problem_doc)     
+    return problem_doc_metadata
 
+def add_target_columns_metadata(dataset: 'Dataset', problem_doc_metadata: 'Metadata'):
+    
+    for data in problem_doc_metadata.query(())['inputs']['data']:
+        targets = data['targets']
+        for target in targets:
+            semantic_types = list(dataset.metadata.query((target['resID'], metadata_base.ALL_ELEMENTS, target['colIndex'])).get('semantic_types', []))
+            if 'https://metadata.datadrivendiscovery.org/types/Target' not in semantic_types:
+                semantic_types.append('https://metadata.datadrivendiscovery.org/types/Target')
+                dataset.metadata = dataset.metadata.update((target['resID'], metadata_base.ALL_ELEMENTS, target['colIndex']), {'semantic_types': semantic_types})
+            if 'https://metadata.datadrivendiscovery.org/types/TrueTarget' not in semantic_types:
+                semantic_types.append('https://metadata.datadrivendiscovery.org/types/TrueTarget')
+                dataset.metadata = dataset.metadata.update((target['resID'], metadata_base.ALL_ELEMENTS, target['colIndex']), {'semantic_types': semantic_types})
 
+    return dataset
 
-class Column(object):
-    """
-    Metadata for a data column in a resource specification file.
-    """
-    def __init__(self, colIndex, colName, colType, role):
-        self.col_index = colIndex
-        self.col_name = colName
-        self.col_type  = colType
-        self.role = role
+def add_target_metadata(dataset, targets):
+    for target in targets:
+        semantic_types = list(dataset.metadata.query((target.resource_id, metadata_base.ALL_ELEMENTS, target.column_index)).get('semantic_types', []))
+        if 'https://metadata.datadrivendiscovery.org/types/Target' not in semantic_types:
+            semantic_types.append('https://metadata.datadrivendiscovery.org/types/Target')
+            dataset.metadata = dataset.metadata.update((target.resource_id, metadata_base.ALL_ELEMENTS, target.column_index), {'semantic_types': semantic_types})
+        if 'https://metadata.datadrivendiscovery.org/types/TrueTarget' not in semantic_types:
+            semantic_types.append('https://metadata.datadrivendiscovery.org/types/TrueTarget')
+            dataset.metadata = dataset.metadata.update((target.resource_id, metadata_base.ALL_ELEMENTS, target.column_index), {'semantic_types': semantic_types})
 
-    @staticmethod
-    def from_json_dict(json_dct):
-        return Column(json_dct['colIndex'], json_dct['colName'], json_dct['colType'], json_dct['role'])
+    return dataset
 
+def generate_pipeline(pipeline_uri: str, dataset_uri: str, problem_doc_uri: str):
+    # Pipeline description
+    pipeline_description = None
+    if '.json' in pipeline_uri:
+        with open(pipeline_uri) as pipeline_file:
+            pipeline_description = Pipeline.from_json_content(string_or_file=pipeline_file)
+    else:
+        with open(pipeline_uri) as pipeline_file:
+            pipeline_description = Pipeline.from_yaml_content(string_or_file=pipeline_file)
 
-    # TODO: Refactor this to a class method, annotation or mixin.
-    @staticmethod
-    def from_json_str(json_str):
-        "Easy way to deserialize JSON to an object, see https://stackoverflow.com/a/16826012"
-        return json.loads(json_str, object_hook=Column.from_json_dict)
+    # Problem Doc
+    problem_doc = load_problem_doc(problem_doc_uri)
 
-    def to_json_dict(self):
-        return {
-            'colIndex':self.col_index,
-            'colName':self.col_name,
-            'colType':self.col_type,
-            'role':self.role,
-        }
+    # Dataset
+    if 'file:' not in dataset_uri:
+        dataset_uri = 'file://{dataset_uri}'.format(dataset_uri=os.path.abspath(dataset_uri))
+    dataset = D3MDatasetLoader().load(dataset_uri)
+    # Adding Metadata to Dataset
+    dataset = add_target_columns_metadata(dataset, problem_doc)
 
-class DataResource(object):
-    """
-    Metadata for a resource in a resource specification file.
-    """
-    def __init__(self, res_id, path, type, format, is_collection, columns, dataset_root):
-        self.res_id = res_id
-        self.path = path
-        self.type = type
-        self.format = format
-        self.is_collection = is_collection
-        self.columns = columns
-        self.full_path = os.path.join(dataset_root, path)
+    # Pipeline
+    solution = solutiondescription.SolutionDescription()
+    solution.create_from_pipeline(pipeline_description)
+    # Fitting Pipeline
+    solution.fit(inputs=[dataset])
+    return solution
 
-    def load(self):
-        """
-        Loads the dataset and returns a Pandas dataframe.
-        """
-        # Just take the first index column, assuming there's only one.
-        index_col = next((c for c in self.columns if c.role == "index"), None)
-        df = pd.read_csv(self.full_path, index_col=index_col)
-        return df
-
-    @staticmethod
-    def from_json_dict(json_dct, dataset_root):
-        columns = [
-            Column.from_json_dict(dct) for dct in json_dct['columns']
-        ]
-        return DataResource(
-            json_dct['resID'], 
-            json_dct['resPath'], 
-            json_dct['resType'], 
-            json_dct['resFormat'],
-            json_dct['isCollection'],
-            columns,
-            dataset_root)
-
-    @staticmethod
-    def from_json_str(json_str):
-        return json.loads(json_str, object_hook=DataResource.from_json_dict)
-
-    def to_json_dict(self):
-        return {
-            'resID': self.res_id,
-            'resPath': self.path,
-            'resType': self.type,
-            'resFormat': self.format,
-            'isCollection': self.is_collection,
-            'columns': list(map(lambda column: column.to_json_dict(), self.columns))
-        }
-
-class DatasetSpec(object):
-    """
-    Parser/shortcut methods for a dataset specification file.
-
-    It is a JSON file that contains one or more DataResource's, each of which
-    contains one or more Column's.
-    Basically it is a collection of metadata about a dataset, including where to find
-    the actual data files (relative to its own location).
-    The TA3 client will pass a URI to a dataset spec file as a way of saying which
-    dataset it wants to operate on.
-    """
-    def __init__(self, about, resources, root_path):
-        self.about = about
-        self.resource_specs = resources
-        self.root_path = root_path
-
-    @staticmethod
-    def from_json_dict(json_dct, root_path):
-        resources = [
-                DataResource.from_json_dict(dct, root_path) for dct in json_dct['dataResources']
-            ]
-        return DatasetSpec(
-            json_dct['about'],
-            resources,
-            root_path
-        )
-    @staticmethod
-    def from_json_str(json_str, root_path):
-        s = json.loads(json_str)
-        return DatasetSpec.from_json_dict(s, root_path)
-
-    def to_json_dict(self):
-        return {
-            'about': self.about,
-            'dataResources': list(map(lambda spec: spec.to_json_dict(), self.resource_specs))
-        }
+def test_pipeline(solution: solutiondescription.SolutionDescription, dataset_uri: str, problem_doc_uri: str):
+    # Dataset
+    if 'file:' not in dataset_uri:
+        dataset_uri = 'file://{dataset_uri}'.format(dataset_uri=os.path.abspath(dataset_uri))
+    dataset = D3MDatasetLoader().load(dataset_uri)
+    return solution.produce(inputs=[dataset])
 
 class Core(core_pb2_grpc.CoreServicer):
     def __init__(self):
@@ -178,24 +114,32 @@ class Core(core_pb2_grpc.CoreServicer):
                 continue
             if p.name == 'sklearn.ensemble.gradient_boosting.GradientBoostingClassifier':
                continue
-            self._primitives[p.classname] = p
+            self._primitives[p.classname] = solutiondescription.PrimitiveDescription(p.classname, p)
 
-    def _new_session_id(self):
-        "Returns an identifier string for a new session."
-        return gensym("session")
+        pipeline_uri = '185_pipe_v3.json'
+        dataset_uri = '185_baseball/185_baseball_dataset/datasetDoc.json'
+        problem_doc_uri = '185_baseball/185_baseball_problem/problemDoc.json'
+        test_dataset_uri = '185_baseball/TEST/dataset_TEST/datasetDoc.json'
+        #solution = generate_pipeline(pipeline_uri=pipeline_uri, dataset_uri=dataset_uri, problem_doc_uri=problem_doc_uri)
+        #prodop = test_pipeline(solution, test_dataset_uri, problem_doc_uri)
 
-    def _new_pipeline_id(self):
-        "Returns an identifier string for a new pipeline."
-        return gensym("pipeline")
-
-    def compute_timestamp(self):
-        now = time.time()
-        seconds = int(now)
-        return Timestamp(seconds=seconds)
-
-    def evaluate_solution(self, task, metric):
-        score = task['solution'].score_solution(task['X'], task['y'], metric)
-        return score
+        #if 'file:' not in dataset_uri:
+        #    dataset_uri = 'file://{dataset_uri}'.format(dataset_uri=os.path.abspath(dataset_uri))
+        #dataset = D3MDatasetLoader().load(dataset_uri)
+        # Adding Metadata to Dataset
+        #problem_doc = load_problem_doc(problem_doc_uri)
+        #dataset = add_target_columns_metadata(dataset, problem_doc)
+        #score = solution.score_solution(inputs=[dataset], metric=problem_pb2.ACCURACY, primitive_dict=self._primitives)
+        #print(score)
+        #print(prodop)
+        #print("Creating it now")
+        #pb2_pd = solution.describe_solution(self._primitives)
+        #pb2_pd.steps[3].primitive.hyperparams = {}
+        #pb2_pd.steps[3].primitive.hyperparams['min_samples_split'] = pipeline_pb2.PrimitiveStepHyperparameter(value=5)
+        #new_sol = solutiondescription.SolutionDescription()
+        #print("Descr done")
+        #new_sol.create_from_pipelinedescription(pb2_pd)
+        #new_sol.score_solution(inputs=[dataset], metric=problem_pb2.ACCURACY, primitive_dict=self._primitives)
 
     def search_solutions(self, task):
         request = task[0]['request']
@@ -206,16 +150,15 @@ class Core(core_pb2_grpc.CoreServicer):
         print(task_name)
 
         solutions = []
-        for ip in request.inputs:
-            print(ip)
-            (X, y) = solutiondescription.load_dataset(ip.dataset_uri)
+        basic_sol = solutiondescription.SolutionDescription(request.problem)
+        basic_sol.initialize_solution(task_name)
 
-            for classname, p in primitives.items():
-                if p.family == task_name:
-                    prim = solutiondescription.PrimitiveDescription(p.id, p.hyperparam_spec, p.classname)
-                    pipe = solutiondescription.SolutionDescription()
-                    pipe.add_step(prim)
-                    solutions.append(pipe)
+        for classname, p in primitives.items():
+            if p.primitive_class.family == task_name:
+                pipe = copy.deepcopy(basic_sol)
+                pipe.id = str(uuid.uuid4())
+                pipe.add_step(p.primitive_class.python_path)
+                solutions.append(pipe)
 
         return solutions
     
@@ -226,6 +169,17 @@ class Core(core_pb2_grpc.CoreServicer):
         self._solution_score_map[search_id_str] = request
         return core_pb2.SearchSolutionsResponse(search_id = search_id_str)
 
+    def _get_inputs(self, solution, rinputs):
+        inputs = []
+        for ip in rinputs:
+            if ip.HasField("dataset_uri") == True:
+                dataset = D3MDatasetLoader().load(ip.dataset_uri)
+                targets = solution.problem.inputs[0].targets
+                dataset = add_target_metadata(dataset, targets)
+                inputs.append(dataset)
+
+        return inputs
+	    
     def GetSearchSolutionsResults(self, request, context):
         logging.info("Message received: GetSearchSolutionsRequest")
         search_id_str = request.search_id
@@ -280,7 +234,7 @@ class Core(core_pb2_grpc.CoreServicer):
         param_map = []
         num_steps = self._solutions[solution_id].num_steps()
         for j in range(num_steps):
-            param_map.append(core_pb2.StepDescription(primitive=self._solutions[solution_id].get_hyperparams(j)))
+            param_map.append(core_pb2.StepDescription(primitive=self._solutions[solution_id].get_hyperparams(j, self._primitives)))
 
         return core_pb2.DescribeSolutionResponse(pipeline=desc, steps=param_map)
 
@@ -302,16 +256,14 @@ class Core(core_pb2_grpc.CoreServicer):
         msg = core_pb2.Progress(state=core_pb2.RUNNING, status="", start=start, end=solutiondescription.compute_timestamp())
         
         send_scores = []
-        for i in range(len(request_params.inputs)):
-            ip = request_params.inputs[i]
-            (X, y) = solutiondescription.load_dataset(ip.dataset_uri)
 
-            task = {'solution': self._solutions[solution_id], 'X': X, 'y': y}
-            score = self.evaluate_solution(task, request_params.performance_metrics[0])
-            print(score)
-            send_scores.append(core_pb2.Score(metric=request_params.performance_metrics[i], fold=request_params.configuration.folds, targets=[], value=value_pb2.Value(double=score)))
+        inputs = self._get_inputs(self._solutions[solution_id], request_params.inputs)
+        score = self._solutions[solution_id].score_solution(inputs=inputs, metric=request_params.performance_metrics[0], primitive_dict=self._primitives)
+        print(score)
+        send_scores.append(core_pb2.Score(metric=request_params.performance_metrics[0],
+             fold=request_params.configuration.folds, targets=[], value=value_pb2.Value(double=score)))
 
-            yield core_pb2.GetScoreSolutionResultsResponse(progress=msg, scores=[]) 
+        yield core_pb2.GetScoreSolutionResultsResponse(progress=msg, scores=[]) 
 
         # Clean up
         self._solution_score_map.pop(request_id, None)
@@ -333,16 +285,16 @@ class Core(core_pb2_grpc.CoreServicer):
 
         solution_id = request_params.solution_id
         solution = self._solutions[solution_id]
-        inputs = request_params.inputs
 
         msg = core_pb2.Progress(state=core_pb2.RUNNING, status="", start=start, end=solutiondescription.compute_timestamp())
-        for ip in inputs:
-            (X, y) = solutiondescription.load_dataset(ip.dataset_uri)
-            fitted_solution = copy.deepcopy(solution)
-            fitted_solution.id = str(uuid.uuid4()) 
-            self._solutions[fitted_solution.id] = fitted_solution
-            fitted_solution.train(X, y)
-            yield core_pb2.GetFitSolutionResultsResponse(progress=msg, steps=[], exposed_outputs=[], fitted_solution_id=fitted_solution.id)
+            
+        fitted_solution = copy.deepcopy(solution)
+        fitted_solution.id = str(uuid.uuid4()) 
+        self._solutions[fitted_solution.id] = fitted_solution
+
+        inputs = self._get_inputs(self._solutions[solution_id], request_params.inputs)
+        fitted_solution.fit(inputs)
+        yield core_pb2.GetFitSolutionResultsResponse(progress=msg, steps=[], exposed_outputs=[], fitted_solution_id=fitted_solution.id)
 
         self._solution_score_map.pop(request_id, None)
 
@@ -364,9 +316,9 @@ class Core(core_pb2_grpc.CoreServicer):
 
         solution_id = request_params.fitted_solution_id
         solution = self._solutions[solution_id]
-        inputs = request_params.inputs
-        (X, y) = solutiondescription.load_dataset(inputs[0].dataset_uri)
-        solution.produce(X)
+
+        inputs = self._get_inputs(solution, request_params.inputs)
+        solution.produce(inputs)
         
         self._solution_score_map.pop(request_id, None)
 
@@ -378,6 +330,9 @@ class Core(core_pb2_grpc.CoreServicer):
         solution_id = request.fitted_solution_id
         rank = request.rank
         solution = self._solutions[solution_id]
+        output = open(solution_id+".dump", "wb")
+        pickle.dump(solution, output)
+        output.close()
         return core_pb2.SolutionExportResponse()
 
     def UpdateProblem(self, request, context):
