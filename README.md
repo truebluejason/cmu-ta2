@@ -89,23 +89,36 @@ cd /home/sheath/projects/D3M/cmu-ta2
 
 Now we can hit "start session" in the thing and, lo and behold, it actually talks to our TA2!  Magic.
 
-# Building docker image
+# Building the docker image
+The repository automatically builds the docker image after each commit.
+Images are stored in the [registry](https://gitlab.datadrivendiscovery.org/sheath/cmu-ta2/container_registry).
+
+The Gitlab continuous integration (CI) manages the building process.
+There are three configuration files:
+1. ```.gitlab-ci.yml```
+1. ```.gitmodules```
+1. ```Dockerfile```
+
+# Building the docker image manually
 Prerequisites:
 1. [Install docker](https://docs.docker.com/install/).
     1. Check docker ```docker --version```
-1. [For building docker] Create a [Gitlab access token](https://docs.gitlab.com/ee/user/profile/personal_access_tokens.html) for your Gitlab account
-    1. Use ```read_repository``` for ```scope```
-    1. This is used to clone the repository--[bayesian_optimization](https://gitlab.datadrivendiscovery.org/sray/bayesian_optimization)--during the docker image creation
-
-Run all commands as root.
+1. We use [Git submodules](https://docs.gitlab.com/ce/ci/git_submodules.html) to manage dependent repositories, including
+    1. [bayesian_optimization](https://gitlab.datadrivendiscovery.org/sray/bayesian_optimization)
+    1. ta3ta2-api-v1
+    1. ta3ta2-api-v2
+1. To clone into submodules, run following command at repository top level as a normal user
+```bash
+git submodule sync --recursive
+git submodule update --init --recursive
+```
 
 ## Create a docker image
-Create a docker image by running the following command
+Run all commands as root.
+Create a docker image by running the following commands
 ```bash
-docker build -t registry.datadrivendiscovery.org/sheath/cmu-ta2 . --build-arg gitlab_token=<access_token> --build-arg gitlab_user=<user>
+docker build -t registry.datadrivendiscovery.org/sheath/cmu-ta2 . 
 ```
-where ```<access_token>``` is the Gitlab access token, 
-and ```<user>``` is your Gitlab account.
 
 This creates an image--```cmu-ta2```--in your machine’s local Docker image registry.
 
@@ -114,20 +127,25 @@ List docker images:
 docker image ls
 ```
 
-Finally, push the image to the D3M registory
+Finally, push the image to the D3M registry
 ```bash
 docker push registry.datadrivendiscovery.org/sheath/cmu-ta2
 ```
 
-## Pull the docker image from the D3M registory
+# Using the docker image
+## Pull the docker image from the D3M registry
 ```bash
-docker pull registry.datadrivendiscovery.org/sheath/cmu-ta2
+# pull the image with "live" tag
+# used by summer 2018 eval
+docker pull registry.datadrivendiscovery.org/sheath/cmu-ta2:live
+
+# pull the "lasted" image 
+docker pull registry.datadrivendiscovery.org/sheath/cmu-ta2:latest
 ```
 
 ## Run the docker image
 Run the docker image, mapping your machine’s port 45042 to the container’s published port 45042 using ```-p```
 ```bash
 docker run -i -t \
--p 45042:45042
-docker push registry.datadrivendiscovery.org/sheath/cmu-ta2
+    -p 45042:45042 # TODO other arguments
 ```

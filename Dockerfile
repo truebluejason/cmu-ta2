@@ -1,26 +1,25 @@
+# JPL base image
 from registry.datadrivendiscovery.org/jpl/docker_images/complete:ubuntu-xenial-python36-v2018.1.26-20180515-235715
+
 maintainer "Donghan Wang<donghanw@cs.cmu.edu>, Simon Heath <sheath@andrew.cmu.edu>"
 
 user root
 
-RUN apt-get update
-RUN apt-get install -y libcurl4-openssl-dev # for pycurl
+# libcurl4-openssl-dev for pycurl
+# fortran for bayesian_optimization
+RUN apt-get update && apt-get install -y \
+    libcurl4-openssl-dev \
+    gfortran
 
-run pip3 install --upgrade pip
-run pip3 install --process-dependency-links git+https://gitlab.com/datadrivendiscovery/primitive-interfaces.git
-run pip3 install --process-dependency-links git+https://gitlab.com/datadrivendiscovery/d3m.git
-
-# Install grpc, a D3M dependency
-RUN pip3 install --upgrade grpcio grpcio-tools
-
-# Install fortran, a bayesian_optimization dependency
-RUN apt-get install -y gfortran
+# install d3m and grpc, a D3M dependency
+RUN pip3 install --upgrade pip \
+    && pip3 install --process-dependency-links git+https://gitlab.com/datadrivendiscovery/primitive-interfaces.git \
+    && pip3 install --process-dependency-links git+https://gitlab.com/datadrivendiscovery/d3m.git \
+    && pip3 install --upgrade grpcio grpcio-tools
 
 # Install bayesian_optimiaztion
-ARG gitlab_user
-ARG gitlab_token
-run git clone https://$gitlab_user:$gitlab_token@gitlab.datadrivendiscovery.org/sray/bayesian_optimization.git /tmp/bayesian_optimization; \
-    cd /tmp/bayesian_optimization/bo/utils/direct_fortran; \
+COPY bayesian_optimization /tmp/bayesian_optimization
+RUN cd /tmp/bayesian_optimization/bo/utils/direct_fortran; \
     bash make_direct.sh; \
     cd /tmp/bayesian_optimization; \
     python3 setup.py bdist_wheel; \
@@ -30,7 +29,7 @@ expose 45042
 
 run mkdir /d3m
 add src/ /d3m/src
-add primitives_repo /d3m/primitives_repo
+#add primitives_repo /d3m/primitives_repo
 #add test_output /d3m/test_output
 
 cmd /d3m/src/main.py

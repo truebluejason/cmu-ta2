@@ -3,9 +3,18 @@ build_image:
 
   image: docker:stable
 
+  variables:
+    GIT_SUBMODULE_STRATEGY: recursive
 
   before_script:
     - docker info
+    - apk update && apk add git
+    - cd bayesian_optimization 
+    - git fetch
+    - git checkout master
+    - git merge origin/master
+    - cd -
+    - git status # should show that your submodule changed
 
   script:
     - docker login -u gitlab-ci-token -p "$CI_BUILD_TOKEN" $CI_REGISTRY
