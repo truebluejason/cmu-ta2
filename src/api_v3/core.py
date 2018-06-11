@@ -88,7 +88,7 @@ def generate_pipeline(pipeline_uri: str, dataset_uri: str, problem_doc_uri: str)
     dataset = add_target_columns_metadata(dataset, problem_doc)
 
     # Pipeline
-    solution = solutiondescription.SolutionDescription()
+    solution = solutiondescription.SolutionDescription('REGRESSION')
     solution.create_from_pipeline(pipeline_description)
     # Fitting Pipeline
     solution.fit(inputs=[dataset])
@@ -130,7 +130,8 @@ class Core(core_pb2_grpc.CoreServicer):
         #problem_doc = load_problem_doc(problem_doc_uri)
         #dataset = add_target_columns_metadata(dataset, problem_doc)
         #score = solution.score_solution(inputs=[dataset], metric=problem_pb2.ACCURACY, primitive_dict=self._primitives)
-        #print(score)
+        #score = solution.score_solution(inputs=[dataset], metric=problem_pb2.ROOT_MEAN_SQUARED_ERROR, primitive_dict=self._primitives)
+        #print("Score = ", score)
         #print(prodop)
         #print("Creating it now")
         #pb2_pd = solution.describe_solution(self._primitives)
@@ -150,7 +151,7 @@ class Core(core_pb2_grpc.CoreServicer):
         print(task_name)
 
         solutions = []
-        basic_sol = solutiondescription.SolutionDescription(request.problem)
+        basic_sol = solutiondescription.SolutionDescription(request.problem.problem.task_type.name)
         basic_sol.initialize_solution(task_name)
 
         for classname, p in primitives.items():
@@ -179,7 +180,7 @@ class Core(core_pb2_grpc.CoreServicer):
                 inputs.append(dataset)
 
         return inputs
-	    
+        
     def GetSearchSolutionsResults(self, request, context):
         logging.info("Message received: GetSearchSolutionsRequest")
         search_id_str = request.search_id
