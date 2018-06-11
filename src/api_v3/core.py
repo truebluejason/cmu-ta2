@@ -9,6 +9,7 @@ import core_pb2_grpc as core_pb2_grpc
 import value_pb2 as value_pb2
 import primitive_pb2 as primitive_pb2
 import problem_pb2 as problem_pb2
+import pipeline_pb2 as pipeline_pb2
 import logging
 import primitive_lib
 import json
@@ -91,7 +92,7 @@ def generate_pipeline(pipeline_uri: str, dataset_uri: str, problem_doc_uri: str)
     solution = solutiondescription.SolutionDescription('REGRESSION')
     solution.create_from_pipeline(pipeline_description)
     # Fitting Pipeline
-    solution.fit(inputs=[dataset])
+    #solution.fit(inputs=[dataset])
     return solution
 
 def test_pipeline(solution: solutiondescription.SolutionDescription, dataset_uri: str, problem_doc_uri: str):
@@ -120,27 +121,24 @@ class Core(core_pb2_grpc.CoreServicer):
         dataset_uri = '185_baseball/185_baseball_dataset/datasetDoc.json'
         problem_doc_uri = '185_baseball/185_baseball_problem/problemDoc.json'
         test_dataset_uri = '185_baseball/TEST/dataset_TEST/datasetDoc.json'
-        #solution = generate_pipeline(pipeline_uri=pipeline_uri, dataset_uri=dataset_uri, problem_doc_uri=problem_doc_uri)
+        solution = generate_pipeline(pipeline_uri=pipeline_uri, dataset_uri=dataset_uri, problem_doc_uri=problem_doc_uri)
         #prodop = test_pipeline(solution, test_dataset_uri, problem_doc_uri)
 
-        #if 'file:' not in dataset_uri:
-        #    dataset_uri = 'file://{dataset_uri}'.format(dataset_uri=os.path.abspath(dataset_uri))
-        #dataset = D3MDatasetLoader().load(dataset_uri)
+        if 'file:' not in dataset_uri:
+            dataset_uri = 'file://{dataset_uri}'.format(dataset_uri=os.path.abspath(dataset_uri))
+        dataset = D3MDatasetLoader().load(dataset_uri)
         # Adding Metadata to Dataset
-        #problem_doc = load_problem_doc(problem_doc_uri)
-        #dataset = add_target_columns_metadata(dataset, problem_doc)
+        problem_doc = load_problem_doc(problem_doc_uri)
+        dataset = add_target_columns_metadata(dataset, problem_doc)
         #score = solution.score_solution(inputs=[dataset], metric=problem_pb2.ACCURACY, primitive_dict=self._primitives)
         #score = solution.score_solution(inputs=[dataset], metric=problem_pb2.ROOT_MEAN_SQUARED_ERROR, primitive_dict=self._primitives)
         #print("Score = ", score)
         #print(prodop)
-        #print("Creating it now")
         #pb2_pd = solution.describe_solution(self._primitives)
         #pb2_pd.steps[3].primitive.hyperparams = {}
         #pb2_pd.steps[3].primitive.hyperparams['min_samples_split'] = pipeline_pb2.PrimitiveStepHyperparameter(value=5)
         #new_sol = solutiondescription.SolutionDescription()
-        #print("Descr done")
         #new_sol.create_from_pipelinedescription(pb2_pd)
-        #new_sol.score_solution(inputs=[dataset], metric=problem_pb2.ACCURACY, primitive_dict=self._primitives)
 
     def search_solutions(self, task):
         request = task[0]['request']
@@ -151,15 +149,23 @@ class Core(core_pb2_grpc.CoreServicer):
         print(task_name)
 
         solutions = []
-        basic_sol = solutiondescription.SolutionDescription(request.problem.problem.task_type.name)
-        basic_sol.initialize_solution(task_name)
+        basic_sol = solutiondescription.SolutionDescription(request.problem)
+        if bool(template) and isinstance(template, pipeline_pb2.PipelineDescription) and len(template.steps) > 0:
+            print("template:", template)
+            basic_sol.create_from_pipelinedescription(pipeline_description=template)
+        else:
+            template = None
 
-        for classname, p in primitives.items():
-            if p.primitive_class.family == task_name:
-                pipe = copy.deepcopy(basic_sol)
-                pipe.id = str(uuid.uuid4())
-                pipe.add_step(p.primitive_class.python_path)
-                solutions.append(pipe)
+        if bool(template) == False or (basic_sol.num_steps() == 1 and basic_sol.contains_placeholder() == True):
+            basic_sol.initialize_solution(task_name)
+
+        if bool(template) == False or basic_sol.contains_placeholder() == True:
+           for classname, p in primitives.items():
+               if p.primitive_class.family == task_name:
+                   pipe = copy.deepcopy(basic_sol)
+                   pipe.id = str(uuid.uuid4())
+                   pipe.add_step(p.primitive_class.python_path)
+                   solutions.append(pipe)
 
         return solutions
     
@@ -295,12 +301,20 @@ class Core(core_pb2_grpc.CoreServicer):
 
         inputs = self._get_inputs(self._solutions[solution_id], request_params.inputs)
         fitted_solution.fit(inputs)
+
         yield core_pb2.GetFitSolutionResultsResponse(progress=msg, steps=[], exposed_outputs=[], fitted_solution_id=fitted_solution.id)
 
         self._solution_score_map.pop(request_id, None)
 
         msg = core_pb2.Progress(state=core_pb2.COMPLETED, status="", start=start, end=solutiondescription.compute_timestamp())
-        yield core_pb2.GetFitSolutionResultsResponse(progress=msg, steps=[], exposed_outputs=[], fitted_solution_id="")
+
+        steps = []
+        for i in range(fitted_solution.num_steps()):
+            steps.append(core_pb2.StepProgress(progress=msg))
+
+        exposed_outputs = {}
+    
+        yield core_pb2.GetFitSolutionResultsResponse(progress=msg, steps=steps, exposed_outputs=[], fitted_solution_id="")
 
     def ProduceSolution(self, request, context):
         logging.info("Message received: ProduceSolution")
@@ -319,12 +333,21 @@ class Core(core_pb2_grpc.CoreServicer):
         solution = self._solutions[solution_id]
 
         inputs = self._get_inputs(solution, request_params.inputs)
-        solution.produce(inputs)
+        output = solution.produce(inputs)
         
         self._solution_score_map.pop(request_id, None)
 
         msg = core_pb2.Progress(state=core_pb2.COMPLETED, status="", start=start, end=solutiondescription.compute_timestamp())
-        return core_pb2.GetProduceSolutionResultsResponse(progress=msg, steps=[], exposed_outputs=[])
+
+        steps = []
+        for i in range(fitted_solution.num_steps()):
+            steps.append(core_pb2.StepProgress(progress=msg))
+
+        exposed_outputs = {}
+        last_step_output = request_params.expose_outputs[len(request_params.expose_outputs)-1]
+        exposed_outputs[last_step_output] = output
+
+        return core_pb2.GetProduceSolutionResultsResponse(progress=msg, steps=steps, exposed_outputs=exposed_outputs)
 
     def SolutionExport(self, request, context):
         logging.info("Message received: SolutionExport")

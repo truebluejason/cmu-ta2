@@ -19,6 +19,7 @@ from  api_v3 import core
 
 import uuid, sys, math
 import time
+from enum import Enum
 from time import sleep
 from google.protobuf.timestamp_pb2 import Timestamp
 
@@ -36,6 +37,11 @@ def compute_timestamp():
     seconds = int(now)
     return Timestamp(seconds=seconds)
 
+class StepType(Enum):
+    PRIMITIVE = 1
+    SUBPIPELINE = 2
+    PLACEHOLDER = 3
+
 class SolutionDescription(object):
     """
     A wrapper of a primitive instance and hyperparameters, ready to have inputs
@@ -47,7 +53,7 @@ class SolutionDescription(object):
     Output is fairly basic right now; it writes to a single numpy CSV file with a given name
     based off the results of the primitive (numpy arrays only atm)
     """
-    def __init__(self, taskname):
+    def __init__(self, problem):
         self.id = str(uuid.uuid4())
         self.source = None
         self.created = compute_timestamp()
@@ -64,7 +70,17 @@ class SolutionDescription(object):
         self.pipeline = None
         self.produce_order = None
         self.hyperparams = None
-        self.taskname = taskname
+        self.problem = problem
+        self.steptypes = None
+
+    def contains_placeholder(self):
+        if bool(self.steptypes) == False:
+            return False
+
+        for step in self.steptypes:
+            if step == StepType.PLACEHOLDER:
+                return True
+        return False
 
     def num_steps(self):
         if bool(self.primitives_arguments):
@@ -146,6 +162,7 @@ class SolutionDescription(object):
     def create_from_pipelinedescription(self, pipeline_description: pipeline_pb2.PipelineDescription) -> None:
         n_steps = len(pipeline_description.steps)
 
+        print("Steps = ", n_steps)
         self.inputs = pipeline_description.inputs
         self.source = pipeline_description.source
         self.created = pipeline_description.created
@@ -156,6 +173,7 @@ class SolutionDescription(object):
         self.primitives_arguments = {}
         self.primitives = {}
         self.hyperparams = {}
+        self.steptypes = []
         for i in range(0, n_steps):
             self.primitives_arguments[i] = {}
             self.hyperparams[i] = None
@@ -168,34 +186,56 @@ class SolutionDescription(object):
         # Constructing DAG to determine the execution order
         execution_graph = nx.DiGraph()
         for i in range(0, n_steps):
-            s = pipeline_description.steps[i].primitive
-            python_path = s.primitive.python_path
-            prim = d3m.index.search(primitive_path_prefix=python_path)[python_path]
-            self.primitives[i] = prim
+            # PrimitivePipelineDescriptionStep
+            if pipeline_description.steps[i].HasField("primitive") == True:
+                s = pipeline_description.steps[i].primitive
+                python_path = s.primitive.python_path
+                prim = d3m.index.search(primitive_path_prefix=python_path)[python_path]
+                self.primitives[i] = prim
+                arguments = s.arguments
+                self.steptypes.append(StepType.PRIMITIVE)
+            # SubpipelinePipelineDescriptionStep
+            elif pipeline_description.steps[i].HasField("pipeline") == True:
+                s = pipeline_description.steps[i].pipeline
+                self.primitives[i] = s
+                self.steptypes.append(StepType.PIPELINE)
+            else: # PlaceholderPipelineDescriptionStep
+                s = pipeline_description.steps[i].placeholder
+                self.steptypes.append(StepType.PLACEHOLDER)
 
-            arguments = s.arguments
-            for name,argument in arguments.items():
-                if argument.HasField("container") == True:
-                    data = argument.container.data
-                else:
-                    data = argument.data.data
-                origin = data.split('.')[0]
-                source = data.split('.')[1]
-                self.primitives_arguments[i][name] = {'origin': origin, 'source': int(source), 'data': data}
+            if self.steptypes[i] == StepType.PRIMITIVE:
+                for name,argument in arguments.items():
+                    if argument.HasField("container") == True:
+                        data = argument.container.data
+                    else:
+                        data = argument.data.data
+                    origin = data.split('.')[0]
+                    source = data.split('.')[1]
+                    self.primitives_arguments[i][name] = {'origin': origin, 'source': int(source), 'data': data}
 
-                if origin == 'steps':
-                    execution_graph.add_edge(str(source), str(i))
-                else:
-                    execution_graph.add_edge(origin, str(i))
+                    if origin == 'steps':
+                        execution_graph.add_edge(str(source), str(i))
+                    else:
+                        execution_graph.add_edge(origin, str(i))
+            else:
+                s2 = {'inputs': s.inputs, 'outputs': s.outputs}    
+                for name, arguments in s2.items():
+                    for name,argument in arguments.items():
+                        data = argument.data
+                        origin = data.split('.')[0]
+                        source = data.split('.')[1]
+                        self.primitives_arguments[i]['inputs'] = {'origin': origin, 'source': int(source), 'data': data}
+
+                        if origin == 'steps':
+                            execution_graph.add_edge(str(source), str(i))
+                        else:
+                            execution_graph.add_edge(origin, str(i))
             
             hyperparams = s.hyperparams
             if bool(hyperparams):
                 self.hyperparams[i] = {}
                 for name,argument in hyperparams.items():
                     self.hyperparams[i][name] = argument['data']
-
-        self.hyperparams[3] = {}
-        self.hyperparams[3]['min_samples_split'] = pipeline_pb2.PrimitiveStepHyperparameter(value=pipeline_pb2.ValueArgument(data=value_pb2.Value(int64=5))).value
 
         execution_order = list(nx.topological_sort(execution_graph))
 
@@ -300,9 +340,6 @@ class SolutionDescription(object):
         print('*'*10)
         print('step', n_step, 'primitive', primitive)
 
-        if len(training_arguments) > 1:
-            trg_data = None
-            
         model.set_training_data(**training_arguments)
         model.fit()
         self.pipeline[n_step] = model
@@ -386,6 +423,7 @@ class SolutionDescription(object):
         self.primitives_arguments = {}
         self.primitives = {}
         self.hyperparams = {}
+        self.steptypes = []
         for i in range(0, num):
             self.primitives_arguments[i] = {}
             self.hyperparams[i] = None
@@ -402,6 +440,7 @@ class SolutionDescription(object):
         for i in range(num):
             prim = d3m.index.search(primitive_path_prefix=python_paths[i])[python_paths[i]]
             self.primitives[i] = prim          
+            self.steptypes.append(StepType.PRIMITIVE)
 
             data = 'inputs.0'
             if i > 0:
@@ -443,6 +482,12 @@ class SolutionDescription(object):
     def add_step(self, python_path):
         n_steps = len(self.primitives_arguments) + 1
         i = n_steps-1
+
+        for j in range(len(self.steptypes)):
+            if self.steptypes[j] == StepType.PLACEHOLDER:
+                i = j
+                break
+
         self.primitives_arguments[i] = {}
         self.hyperparams[i] = None
 
@@ -456,7 +501,8 @@ class SolutionDescription(object):
         origin = data.split('.')[0]
         source = data.split('.')[1]
         self.primitives_arguments[i]['inputs'] = {'origin': origin, 'source': int(source), 'data': data}
-        if self.taskname == 'CLASSIFICATION' or self.taskname == 'REGRESSION':
+        taskname = problem_pb2.TaskType.Name(self.problem.problem.task_type)
+        if taskname == 'CLASSIFICATION' or taskname == 'REGRESSION':
             data = 'steps.' + str(2) + str('.produce')
             origin = data.split('.')[0]
             source = data.split('.')[1]
@@ -480,7 +526,7 @@ class SolutionDescription(object):
     def score_solution(self, **arguments):
         score = 0.0
         primitives_outputs = [None] * len(self.execution_order)
-       
+      
         for i in range(0, len(self.execution_order)): 
             primitive_arguments = {}
             n_step = self.execution_order[i]
@@ -516,9 +562,12 @@ class SolutionDescription(object):
 
         for param, value in primitive_arguments.items():
             if family is not PrimitiveFamily.DATA_TRANSFORMATION and isinstance(value, pd.DataFrame) and value.ndim > 1 and len(value.columns) > 1:
+                print(param)
+                print(value.shape)
                 value = value.fillna('0').replace('', '0')
                 value = value.apply(pd.to_numeric,errors="ignore")
                 value = value.select_dtypes(['number'])
+                print(value.shape)
 
             if param in training_arguments_primitive:
                 training_arguments[param] = value
@@ -629,7 +678,7 @@ class PrimitiveDescription(object):
 
         prim_instance = self.primitive(hyperparams=optimal_params)
         score = 0.0
-       
+      
         try: 
             for train_index, test_index in kf.split(X):
                 X_train, X_test = X.iloc[train_index], X.iloc[test_index]
@@ -691,7 +740,7 @@ class PrimitiveDescription(object):
         elif metric is problem_pb2.OBJECT_DETECTION_AVERAGE_PRECISION:
             return 0.0
         else:
-            return 0.0
+            return metrics.accuracy_score(Ytest, predictions)
 
     def optimize_primitive(self, train, output, inputs, default_params, optimal_params, hyperparam_types, metric):
         """
