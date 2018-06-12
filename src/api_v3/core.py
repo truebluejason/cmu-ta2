@@ -16,6 +16,7 @@ import json
 import os
 import os.path
 import pandas as pd
+import numpy as np
 import pickle, copy
 from urllib import request as url_request
 from urllib import parse as url_parse
@@ -89,10 +90,8 @@ def generate_pipeline(pipeline_uri: str, dataset_uri: str, problem_doc_uri: str)
     dataset = add_target_columns_metadata(dataset, problem_doc)
 
     # Pipeline
-    solution = solutiondescription.SolutionDescription('REGRESSION')
+    solution = solutiondescription.SolutionDescription(None)
     solution.create_from_pipeline(pipeline_description)
-    # Fitting Pipeline
-    #solution.fit(inputs=[dataset])
     return solution
 
 def test_pipeline(solution: solutiondescription.SolutionDescription, dataset_uri: str, problem_doc_uri: str):
@@ -117,19 +116,29 @@ class Core(core_pb2_grpc.CoreServicer):
                continue
             self._primitives[p.classname] = solutiondescription.PrimitiveDescription(p.classname, p)
 
-        pipeline_uri = '185_pipe_v3.json'
+        #pipeline_uri = '185_pipe_v3.json'
+        pipeline_uri = '185_withsub.json'
+        sub_pipeline_uri = '185_sub.json'
         dataset_uri = '185_baseball/185_baseball_dataset/datasetDoc.json'
         problem_doc_uri = '185_baseball/185_baseball_problem/problemDoc.json'
         test_dataset_uri = '185_baseball/TEST/dataset_TEST/datasetDoc.json'
-        solution = generate_pipeline(pipeline_uri=pipeline_uri, dataset_uri=dataset_uri, problem_doc_uri=problem_doc_uri)
-        #prodop = test_pipeline(solution, test_dataset_uri, problem_doc_uri)
+        #solution = generate_pipeline(pipeline_uri=pipeline_uri, dataset_uri=dataset_uri, problem_doc_uri=problem_doc_uri)
+        #subsolution = generate_pipeline(pipeline_uri=sub_pipeline_uri, dataset_uri=dataset_uri, problem_doc_uri=problem_doc_uri)
+        #self._solutions[solution.id] = solution
+        #self._solutions[subsolution.id] = subsolution
 
-        if 'file:' not in dataset_uri:
-            dataset_uri = 'file://{dataset_uri}'.format(dataset_uri=os.path.abspath(dataset_uri))
-        dataset = D3MDatasetLoader().load(dataset_uri)
-        # Adding Metadata to Dataset
-        problem_doc = load_problem_doc(problem_doc_uri)
-        dataset = add_target_columns_metadata(dataset, problem_doc)
+        #if 'file:' not in dataset_uri:
+        #    dataset_uri = 'file://{dataset_uri}'.format(dataset_uri=os.path.abspath(dataset_uri))
+        #dataset = D3MDatasetLoader().load(dataset_uri)
+        #problem_doc = load_problem_doc(problem_doc_uri)
+        #dataset = add_target_columns_metadata(dataset, problem_doc)
+        #solution.fit(inputs=[dataset], solution_dict=self._solutions)
+
+        #if 'file:' not in test_dataset_uri:
+        #    test_dataset_uri = 'file://{dataset_uri}'.format(dataset_uri=os.path.abspath(test_dataset_uri))
+        #test_dataset = D3MDatasetLoader().load(dataset_uri)
+        #prodop = solution.produce(inputs=[test_dataset], solution_dict=self._solutions)
+
         #score = solution.score_solution(inputs=[dataset], metric=problem_pb2.ACCURACY, primitive_dict=self._primitives)
         #score = solution.score_solution(inputs=[dataset], metric=problem_pb2.ROOT_MEAN_SQUARED_ERROR, primitive_dict=self._primitives)
         #print("Score = ", score)
@@ -265,7 +274,7 @@ class Core(core_pb2_grpc.CoreServicer):
         send_scores = []
 
         inputs = self._get_inputs(self._solutions[solution_id], request_params.inputs)
-        score = self._solutions[solution_id].score_solution(inputs=inputs, metric=request_params.performance_metrics[0], primitive_dict=self._primitives)
+        score = self._solutions[solution_id].score_solution(inputs=inputs, metric=request_params.performance_metrics[0].metric, primitive_dict=self._primitives)
         print(score)
         send_scores.append(core_pb2.Score(metric=request_params.performance_metrics[0],
              fold=request_params.configuration.folds, targets=[], value=value_pb2.Value(double=score)))
@@ -300,7 +309,19 @@ class Core(core_pb2_grpc.CoreServicer):
         self._solutions[fitted_solution.id] = fitted_solution
 
         inputs = self._get_inputs(self._solutions[solution_id], request_params.inputs)
-        fitted_solution.fit(inputs)
+        output = fitted_solution.fit(inputs=inputs, solution_dict=self._solutions)
+
+        print(type(output))
+        print(output.shape)
+        result = None
+        if isinstance(output, np.ndarray) and output.ndim == 1:
+            dlist = [output[i] for i in range(len(output))]
+            if output.dtype == np.float64:
+                result = value_pb2.Value(double_list = value_pb2.DoubleList(list=dlist))
+            elif np.issubclass_(output.dtype, np.integer):
+                result = value_pb2.Value(int64_list = value_pb2.Int64List(list=dlist))
+            else:
+                result = value_pb2.Value(string_list = value_pb2.StringList(list=dlist))
 
         yield core_pb2.GetFitSolutionResultsResponse(progress=msg, steps=[], exposed_outputs=[], fitted_solution_id=fitted_solution.id)
 
@@ -313,8 +334,10 @@ class Core(core_pb2_grpc.CoreServicer):
             steps.append(core_pb2.StepProgress(progress=msg))
 
         exposed_outputs = {}
-    
-        yield core_pb2.GetFitSolutionResultsResponse(progress=msg, steps=steps, exposed_outputs=[], fitted_solution_id="")
+        last_step_output = request_params.expose_outputs[len(request_params.expose_outputs)-1]
+        exposed_outputs[last_step_output] = result
+
+        yield core_pb2.GetFitSolutionResultsResponse(progress=msg, steps=steps, exposed_outputs=exposed_outputs, fitted_solution_id=fitted_solution.id)
 
     def ProduceSolution(self, request, context):
         logging.info("Message received: ProduceSolution")
@@ -333,8 +356,20 @@ class Core(core_pb2_grpc.CoreServicer):
         solution = self._solutions[solution_id]
 
         inputs = self._get_inputs(solution, request_params.inputs)
-        output = solution.produce(inputs)
-        
+        output = solution.produce(inputs=inputs, solution_dict=self._solutions)
+       
+        print(type(output))
+        print(output.shape)
+        result = None
+        if isinstance(output, np.ndarray) and output.ndim == 1:
+            dlist = [output[i] for i in range(len(output))]
+            if output.dtype == np.float64:
+                result = value_pb2.Value(double_list = value_pb2.DoubleList(list=dlist))
+            elif np.issubclass_(output.dtype, np.integer):
+                result = value_pb2.Value(int64_list = value_pb2.Int64List(list=dlist))
+            else:
+                result = value_pb2.Value(string_list = value_pb2.StringList(list=dlist))
+ 
         self._solution_score_map.pop(request_id, None)
 
         msg = core_pb2.Progress(state=core_pb2.COMPLETED, status="", start=start, end=solutiondescription.compute_timestamp())
@@ -345,7 +380,7 @@ class Core(core_pb2_grpc.CoreServicer):
 
         exposed_outputs = {}
         last_step_output = request_params.expose_outputs[len(request_params.expose_outputs)-1]
-        exposed_outputs[last_step_output] = output
+        exposed_outputs[last_step_output] = result
 
         return core_pb2.GetProduceSolutionResultsResponse(progress=msg, steps=steps, exposed_outputs=exposed_outputs)
 

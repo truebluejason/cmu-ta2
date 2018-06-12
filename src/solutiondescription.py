@@ -25,7 +25,7 @@ from google.protobuf.timestamp_pb2 import Timestamp
 
 from sklearn import metrics
 
-from d3m.metadata.pipeline import Pipeline, PrimitiveStep
+from d3m.metadata.pipeline import Pipeline, PrimitiveStep, SubpipelineStep
 from d3m.metadata.base import PrimitiveFamily
 from d3m.primitive_interfaces.base import PrimitiveBaseMeta
 import d3m.index
@@ -101,6 +101,7 @@ class SolutionDescription(object):
         self.primitives_arguments = {}
         self.primitives = {}
         self.hyperparams = {}
+        self.steptypes = []
         for i in range(0, n_steps):
             self.primitives_arguments[i] = {}
             self.hyperparams[i] = None
@@ -112,24 +113,42 @@ class SolutionDescription(object):
         # Constructing DAG to determine the execution order
         execution_graph = nx.DiGraph()
         for i in range(0, n_steps):
-            self.primitives[i] = pipeline_description.steps[i].primitive
-            for argument, data in pipeline_description.steps[i].arguments.items():
-                argument_edge = data['data']
-                origin = argument_edge.split('.')[0]
-                source = argument_edge.split('.')[1]
+            if isinstance(pipeline_description.steps[i], PrimitiveStep):
+                self.steptypes.append(StepType.PRIMITIVE)
+                self.primitives[i] = pipeline_description.steps[i].primitive
+                for argument, data in pipeline_description.steps[i].arguments.items():
+                    argument_edge = data['data']
+                    origin = argument_edge.split('.')[0]
+                    source = argument_edge.split('.')[1]
 
-                self.primitives_arguments[i][argument] = {'origin': origin, 'source': int(source), 'data': argument_edge}
+                    self.primitives_arguments[i][argument] = {'origin': origin, 'source': int(source), 'data': argument_edge}
 
-                if origin == 'steps':
-                    execution_graph.add_edge(str(source), str(i))
-                else:
-                    execution_graph.add_edge(origin, str(i))
+                    if origin == 'steps':
+                        execution_graph.add_edge(str(source), str(i))
+                    else:
+                        execution_graph.add_edge(origin, str(i))
 
-            hyperparams = pipeline_description.steps[i].hyperparams
-            if bool(hyperparams):
-                self.hyperparams[i] = {}
-                for name,argument in hyperparams.items():
-                    self.hyperparams[i][name] = argument['data']
+                hyperparams = pipeline_description.steps[i].hyperparams
+                if bool(hyperparams):
+                    self.hyperparams[i] = {}
+                    for name,argument in hyperparams.items():
+                        self.hyperparams[i][name] = argument['data']
+            elif isinstance(pipeline_description.steps[i], SubpipelineStep):  
+                self.steptypes.append(StepType.SUBPIPELINE)
+                self.primitives[i] = pipeline_description.steps[i].pipeline_id
+                self.primitives_arguments[i] = []
+                for j in range(len(pipeline_description.steps[i].inputs)):
+                    argument_edge = pipeline_description.steps[i].inputs[j]
+                    origin = argument_edge.split('.')[0]
+                    source = argument_edge.split('.')[1]
+                    self.primitives_arguments[i].append({'origin': origin, 'source': int(source), 'data': argument_edge})
+                    
+                    if origin == 'steps':
+                        execution_graph.add_edge(str(source), str(i))
+                    else:
+                        execution_graph.add_edge(origin, str(i))
+            else:
+                print("NOT IMPLEMENTED!!!")
 
         execution_order = list(nx.topological_sort(execution_graph))
 
@@ -151,8 +170,12 @@ class SolutionDescription(object):
                 current_step = int(source)
                 self.produce_order.add(current_step)
                 for i in range(0, len(execution_order)):
-                    step_origin = self.primitives_arguments[current_step]['inputs']['origin']
-                    step_source = self.primitives_arguments[current_step]['inputs']['source']
+                    if self.steptypes[current_step] == StepType.PRIMITIVE:
+                        step_origin = self.primitives_arguments[current_step]['inputs']['origin']
+                        step_source = self.primitives_arguments[current_step]['inputs']['source']
+                    else:
+                        step_origin = self.primitives_arguments[current_step][0]['origin']
+                        step_source = self.primitives_arguments[current_step][0]['source']
                     if step_origin != 'steps':
                         break
                     else:
@@ -194,16 +217,7 @@ class SolutionDescription(object):
                 self.primitives[i] = prim
                 arguments = s.arguments
                 self.steptypes.append(StepType.PRIMITIVE)
-            # SubpipelinePipelineDescriptionStep
-            elif pipeline_description.steps[i].HasField("pipeline") == True:
-                s = pipeline_description.steps[i].pipeline
-                self.primitives[i] = s
-                self.steptypes.append(StepType.PIPELINE)
-            else: # PlaceholderPipelineDescriptionStep
-                s = pipeline_description.steps[i].placeholder
-                self.steptypes.append(StepType.PLACEHOLDER)
 
-            if self.steptypes[i] == StepType.PRIMITIVE:
                 for name,argument in arguments.items():
                     if argument.HasField("container") == True:
                         data = argument.container.data
@@ -217,26 +231,45 @@ class SolutionDescription(object):
                         execution_graph.add_edge(str(source), str(i))
                     else:
                         execution_graph.add_edge(origin, str(i))
-            else:
-                s2 = {'inputs': s.inputs, 'outputs': s.outputs}    
-                for name, arguments in s2.items():
-                    for name,argument in arguments.items():
-                        data = argument.data
-                        origin = data.split('.')[0]
-                        source = data.split('.')[1]
-                        self.primitives_arguments[i]['inputs'] = {'origin': origin, 'source': int(source), 'data': data}
 
-                        if origin == 'steps':
-                            execution_graph.add_edge(str(source), str(i))
-                        else:
-                            execution_graph.add_edge(origin, str(i))
+                hyperparams = s.hyperparams
+                if bool(hyperparams):
+                    self.hyperparams[i] = {}
+                    for name,argument in hyperparams.items():
+                        self.hyperparams[i][name] = argument['data'] 
+
+            # SubpipelinePipelineDescriptionStep
+            elif pipeline_description.steps[i].HasField("pipeline") == True:
+                s = pipeline_description.steps[i].pipeline
+                self.primitives[i] = s
+                self.steptypes.append(StepType.SUBPIPELINE)
+                self.primitives_arguments[i] = []
+                for j in range(len(pipeline_description.steps[i].inputs)):
+                    argument_edge = pipeline_description.steps[i].inputs[j].data
+                    origin = argument_edge.split('.')[0]
+                    source = argument_edge.split('.')[1]
+                    self.primitives_arguments[i].append({'origin': origin, 'source': int(source), 'data': argument_edge})
+
+                    if origin == 'steps':
+                        execution_graph.add_edge(str(source), str(i))
+                    else:
+                        execution_graph.add_edge(origin, str(i))
+
+            else: # PlaceholderPipelineDescriptionStep
+                s = pipeline_description.steps[i].placeholder
+                self.steptypes.append(StepType.PLACEHOLDER)
+                self.primitives_arguments[i] = []
+                for j in range(len(pipeline_description.steps[i].inputs)):
+                    argument_edge = pipeline_description.steps[i].inputs[j].data
+                    origin = argument_edge.split('.')[0]
+                    source = argument_edge.split('.')[1]
+                    self.primitives_arguments[i].append({'origin': origin, 'source': int(source), 'data': argument_edge})
+
+                    if origin == 'steps':
+                        execution_graph.add_edge(str(source), str(i))
+                    else:
+                        execution_graph.add_edge(origin, str(i))
             
-            hyperparams = s.hyperparams
-            if bool(hyperparams):
-                self.hyperparams[i] = {}
-                for name,argument in hyperparams.items():
-                    self.hyperparams[i][name] = argument['data']
-
         execution_order = list(nx.topological_sort(execution_graph))
 
         # Removing non-step inputs from the order
@@ -265,41 +298,74 @@ class SolutionDescription(object):
                         self.produce_order.add(step_source)
                         current_step = step_source
 
-    def fit(self, **arguments) -> None:
+    def fit(self, **arguments):
         """
-        Train all steps in the pipeline.
+        Train all steps in the solution.
 
         Paramters
         ---------
         arguments
-            Arguments required to train the Pipeline
+            Arguments required to train the solution
         """
         primitives_outputs = [None] * len(self.execution_order)
-
         for i in range(0, len(self.execution_order)):
-            primitive_arguments = {}
             n_step = self.execution_order[i]
-            for argument, value in self.primitives_arguments[n_step].items():
-                print("value = ", value)
-                print("name = ", argument)
-                if value['origin'] == 'steps':
-                    primitive_arguments[argument] = primitives_outputs[value['source']]
-                else:
-                    primitive_arguments[argument] = arguments[argument][value['source']]
 
-            if isinstance(self.primitives[n_step], PrimitiveBaseMeta):
+            if self.steptypes[n_step] is StepType.SUBPIPELINE:
+                primitive_arguments = []
+                for j in range(len(self.primitives_arguments[n_step])):
+                    value = self.primitives_arguments[n_step][j]
+                    if value['origin'] == 'steps':
+                        primitive_arguments.append(primitives_outputs[value['source']])
+                    else:
+                        primitive_arguments.append(arguments['inputs'][value['source']])
+                primitives_outputs[n_step] = self._pipeline_step_fit(n_step, self.primitives[n_step], primitive_arguments,
+ solution_dict = arguments['solution_dict'])
+
+            if self.steptypes[n_step] is StepType.PRIMITIVE:
+                primitive_arguments = {}
+                for argument, value in self.primitives_arguments[n_step].items():
+                    print("value = ", value)
+                    print("name = ", argument)
+                    if value['origin'] == 'steps':
+                        primitive_arguments[argument] = primitives_outputs[value['source']]
+                    else:
+                        primitive_arguments[argument] = arguments['inputs'][value['source']]
                 primitives_outputs[n_step] = self._primitive_step_fit(n_step, self.primitives[n_step], primitive_arguments)
 
+        return primitives_outputs[len(self.execution_order)-1]
+
+    def _pipeline_step_fit(self, n_step: int, pipeline_id: str, primitive_arguments, solution_dict):
+        """
+        Execute a subpipeline step
+        
+        Paramters
+        ---------
+        n_step: int
+            An integer of the actual step.
+        pipeline_id: str
+            
+        primitive_arguments
+            Arguments for the solution
+        """
+        solution = solution_dict[pipeline_id]
+
+        inputs = []
+        for i in range(len(primitive_arguments)):
+            inputs.append(primitive_arguments[i])
+
+        return solution.fit(inputs=inputs, solution_dict=solution_dict)
+ 
     def _primitive_step_fit(self, n_step: int, primitive: PrimitiveBaseMeta, primitive_arguments):
         """
-        Execute a step and train it with primitive arguments.
+        Execute a primitive step
 
         Paramters
         ---------
         n_step: int
             An integer of the actual step.
-        step: PrimitiveStep
-            A primitive step.
+        primitive: PrimitiveBaseMeta
+            A primitive class
         primitive_arguments
             Arguments for set_training_data, fit, produce of the primitive for this step.
         """
@@ -322,13 +388,7 @@ class SolutionDescription(object):
         produce_params = {}
 
         for param, value in primitive_arguments.items():
-            if family is not PrimitiveFamily.DATA_TRANSFORMATION and isinstance(value, pd.DataFrame) and value.ndim > 1 and len(value.columns) > 1:
-                print('param', param)
-                print(value.shape)
-                value = value.fillna('0').replace('', '0')
-                value = value.apply(pd.to_numeric,errors="ignore")
-                value = value.select_dtypes(['number'])
-                print(value.shape)
+            value = self.transform_data(family, value)
 
             if param in produce_params_primitive:
                 produce_params[param] = value
@@ -358,50 +418,74 @@ class SolutionDescription(object):
         """
         return set(primitive.metadata.query()['primitive_code']['instance_methods'][method]['arguments'])
 
+    def transform_data(self, family, v):
+        if family is not PrimitiveFamily.DATA_TRANSFORMATION and isinstance(v, pd.DataFrame) and v.ndim > 1 and len(v.columns) > 1:
+            print(v.shape)
+            v = v.fillna('0').replace('', '0')
+            v = v.apply(pd.to_numeric,errors="ignore")
+            v = v.select_dtypes(['number'])
+            print(v.shape)
+            return v
+        return v
+
     def produce(self, **arguments):
         """
-        Train all steps in the pipeline.
+        Run produce on the solution.
 
         Paramters
         ---------
         arguments
-            Arguments required to execute the Pipeline
+            Arguments required to execute the solution
         """
         steps_outputs = [None] * len(self.execution_order)
 
+        print("produce order: ", self.produce_order)
         for i in range(0, len(self.execution_order)):
             n_step = self.execution_order[i]
-            primitive = self.primitives[n_step]
-            produce_arguments_primitive = self._primitive_arguments(primitive, 'produce')
             produce_arguments = {}
 
-            family = primitive.metadata.query()['primitive_family']
-            print("Family = ", family)
-            for argument, value in self.primitives_arguments[n_step].items():
-                if argument in produce_arguments_primitive:
+            if self.steptypes[n_step] is StepType.SUBPIPELINE:
+                produce_arguments = []
+                for j in range(len(self.primitives_arguments[n_step])):
+                    value = self.primitives_arguments[n_step][j]
                     if value['origin'] == 'steps':
-                        produce_arguments[argument] = steps_outputs[value['source']]
+                        produce_arguments.append(steps_outputs[value['source']])
                     else:
-                        produce_arguments[argument] = arguments[argument][value['source']]
-                    if produce_arguments[argument] is None:
+                        produce_arguments.append(arguments['inputs'][value['source']])
+                    v = produce_arguments[len(produce_arguments)-1]
+                    if v is None:
                         continue
-                    v = produce_arguments[argument]
-                    if family is not PrimitiveFamily.DATA_TRANSFORMATION and isinstance(v, pd.DataFrame) and v.ndim > 1 and len(v.columns) > 1:
-                        print(argument)
-                        print(v.shape)
-                        v = v.fillna('0').replace('', '0')
-                        v = v.apply(pd.to_numeric,errors="ignore")
-                        v = v.select_dtypes(['number'])
-                        print(v.shape)
+                    v = self.transform_data(family, v)
+                    produce_arguments[len(produce_arguments)-1] = v
+
+            if self.steptypes[n_step] is StepType.PRIMITIVE:
+                primitive = self.primitives[n_step]
+                family = primitive.metadata.query()['primitive_family']
+                print("Family = ", family)
+                produce_arguments_primitive = self._primitive_arguments(primitive, 'produce')
+                for argument, value in self.primitives_arguments[n_step].items():
+                    if argument in produce_arguments_primitive:
+                        if value['origin'] == 'steps':
+                            produce_arguments[argument] = steps_outputs[value['source']]
+                        else:
+                            produce_arguments[argument] = arguments['inputs'][value['source']]
+                        if produce_arguments[argument] is None:
+                            continue
+                        v = produce_arguments[argument]
+                        v = self.transform_data(family, v)
                         produce_arguments[argument] = v
 
-            if isinstance(self.primitives[n_step], PrimitiveBaseMeta):
+            if self.steptypes[n_step] is StepType.PRIMITIVE:
                 if n_step in self.produce_order:
                     print('-'*100)
                     print('step', n_step, 'primitive', primitive)
                     steps_outputs[n_step] = self.pipeline[n_step].produce(**produce_arguments).value
                 else:
                     steps_outputs[n_step] = None
+            else:
+                solution_dict = arguments['solution_dict']
+                solution = solution_dict[self.primitives[n_step]]
+                steps_outputs[n_step] = solution.produce(inputs=produce_arguments, solution_dict=solution_dict)
 
         # Create output
         pipeline_output = []
@@ -483,10 +567,15 @@ class SolutionDescription(object):
         n_steps = len(self.primitives_arguments) + 1
         i = n_steps-1
 
+        placeholder_present = False
         for j in range(len(self.steptypes)):
             if self.steptypes[j] == StepType.PLACEHOLDER:
                 i = j
+                placeholder_present = True
                 break
+
+        if placeholder_present == False:
+            self.steptypes.append(StepType.PRIMITIVE)
 
         self.primitives_arguments[i] = {}
         self.hyperparams[i] = None
@@ -702,13 +791,13 @@ class PrimitiveDescription(object):
         Function to compute prediction accuracy for classifiers.
         """
         count = len(Ytest)
-      
+     
         if metric is problem_pb2.ACCURACY:
-             return metrics.accuracy_score(Ytest, predictions)
+            return metrics.accuracy_score(Ytest, predictions)
         elif metric is problem_pb2.PRECISION:
-             return metrics.precision_score(Ytest, predictions)
+            return metrics.precision_score(Ytest, predictions)
         elif metric is problem_pb2.RECALL:
-             return metrics.recall_score(Ytest, predictions)
+            return metrics.recall_score(Ytest, predictions)
         elif metric is problem_pb2.F1:
             return metrics.f1_score(Ytest, predictions)
         elif metric is problem_pb2.F1_MICRO:
