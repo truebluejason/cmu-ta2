@@ -13,7 +13,7 @@ import pipeline_pb2 as pipeline_pb2
 import logging
 import primitive_lib
 import json
-import os
+import os, sys
 import os.path
 import pandas as pd
 import numpy as np
@@ -22,7 +22,7 @@ from urllib import request as url_request
 from urllib import parse as url_parse
 
 import solutiondescription
-#from multiprocessing import Pool, cpu_count
+from multiprocessing import Pool, cpu_count
 import uuid
 
 logging.basicConfig(level=logging.INFO)
@@ -101,6 +101,19 @@ def test_pipeline(solution: solutiondescription.SolutionDescription, dataset_uri
     dataset = D3MDatasetLoader().load(dataset_uri)
     return solution.produce(inputs=[dataset])
 
+def evaluate_solution(task):
+    print("Evaluating ", task['solution'].id)
+    solution = task['solution']
+    inputs = task['inputs']
+
+    try:
+        solution.fit(inputs=inputs, solution_dict=task['solution_dict'])
+    except:
+        print(sys.exc_info()[0])
+        return -1
+
+    return 0
+
 class Core(core_pb2_grpc.CoreServicer):
     def __init__(self):
         self._sessions = {}
@@ -108,7 +121,8 @@ class Core(core_pb2_grpc.CoreServicer):
         self._solutions = {}
         self._solution_score_map = {}
         self._search_solutions = {}
- 
+        self.async_message_thread = Pool(cpu_count()) #pool.ThreadPool(processes=1,)
+         
         for p in primitive_lib.list_primitives():
             if p.name == 'sklearn.ensemble.weight_boosting.AdaBoostClassifier':
                 continue
@@ -149,15 +163,17 @@ class Core(core_pb2_grpc.CoreServicer):
         #new_sol = solutiondescription.SolutionDescription()
         #new_sol.create_from_pipelinedescription(pb2_pd)
 
-    def search_solutions(self, task):
-        request = task[0]['request']
-        primitives = task[0]['primitives']
+    def search_solutions(self, request):
+        primitives = self._primitives
         problem = request.problem.problem
         template = request.template
         task_name = problem_pb2.TaskType.Name(problem.task_type)
         print(task_name)
 
         solutions = []
+        #if task_name is not 'CLASSIFICATION' and task_name is not 'REGRESSION':
+        #    return solutions
+
         basic_sol = solutiondescription.SolutionDescription(request.problem)
         if bool(template) and isinstance(template, pipeline_pb2.PipelineDescription) and len(template.steps) > 0:
             print("template:", template)
@@ -176,6 +192,10 @@ class Core(core_pb2_grpc.CoreServicer):
                    pipe.add_step(p.primitive_class.python_path)
                    solutions.append(pipe)
 
+        # Fully defined
+        if bool(template) == True and basic_sol.contains_placeholder() == False:
+            solutions.append(basic_sol)
+
         return solutions
     
     def SearchSolutions(self, request, context):
@@ -185,17 +205,22 @@ class Core(core_pb2_grpc.CoreServicer):
         self._solution_score_map[search_id_str] = request
         return core_pb2.SearchSolutionsResponse(search_id = search_id_str)
 
-    def _get_inputs(self, solution, rinputs):
+    def _get_inputs(self, problem, rinputs):
         inputs = []
         for ip in rinputs:
             if ip.HasField("dataset_uri") == True:
                 dataset = D3MDatasetLoader().load(ip.dataset_uri)
-                targets = solution.problem.inputs[0].targets
+                targets = problem.inputs[0].targets
                 dataset = add_target_metadata(dataset, targets)
                 inputs.append(dataset)
+            elif ip.Hasfield("csv_uri") == True:
+                dataset = pd.read_csv(ip.csv_uri)
+                targets = problem.inputs[0].targets
+                #dataset = add_target_metadata(dataset, targets)
+                inputs.append(dataset) 
 
         return inputs
-        
+       
     def GetSearchSolutionsResults(self, request, context):
         logging.info("Message received: GetSearchSolutionsRequest")
         search_id_str = request.search_id
@@ -206,24 +231,35 @@ class Core(core_pb2_grpc.CoreServicer):
                      internal_score=0.0, scores=[])
 
         request_params = self._solution_score_map[search_id_str]
-        task = [{'request': request_params, 'primitives': self._primitives}]
-        solutions = self.search_solutions(task)
+        solutions = self.search_solutions(request_params)
+
+        inputs = self._get_inputs(request_params.problem, request_params.inputs)
+
+        tasks = []
+        for i in range(len(solutions)):
+            solution = solutions[i]
+            tasks.append({'inputs': inputs, 'solution': solutions[i], 'solution_dict': self._solutions})
+
+        results = self.async_message_thread.map_async(evaluate_solution, tasks)
 
         msg = core_pb2.Progress(state=core_pb2.RUNNING, status="", start=start, end=solutiondescription.compute_timestamp())
         count = 0
         self._search_solutions[search_id_str] = []
 
-        for sol in solutions:
-            count = count + 1
-            self._solutions[sol.id] = sol
-            self._search_solutions[search_id_str].append(sol.id)
-            yield core_pb2.GetSearchSolutionsResultsResponse(progress=msg, done_ticks=count, all_ticks=len(solutions), solution_id=sol.id,
-             internal_score=0.0, scores=[])
+        for i, r in enumerate(results.get()):
+            print('{:02d}: {}'.format(i, r))
+            if r == 0:
+                count = count + 1
+                id = solutions[i].id
+                self._solutions[id] = solutions[i]
+                self._search_solutions[search_id_str].append(id)
+                yield core_pb2.GetSearchSolutionsResultsResponse(progress=msg, done_ticks=count, all_ticks=len(solutions), solution_id=id,
+                    internal_score=0.0, scores=[])
 
         self._solution_score_map.pop(search_id_str, None)
        
         msg = core_pb2.Progress(state=core_pb2.COMPLETED, status="", start=start, end=solutiondescription.compute_timestamp()) 
-        yield core_pb2.GetSearchSolutionsResultsResponse(progress=msg, done_ticks=len(solutions), all_ticks=len(solutions),
+        yield core_pb2.GetSearchSolutionsResultsResponse(progress=msg, done_ticks=count, all_ticks=count,
                           solution_id="", internal_score=0.0, scores=[])
 
     def EndSearchSolutions(self, request, context):
@@ -273,7 +309,7 @@ class Core(core_pb2_grpc.CoreServicer):
         
         send_scores = []
 
-        inputs = self._get_inputs(self._solutions[solution_id], request_params.inputs)
+        inputs = self._get_inputs(self._solutions[solution_id].problem, request_params.inputs)
         score = self._solutions[solution_id].score_solution(inputs=inputs, metric=request_params.performance_metrics[0].metric, primitive_dict=self._primitives)
         print(score)
         send_scores.append(core_pb2.Score(metric=request_params.performance_metrics[0],
@@ -308,7 +344,7 @@ class Core(core_pb2_grpc.CoreServicer):
         fitted_solution.id = str(uuid.uuid4()) 
         self._solutions[fitted_solution.id] = fitted_solution
 
-        inputs = self._get_inputs(self._solutions[solution_id], request_params.inputs)
+        inputs = self._get_inputs(self._solutions[solution_id].problem, request_params.inputs)
         output = fitted_solution.fit(inputs=inputs, solution_dict=self._solutions)
 
         print(type(output))
@@ -355,7 +391,7 @@ class Core(core_pb2_grpc.CoreServicer):
         solution_id = request_params.fitted_solution_id
         solution = self._solutions[solution_id]
 
-        inputs = self._get_inputs(solution, request_params.inputs)
+        inputs = self._get_inputs(solution.problem, request_params.inputs)
         output = solution.produce(inputs=inputs, solution_dict=self._solutions)
        
         print(type(output))

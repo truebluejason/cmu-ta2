@@ -20,7 +20,6 @@ class PrimitiveClass(object):
     Eventually it should be able to do more useful things too.
     """
     def __init__(self, metadata, classname):
-        self.hyperparam_spec = metadata.query()['primitive_code']['hyperparams']
         self.id = metadata.query()['id']
         self.name = metadata.query()['name']
         self.version = metadata.query()['version']

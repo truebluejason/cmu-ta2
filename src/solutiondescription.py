@@ -310,7 +310,8 @@ class SolutionDescription(object):
         primitives_outputs = [None] * len(self.execution_order)
         for i in range(0, len(self.execution_order)):
             n_step = self.execution_order[i]
-
+            
+            # Subpipeline step
             if self.steptypes[n_step] is StepType.SUBPIPELINE:
                 primitive_arguments = []
                 for j in range(len(self.primitives_arguments[n_step])):
@@ -322,11 +323,10 @@ class SolutionDescription(object):
                 primitives_outputs[n_step] = self._pipeline_step_fit(n_step, self.primitives[n_step], primitive_arguments,
  solution_dict = arguments['solution_dict'])
 
+            # Primitive step
             if self.steptypes[n_step] is StepType.PRIMITIVE:
                 primitive_arguments = {}
                 for argument, value in self.primitives_arguments[n_step].items():
-                    print("value = ", value)
-                    print("name = ", argument)
                     if value['origin'] == 'steps':
                         primitive_arguments[argument] = primitives_outputs[value['source']]
                     else:
@@ -709,7 +709,7 @@ class SolutionDescription(object):
     def get_hyperparams(self, step, prim_dict):
         p = prim_dict[self.primitives[step]]
         custom_hyperparams = self.hyperparams[step]
-        hyperparam_spec = p.primitive_class.hyperparam_spec
+        hyperparam_spec = p.primitive.metadata.query()['primitive_code']['hyperparams']
 
         filter_hyperparam = lambda vl: None if vl == 'None' else vl
         hyperparams = {name:filter_hyperparam(vl['default']) for name,vl in hyperparam_spec.items()}
@@ -755,7 +755,8 @@ class PrimitiveDescription(object):
         Evaluates model on inputs X and outputs y
         Returns metric.
         """
-        optimal_params = self.find_optimal_hyperparams(train=X, output=y, hyperparam_spec=self.primitive_class.hyperparam_spec,
+        hyperparam_spec = self.primitive.metadata.query()['primitive_code']['hyperparams']
+        optimal_params = self.find_optimal_hyperparams(train=X, output=y, hyperparam_spec=hyperparam_spec,
  metric=metric_type, custom_hyperparams=custom_hyperparams) 
 
         from sklearn.model_selection import KFold
