@@ -397,8 +397,8 @@ class SolutionDescription(object):
 
         model = primitive(hyperparams=primitive_hyperparams(
                     primitive_hyperparams.defaults(), **custom_hyperparams))
-        print('*'*10)
-        print('step', n_step, 'primitive', primitive)
+        #print('*'*10)
+        #print('step', n_step, 'primitive', primitive)
 
         model.set_training_data(**training_arguments)
         model.fit()
@@ -420,11 +420,9 @@ class SolutionDescription(object):
 
     def transform_data(self, family, v):
         if family is not PrimitiveFamily.DATA_TRANSFORMATION and isinstance(v, pd.DataFrame) and v.ndim > 1 and len(v.columns) > 1:
-            print(v.shape)
             v = v.fillna('0').replace('', '0')
             v = v.apply(pd.to_numeric,errors="ignore")
             v = v.select_dtypes(['number'])
-            print(v.shape)
             return v
         return v
 
@@ -440,6 +438,7 @@ class SolutionDescription(object):
         steps_outputs = [None] * len(self.execution_order)
 
         print("produce order: ", self.produce_order)
+
         for i in range(0, len(self.execution_order)):
             n_step = self.execution_order[i]
             produce_arguments = {}
@@ -477,9 +476,12 @@ class SolutionDescription(object):
 
             if self.steptypes[n_step] is StepType.PRIMITIVE:
                 if n_step in self.produce_order:
-                    print('-'*100)
-                    print('step', n_step, 'primitive', primitive)
-                    steps_outputs[n_step] = self.pipeline[n_step].produce(**produce_arguments).value
+                    #print('-'*100)
+                    #print('step', n_step, 'primitive', primitive)
+                    try:
+                        steps_outputs[n_step] = self.pipeline[n_step].produce(**produce_arguments).value
+                    except:
+                        print(produce_arguments)
                 else:
                     steps_outputs[n_step] = None
             else:
@@ -497,6 +499,10 @@ class SolutionDescription(object):
         return pipeline_output
 
     def initialize_solution(self, taskname):
+        """
+        Initialize a solution from scratch consisting of predefined steps
+        Leave last step for filling in primitive
+        """
         python_paths = ['d3m.primitives.datasets.DatasetToDataFrame', 'd3m.primitives.data.ExtractAttributes', 'd3m.primitives.data.ExtractTargets']
         num = len(python_paths)
 
@@ -545,25 +551,10 @@ class SolutionDescription(object):
         execution_order = list(filter(lambda x: x.isdigit(), execution_order))
         self.execution_order = [int(x) for x in execution_order]
 
-        # Creating set of steps to be call in produce
-        self.produce_order = set()
-
-        data = 'steps.' + str(num-1) + '.produce'
-        origin = data.split('.')[0]
-        source = data.split('.')[1]
-
-        current_step = int(source)
-        self.produce_order.add(current_step)
-        for i in range(0, len(execution_order)):
-            step_origin = self.primitives_arguments[current_step]['inputs']['origin']
-            step_source = self.primitives_arguments[current_step]['inputs']['source']
-            if step_origin != 'steps':
-                 break
-            else:
-                 self.produce_order.add(step_source)
-                 current_step = step_source   
-       
     def add_step(self, python_path):
+        """
+        Add new primitive (or replace placeholder)
+        """
         n_steps = len(self.primitives_arguments) + 1
         i = n_steps-1
 
@@ -600,19 +591,36 @@ class SolutionDescription(object):
         self.execution_order.append(i)
 
         # Creating set of steps to be call in produce
-        self.produce_order = set()
-
         data = 'steps.' + str(n_steps-1) + '.produce'
         origin = data.split('.')[0]
         source = data.split('.')[1]
         self.outputs.append((origin, int(source)))
 
-        self.produce_order.add(i)
+        # Creating set of steps to be call in produce
+        self.produce_order = set()
+
+        data = 'steps.' + str(n_steps-1) + '.produce'
+        origin = data.split('.')[0]
+        source = data.split('.')[1]
+
+        current_step = int(source)
+        self.produce_order.add(current_step)
+        for i in range(0, len(self.execution_order)):
+            step_origin = self.primitives_arguments[current_step]['inputs']['origin']
+            step_source = self.primitives_arguments[current_step]['inputs']['source']
+            if step_origin != 'steps':
+                 break
+            else:
+                self.produce_order.add(step_source)
+                current_step = step_source
 
         self.outputs = []
         self.outputs.append((origin, int(source)))
 
     def score_solution(self, **arguments):
+        """
+        Score a solution 
+        """
         score = 0.0
         primitives_outputs = [None] * len(self.execution_order)
       
@@ -636,6 +644,10 @@ class SolutionDescription(object):
         return score
 
     def last_step(self, primitive: PrimitiveBaseMeta, primitive_arguments, metric, primitive_desc, hyperparams):
+        """
+        Last step of a solution evaluated for score_solution()
+        Does hyperparameters tuning
+        """
         family = primitive.metadata.query()['primitive_family']
 
         training_arguments_primitive = self._primitive_arguments(primitive, 'set_training_data')
@@ -650,19 +662,13 @@ class SolutionDescription(object):
                     custom_hyperparams[hyperparam] = value
 
         for param, value in primitive_arguments.items():
-            if family is not PrimitiveFamily.DATA_TRANSFORMATION and isinstance(value, pd.DataFrame) and value.ndim > 1 and len(value.columns) > 1:
-                print(param)
-                print(value.shape)
-                value = value.fillna('0').replace('', '0')
-                value = value.apply(pd.to_numeric,errors="ignore")
-                value = value.select_dtypes(['number'])
-                print(value.shape)
+            value = self.transform_data(family, value)
 
             if param in training_arguments_primitive:
                 training_arguments[param] = value
 
-        print('*'*10)
-        print('Last step primitive', primitive)
+        #print('*'*10)
+        #print('Last step primitive', primitive)
         score = primitive_desc.score_primitive(training_arguments['inputs'], training_arguments['outputs'], metric, custom_hyperparams)
 
         return score 

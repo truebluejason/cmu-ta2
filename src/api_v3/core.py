@@ -101,13 +101,11 @@ def test_pipeline(solution: solutiondescription.SolutionDescription, dataset_uri
     dataset = D3MDatasetLoader().load(dataset_uri)
     return solution.produce(inputs=[dataset])
 
-def evaluate_solution(task):
-    print("Evaluating ", task['solution'].id)
-    solution = task['solution']
-    inputs = task['inputs']
+def evaluate_solution(inputs, solution, solution_dict):
+    print("Evaluating ", solution.id)
 
     try:
-        solution.fit(inputs=inputs, solution_dict=task['solution_dict'])
+        solution.fit(inputs=inputs, solution_dict=solution_dict)
     except:
         print(sys.exc_info()[0])
         return -1
@@ -130,8 +128,8 @@ class Core(core_pb2_grpc.CoreServicer):
                continue
             self._primitives[p.classname] = solutiondescription.PrimitiveDescription(p.classname, p)
 
-        #pipeline_uri = '185_pipe_v3.json'
-        pipeline_uri = '185_withsub.json'
+        pipeline_uri = '185_pipe_v3.json'
+        #pipeline_uri = '185_withsub.json'
         sub_pipeline_uri = '185_sub.json'
         dataset_uri = '185_baseball/185_baseball_dataset/datasetDoc.json'
         problem_doc_uri = '185_baseball/185_baseball_problem/problemDoc.json'
@@ -235,26 +233,27 @@ class Core(core_pb2_grpc.CoreServicer):
 
         inputs = self._get_inputs(request_params.problem, request_params.inputs)
 
-        tasks = []
-        for i in range(len(solutions)):
-            solution = solutions[i]
-            tasks.append({'inputs': inputs, 'solution': solutions[i], 'solution_dict': self._solutions})
-
-        results = self.async_message_thread.map_async(evaluate_solution, tasks)
-
-        msg = core_pb2.Progress(state=core_pb2.RUNNING, status="", start=start, end=solutiondescription.compute_timestamp())
         count = 0
+        index = 0
         self._search_solutions[search_id_str] = []
+        msg = core_pb2.Progress(state=core_pb2.RUNNING, status="", start=start, end=solutiondescription.compute_timestamp())
 
-        for i, r in enumerate(results.get()):
-            print('{:02d}: {}'.format(i, r))
-            if r == 0:
-                count = count + 1
-                id = solutions[i].id
-                self._solutions[id] = solutions[i]
-                self._search_solutions[search_id_str].append(id)
-                yield core_pb2.GetSearchSolutionsResultsResponse(progress=msg, done_ticks=count, all_ticks=len(solutions), solution_id=id,
-                    internal_score=0.0, scores=[])
+        results = [self.async_message_thread.apply_async(evaluate_solution, (inputs, sol, None,)) for sol in solutions]
+        for r in results:
+            try:
+                val = r.get(timeout=5)
+                if val == 0:
+                    count = count + 1
+                    id = solutions[index].id
+                    self._solutions[id] = solutions[index]
+                    self._search_solutions[search_id_str].append(id)
+                    yield core_pb2.GetSearchSolutionsResultsResponse(progress=msg, done_ticks=count, all_ticks=len(solutions), solution_id=id,
+                                        internal_score=0.0, scores=[])
+            except:
+                print(solutions[index].primitives)
+                print(sys.exc_info()[0])
+                print("Solution terminated: ", solutions[index].id)
+            index = index + 1
 
         self._solution_score_map.pop(search_id_str, None)
        
@@ -392,8 +391,8 @@ class Core(core_pb2_grpc.CoreServicer):
         solution = self._solutions[solution_id]
 
         inputs = self._get_inputs(solution.problem, request_params.inputs)
-        output = solution.produce(inputs=inputs, solution_dict=self._solutions)
-       
+        output = solution.produce(inputs=inputs, solution_dict=self._solutions)[0]
+    
         print(type(output))
         print(output.shape)
         result = None
@@ -405,20 +404,20 @@ class Core(core_pb2_grpc.CoreServicer):
                 result = value_pb2.Value(int64_list = value_pb2.Int64List(list=dlist))
             else:
                 result = value_pb2.Value(string_list = value_pb2.StringList(list=dlist))
- 
+   
         self._solution_score_map.pop(request_id, None)
 
         msg = core_pb2.Progress(state=core_pb2.COMPLETED, status="", start=start, end=solutiondescription.compute_timestamp())
 
         steps = []
-        for i in range(fitted_solution.num_steps()):
+        for i in range(solution.num_steps()):
             steps.append(core_pb2.StepProgress(progress=msg))
 
         exposed_outputs = {}
         last_step_output = request_params.expose_outputs[len(request_params.expose_outputs)-1]
         exposed_outputs[last_step_output] = result
 
-        return core_pb2.GetProduceSolutionResultsResponse(progress=msg, steps=steps, exposed_outputs=exposed_outputs)
+        yield core_pb2.GetProduceSolutionResultsResponse(progress=msg, steps=steps, exposed_outputs=exposed_outputs)
 
     def SolutionExport(self, request, context):
         logging.info("Message received: SolutionExport")
