@@ -42,6 +42,11 @@ class StepType(Enum):
     SUBPIPELINE = 2
     PLACEHOLDER = 3
 
+class ActionType(Enum):
+    FIT = 1
+    SCORE = 2
+    VALIDATE = 3
+
 class SolutionDescription(object):
     """
     A wrapper of a primitive instance and hyperparameters, ready to have inputs
@@ -183,6 +188,9 @@ class SolutionDescription(object):
                         current_step = step_source
 
     def create_from_pipelinedescription(self, pipeline_description: pipeline_pb2.PipelineDescription) -> None:
+        """
+        Initialize a solution object from a pipeline_pb2.PipelineDescription object passed by TA3.
+        """
         n_steps = len(pipeline_description.steps)
 
         print("Steps = ", n_steps)
@@ -310,32 +318,12 @@ class SolutionDescription(object):
         primitives_outputs = [None] * len(self.execution_order)
         for i in range(0, len(self.execution_order)):
             n_step = self.execution_order[i]
-            
-            # Subpipeline step
-            if self.steptypes[n_step] is StepType.SUBPIPELINE:
-                primitive_arguments = []
-                for j in range(len(self.primitives_arguments[n_step])):
-                    value = self.primitives_arguments[n_step][j]
-                    if value['origin'] == 'steps':
-                        primitive_arguments.append(primitives_outputs[value['source']])
-                    else:
-                        primitive_arguments.append(arguments['inputs'][value['source']])
-                primitives_outputs[n_step] = self._pipeline_step_fit(n_step, self.primitives[n_step], primitive_arguments,
- solution_dict = arguments['solution_dict'])
-
-            # Primitive step
-            if self.steptypes[n_step] is StepType.PRIMITIVE:
-                primitive_arguments = {}
-                for argument, value in self.primitives_arguments[n_step].items():
-                    if value['origin'] == 'steps':
-                        primitive_arguments[argument] = primitives_outputs[value['source']]
-                    else:
-                        primitive_arguments[argument] = arguments['inputs'][value['source']]
-                primitives_outputs[n_step] = self._primitive_step_fit(n_step, self.primitives[n_step], primitive_arguments)
-
+        
+            primitives_outputs[n_step] = self.process_step(n_step, primitives_outputs, ActionType.FIT, arguments)
+    
         return primitives_outputs[len(self.execution_order)-1]
 
-    def _pipeline_step_fit(self, n_step: int, pipeline_id: str, primitive_arguments, solution_dict):
+    def _pipeline_step_fit(self, n_step: int, pipeline_id: str, primitive_arguments, solution_dict, primitive_dict, action):
         """
         Execute a subpipeline step
         
@@ -354,9 +342,14 @@ class SolutionDescription(object):
         for i in range(len(primitive_arguments)):
             inputs.append(primitive_arguments[i])
 
-        return solution.fit(inputs=inputs, solution_dict=solution_dict)
+        if action is ActionType.FIT: 
+            return solution.fit(inputs=inputs, solution_dict=solution_dict)
+        elif action is ActionType.SCORE:
+            return solution.score_solution(inputs=inputs, solution_dict=solution_dict, primitive_dict=primitive_dict)
+        else:
+            return solution.validate_solution(inputs=inputs, solution_dict=solution_dict)
  
-    def _primitive_step_fit(self, n_step: int, primitive: PrimitiveBaseMeta, primitive_arguments):
+    def fit_step(self, n_step: int, primitive: PrimitiveBaseMeta, primitive_arguments):
         """
         Execute a primitive step
 
@@ -397,8 +390,6 @@ class SolutionDescription(object):
 
         model = primitive(hyperparams=primitive_hyperparams(
                     primitive_hyperparams.defaults(), **custom_hyperparams))
-        #print('*'*10)
-        #print('step', n_step, 'primitive', primitive)
 
         model.set_training_data(**training_arguments)
         model.fit()
@@ -437,8 +428,6 @@ class SolutionDescription(object):
         """
         steps_outputs = [None] * len(self.execution_order)
 
-        print("produce order: ", self.produce_order)
-
         for i in range(0, len(self.execution_order)):
             n_step = self.execution_order[i]
             produce_arguments = {}
@@ -460,7 +449,6 @@ class SolutionDescription(object):
             if self.steptypes[n_step] is StepType.PRIMITIVE:
                 primitive = self.primitives[n_step]
                 family = primitive.metadata.query()['primitive_family']
-                print("Family = ", family)
                 produce_arguments_primitive = self._primitive_arguments(primitive, 'produce')
                 for argument, value in self.primitives_arguments[n_step].items():
                     if argument in produce_arguments_primitive:
@@ -476,12 +464,7 @@ class SolutionDescription(object):
 
             if self.steptypes[n_step] is StepType.PRIMITIVE:
                 if n_step in self.produce_order:
-                    #print('-'*100)
-                    #print('step', n_step, 'primitive', primitive)
-                    try:
-                        steps_outputs[n_step] = self.pipeline[n_step].produce(**produce_arguments).value
-                    except:
-                        print(produce_arguments)
+                    steps_outputs[n_step] = self.pipeline[n_step].produce(**produce_arguments).value
                 else:
                     steps_outputs[n_step] = None
             else:
@@ -617,6 +600,41 @@ class SolutionDescription(object):
         self.outputs = []
         self.outputs.append((origin, int(source)))
 
+    def process_step(self, n_step, primitives_outputs, action, arguments):
+        # Subpipeline step
+        if self.steptypes[n_step] is StepType.SUBPIPELINE:
+            primitive_arguments = []
+            for j in range(len(self.primitives_arguments[n_step])):
+                value = self.primitives_arguments[n_step][j]
+                if value['origin'] == 'steps':
+                    primitive_arguments.append(primitives_outputs[value['source']])
+                else:
+                    primitive_arguments.append(arguments['inputs'][value['source']])
+            return self._pipeline_step_fit(n_step, self.primitives[n_step], primitive_arguments,
+ arguments['solution_dict'], arguments['primitive_dict'], action)
+
+        # Primitive step
+        if self.steptypes[n_step] is StepType.PRIMITIVE:
+            primitive_arguments = {}
+            for argument, value in self.primitives_arguments[n_step].items():
+                if value['origin'] == 'steps':
+                    primitive_arguments[argument] = primitives_outputs[value['source']]
+                else:
+                    primitive_arguments[argument] = arguments['inputs'][value['source']]
+            if action is ActionType.SCORE and self.is_last_step(n_step) == True:
+                primitive = self.primitives[n_step]
+                primitive_desc = arguments['primitive_dict'][primitive]
+                return self.score_step(primitive, primitive_arguments, arguments['metric'], primitive_desc, self.hyperparams[n_step])
+            elif action is ActionType.VALIDATE and self.is_last_step(n_step) == True:
+                return self.validate_step(self.primitives[n_step], primitive_arguments)    
+            else:
+                return self.fit_step(n_step, self.primitives[n_step], primitive_arguments)
+ 
+    def is_last_step(self, n):
+        if n == len(self.execution_order)-1:
+            return True
+        return False
+
     def score_solution(self, **arguments):
         """
         Score a solution 
@@ -625,25 +643,28 @@ class SolutionDescription(object):
         primitives_outputs = [None] * len(self.execution_order)
       
         for i in range(0, len(self.execution_order)): 
-            primitive_arguments = {}
             n_step = self.execution_order[i]
-            for argument, value in self.primitives_arguments[n_step].items():
-                if value['origin'] == 'steps':
-                    primitive_arguments[argument] = primitives_outputs[value['source']]
-                else:
-                    primitive_arguments[argument] = arguments[argument][value['source']]
+            primitives_outputs[n_step] = self.process_step(n_step, primitives_outputs, ActionType.SCORE, arguments)
 
-            if n_step == len(self.execution_order)-1:
-                primitive = self.primitives[n_step]
-                prim_dict = arguments['primitive_dict']
-                primitive_desc = prim_dict[primitive]
-                score = self.last_step(primitive, primitive_arguments, arguments['metric'], primitive_desc, self.hyperparams[n_step])
-            else:
-                if isinstance(self.primitives[n_step], PrimitiveBaseMeta):
-                    primitives_outputs[n_step] = self._primitive_step_fit(n_step, self.primitives[n_step], primitive_arguments)
+        score = primitives_outputs[len(self.execution_order)-1]
         return score
 
-    def last_step(self, primitive: PrimitiveBaseMeta, primitive_arguments, metric, primitive_desc, hyperparams):
+    def validate_solution(self,**arguments):
+        """
+        Validate a solution 
+        """
+ 
+        valid = False
+        primitives_outputs = [None] * len(self.execution_order)
+
+        for i in range(0, len(self.execution_order)):
+            n_step = self.execution_order[i]
+            primitives_outputs[n_step] = self.process_step(n_step, primitives_outputs, ActionType.VALIDATE, arguments)
+
+        valid = primitives_outputs[len(self.execution_order)-1]
+        return valid
+ 
+    def score_step(self, primitive: PrimitiveBaseMeta, primitive_arguments, metric, primitive_desc, hyperparams):
         """
         Last step of a solution evaluated for score_solution()
         Does hyperparameters tuning
@@ -667,11 +688,45 @@ class SolutionDescription(object):
             if param in training_arguments_primitive:
                 training_arguments[param] = value
 
-        #print('*'*10)
-        #print('Last step primitive', primitive)
         score = primitive_desc.score_primitive(training_arguments['inputs'], training_arguments['outputs'], metric, custom_hyperparams)
 
         return score 
+
+    def validate_step(self, primitive: PrimitiveBaseMeta, primitive_arguments):
+        """
+        Last step of a solution evaluated for validate_solution()
+        """
+        family = primitive.metadata.query()['primitive_family']
+
+        training_arguments_primitive = self._primitive_arguments(primitive, 'set_training_data')
+        training_arguments = {}
+
+        for param, value in primitive_arguments.items():
+            value = self.transform_data(family, value)
+
+            if param in training_arguments_primitive:
+                training_arguments[param] = value
+
+        primitive_hyperparams = primitive.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
+        model = primitive(hyperparams=primitive_hyperparams(
+                            primitive_hyperparams.defaults()))
+
+        if family is not PrimitiveFamily.DATA_TRANSFORMATION:
+            ip = training_arguments['inputs']
+            from sklearn.model_selection import KFold
+            # Train on just 20% of the data to validate
+            kf = KFold(n_splits=5, shuffle=True, random_state=9001)
+            newtrain_args = {}
+            for train_index, test_index in kf.split(ip):
+                for param, value in training_arguments.items():
+                    newtrain_args[param] = value.iloc[test_index]
+                break
+            training_arguments = newtrain_args
+ 
+        model.set_training_data(**training_arguments)
+        model.fit()
+
+        return True
  
     def describe_solution(self, prim_dict):
         inputs = []
@@ -705,7 +760,6 @@ class SolutionDescription(object):
             step_outputs = []
             for a in prim.primitive_class.produce_methods:
                 step_outputs.append(pipeline_pb2.StepOutput(id=a))
-
             steps.append(pipeline_pb2.PipelineDescriptionStep(primitive=pipeline_pb2.PrimitivePipelineDescriptionStep(primitive=p,
              arguments=arguments, outputs=step_outputs)))
            
@@ -786,7 +840,7 @@ class PrimitiveDescription(object):
                 metric = self.evaluate_metric(predictions, y_test, metric_type)     
                 metric_sum += metric
 
-                score = metric_sum/splits
+            score = metric_sum/splits
         except:
             print(sys.exc_info()[0])
             score = 0.0

@@ -105,9 +105,13 @@ def evaluate_solution(inputs, solution, solution_dict):
     print("Evaluating ", solution.id)
 
     try:
-        solution.fit(inputs=inputs, solution_dict=solution_dict)
+        valid = solution.validate_solution(inputs=inputs, solution_dict=solution_dict)
+        if valid == True:
+            return 0
+        else:
+            return -1
     except:
-        print(sys.exc_info()[0])
+        print("evaluate_solution: ", sys.exc_info()[0])
         return -1
 
     return 0
@@ -126,6 +130,8 @@ class Core(core_pb2_grpc.CoreServicer):
                 continue
             if p.name == 'sklearn.ensemble.gradient_boosting.GradientBoostingClassifier':
                continue
+            #if p.name == 'common_primitives.BayesianLogisticRegression':
+            #    continue
             self._primitives[p.classname] = solutiondescription.PrimitiveDescription(p.classname, p)
 
         pipeline_uri = '185_pipe_v3.json'
@@ -239,9 +245,15 @@ class Core(core_pb2_grpc.CoreServicer):
         msg = core_pb2.Progress(state=core_pb2.RUNNING, status="", start=start, end=solutiondescription.compute_timestamp())
 
         results = [self.async_message_thread.apply_async(evaluate_solution, (inputs, sol, None,)) for sol in solutions]
+        timeout = request_params.time_bound * 60
+        if timeout <= 0:
+            timeout = None
+        elif timeout > 60:
+            timeout = timeout - 60
+
         for r in results:
             try:
-                val = r.get(timeout=5)
+                val = r.get(timeout=timeout)
                 if val == 0:
                     count = count + 1
                     id = solutions[index].id
@@ -253,6 +265,7 @@ class Core(core_pb2_grpc.CoreServicer):
                 print(solutions[index].primitives)
                 print(sys.exc_info()[0])
                 print("Solution terminated: ", solutions[index].id)
+
             index = index + 1
 
         self._solution_score_map.pop(search_id_str, None)
@@ -309,7 +322,8 @@ class Core(core_pb2_grpc.CoreServicer):
         send_scores = []
 
         inputs = self._get_inputs(self._solutions[solution_id].problem, request_params.inputs)
-        score = self._solutions[solution_id].score_solution(inputs=inputs, metric=request_params.performance_metrics[0].metric, primitive_dict=self._primitives)
+        score = self._solutions[solution_id].score_solution(inputs=inputs, metric=request_params.performance_metrics[0].metric,
+                                primitive_dict=self._primitives, solution_dict=self._solutions)
         print(score)
         send_scores.append(core_pb2.Score(metric=request_params.performance_metrics[0],
              fold=request_params.configuration.folds, targets=[], value=value_pb2.Value(double=score)))
