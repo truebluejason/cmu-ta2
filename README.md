@@ -155,4 +155,5 @@ Run the docker image, mapping your machine’s port 45042 to the container’s p
 ```bash
 docker run -i -t \
     -p 45042:45042 # TODO other arguments
+    registry.datadrivendiscovery.org/sheath/cmu-ta2:live
 ```
