@@ -119,8 +119,15 @@ Create a docker image by running the following commands
 ```bash
 docker build -t registry.datadrivendiscovery.org/sheath/cmu-ta2 . 
 ```
+which builds an image with tag **latest**.
 
 This creates an image--```cmu-ta2```--in your machine’s local Docker image registry.
+
+You can build an image with a named tag
+```bash
+docker build -t registry.datadrivendiscovery.org/sheath/cmu-ta2:<tag> . 
+```
+where ```<tag>``` is the tag name.
 
 List docker images:
 ```bash
