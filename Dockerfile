@@ -13,9 +13,8 @@ RUN apt-get update && apt-get install -y \
 
 # install d3m and grpc, a D3M dependency
 RUN pip3 install --upgrade pip \
-    && pip3 install --process-dependency-links git+https://gitlab.com/datadrivendiscovery/primitive-interfaces.git \
-    && pip3 install --process-dependency-links git+https://gitlab.com/datadrivendiscovery/d3m.git \
-    && pip3 install --upgrade grpcio grpcio-tools
+    && python3 -m pip install --process-dependency-links d3m \
+    && python3 -m pip install --upgrade grpcio grpcio-tools
 
 # Install bayesian_optimiaztion
 COPY bayesian_optimization /tmp/bayesian_optimization
