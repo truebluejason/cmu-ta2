@@ -2,8 +2,6 @@
 Implementation of the ta2ta3 API v2 (preprocessing extensions) -- core.proto
 """
 
-
-
 import core_pb2 as core_pb2
 import core_pb2_grpc as core_pb2_grpc
 import value_pb2 as value_pb2
@@ -12,7 +10,6 @@ import problem_pb2 as problem_pb2
 import pipeline_pb2 as pipeline_pb2
 import logging
 import primitive_lib
-import json
 import os, sys
 import os.path
 import pandas as pd
@@ -21,88 +18,150 @@ import pickle, copy
 from urllib import request as url_request
 from urllib import parse as url_parse
 
-import solutiondescription
+import solutiondescription, util
 from multiprocessing import Pool, cpu_count
 import uuid
 
 logging.basicConfig(level=logging.INFO)
 
-from d3m.metadata.pipeline import Pipeline, PrimitiveStep
 from d3m.container.dataset import D3MDatasetLoader, Dataset
-from d3m.metadata import base as metadata_base
-from d3m.metadata.base import Metadata
 
-def load_problem_doc(problem_doc_uri: str):
-    """     Load problem_doc from problem_doc_uri     
-    Paramters     ---------     problem_doc_uri
-         Uri where the problemDoc.json is located
-    """     
-    with open(problem_doc_uri) as file:         
-        problem_doc = json.load(file)     
-    problem_doc_metadata = Metadata(problem_doc)     
-    return problem_doc_metadata
+def load_primitives():
+    primitives = {}
+    for p in primitive_lib.list_primitives():
+        if p.name == 'sklearn.ensemble.weight_boosting.AdaBoostClassifier':
+            continue
+        if p.name == 'sklearn.ensemble.gradient_boosting.GradientBoostingClassifier':
+            continue
+        if p.name == 'common_primitives.BayesianLogisticRegression':
+            continue
+        primitives[p.classname] = solutiondescription.PrimitiveDescription(p.classname, p)
+    return primitives
 
-def add_target_columns_metadata(dataset: 'Dataset', problem_doc_metadata: 'Metadata'):
+def search_phase():
+    """
+    TA2 running in stand-alone search phase
+    """
+    inputDir = os.environ['D3MINPUTDIR']
+    outputDir = os.environ['D3MOUTPUTDIR']
+
+    config_file = inputDir + "/search_config.json"
+    (dataset, task_name, timeout_in_min) = util.load_schema(config_file)
+
+    primitives = load_primitives()
+    task_name = task_name.upper()
+    logging.info(task_name)
+
+    solutions = []
+    if task_name != 'CLASSIFICATION' and task_name != 'REGRESSION':
+        logging.info("No matching solutions")
+        return solutions
+
+    basic_sol = solutiondescription.SolutionDescription(None)
+    basic_sol.initialize_solution(task_name)
+
+    for classname, p in primitives.items():
+        if p.primitive_class.family == task_name:
+            pipe = copy.deepcopy(basic_sol)
+            pipe.id = str(uuid.uuid4())
+            pipe.add_step(p.primitive_class.python_path)
+            solutions.append(pipe)
+
+    async_message_thread = Pool(cpu_count())
+    valid_solutions = {}
+    valid_solution_scores = {}
+
+    inputs = []
+    inputs.append(dataset) 
+    results = [async_message_thread.apply_async(evaluate_solution_score, (inputs, sol, primitives,)) for sol in solutions]
+    timeout = timeout_in_min * 60
+    if timeout <= 0:
+        timeout = None
+    elif timeout > 60:
+        timeout = timeout - 60
+
+    index = 0
+    for r in results:
+        #try:
+        if 1:
+            score = r.get(timeout=timeout)
+            if score >= 0.0:
+                id = solutions[index].id
+                valid_solutions[id] = solutions[index]
+                valid_solution_scores[id] = score
+        #except:
+        #    logging.info(solutions[index].primitives)
+        #    logging.info(sys.exc_info()[0])
+        #    logging.info("Solution terminated: %s", solutions[index].id)
+
+        index = index + 1
+
+    import operator
+    sorted_x = sorted(valid_solution_scores.items(), key=operator.itemgetter(1))
+    sorted_x.reverse()
+
+    index = 1
+    for (sol, score) in sorted_x:
+        valid_solutions[sol].rank = index
+        index = index + 1
+
+    (sol,rank) = sorted_x[0]
+    solution = valid_solutions[sol]
+    solution.fit(inputs=inputs, solution_dict=None)
+
+    util.write_solution(solution, outputDir + "/supporting_files")
+    #util.write_pipeline_json(solution, primitives, outputDir + "/pipelines")
+    util.write_pipeline_executable(solution, outputDir + "/executables")
+
+def test_phase():
+    """
+    TA2 running in stand-alone test phase
+    """
+    inputDir = os.environ['D3MINPUTDIR']
+    outputDir = os.environ['D3MOUTPUTDIR']
+    executable = os.environ['D3MTESTOPT']
+
+    config_file = inputDir + "/test_config.json"
+    (dataset, task_name, timeout_in_min) = util.load_schema(config_file)
+
+    primitives = load_primitives()
+    task_name = task_name.upper()
+    logging.info(task_name)
+
+    inputs = []
+    inputs.append(dataset)
+
+    pipeline_name = executable.split(".")[0]
+    solution = util.get_pipeline(outputDir + "/supporting_files", pipeline_name)
+    predictions = solution.produce(inputs=inputs)
+    util.write_predictions(predictions, outputDir + "/predictions", solution)
     
-    for data in problem_doc_metadata.query(())['inputs']['data']:
-        targets = data['targets']
-        for target in targets:
-            semantic_types = list(dataset.metadata.query((target['resID'], metadata_base.ALL_ELEMENTS, target['colIndex'])).get('semantic_types', []))
-            if 'https://metadata.datadrivendiscovery.org/types/Target' not in semantic_types:
-                semantic_types.append('https://metadata.datadrivendiscovery.org/types/Target')
-                dataset.metadata = dataset.metadata.update((target['resID'], metadata_base.ALL_ELEMENTS, target['colIndex']), {'semantic_types': semantic_types})
-            if 'https://metadata.datadrivendiscovery.org/types/TrueTarget' not in semantic_types:
-                semantic_types.append('https://metadata.datadrivendiscovery.org/types/TrueTarget')
-                dataset.metadata = dataset.metadata.update((target['resID'], metadata_base.ALL_ELEMENTS, target['colIndex']), {'semantic_types': semantic_types})
 
-    return dataset
+def evaluate_solution_score(inputs, solution, primitives):
+    """
+    Validate each potential solution
+    Runs in a separate process
+    """
+    logging.info("Evaluating %s", solution.id)
+    score = -1
 
-def add_target_metadata(dataset, targets):
-    for target in targets:
-        semantic_types = list(dataset.metadata.query((target.resource_id, metadata_base.ALL_ELEMENTS, target.column_index)).get('semantic_types', []))
-        if 'https://metadata.datadrivendiscovery.org/types/Target' not in semantic_types:
-            semantic_types.append('https://metadata.datadrivendiscovery.org/types/Target')
-            dataset.metadata = dataset.metadata.update((target.resource_id, metadata_base.ALL_ELEMENTS, target.column_index), {'semantic_types': semantic_types})
-        if 'https://metadata.datadrivendiscovery.org/types/TrueTarget' not in semantic_types:
-            semantic_types.append('https://metadata.datadrivendiscovery.org/types/TrueTarget')
-            dataset.metadata = dataset.metadata.update((target.resource_id, metadata_base.ALL_ELEMENTS, target.column_index), {'semantic_types': semantic_types})
+    #try:
+    if 1:
+        score = solution.score_solution(inputs=inputs, metric=problem_pb2.ACCURACY,
+                                primitive_dict=primitives, solution_dict=None)
+    #except:
+    #    print("evaluate_solution exception: %s", sys.exc_info()[0])
+    #    return -1
 
-    return dataset
-
-def generate_pipeline(pipeline_uri: str, dataset_uri: str, problem_doc_uri: str):
-    # Pipeline description
-    pipeline_description = None
-    if '.json' in pipeline_uri:
-        with open(pipeline_uri) as pipeline_file:
-            pipeline_description = Pipeline.from_json_content(string_or_file=pipeline_file)
-    else:
-        with open(pipeline_uri) as pipeline_file:
-            pipeline_description = Pipeline.from_yaml_content(string_or_file=pipeline_file)
-
-    # Problem Doc
-    problem_doc = load_problem_doc(problem_doc_uri)
-
-    # Dataset
-    if 'file:' not in dataset_uri:
-        dataset_uri = 'file://{dataset_uri}'.format(dataset_uri=os.path.abspath(dataset_uri))
-    dataset = D3MDatasetLoader().load(dataset_uri)
-    # Adding Metadata to Dataset
-    dataset = add_target_columns_metadata(dataset, problem_doc)
-
-    # Pipeline
-    solution = solutiondescription.SolutionDescription(None)
-    solution.create_from_pipeline(pipeline_description)
-    return solution
-
-def test_pipeline(solution: solutiondescription.SolutionDescription, dataset_uri: str, problem_doc_uri: str):
-    # Dataset
-    if 'file:' not in dataset_uri:
-        dataset_uri = 'file://{dataset_uri}'.format(dataset_uri=os.path.abspath(dataset_uri))
-    dataset = D3MDatasetLoader().load(dataset_uri)
-    return solution.produce(inputs=[dataset])
+    return score
 
 def evaluate_solution(inputs, solution, solution_dict):
-    print("Evaluating ", solution.id)
+    """
+    Validate each potential solution
+    Runs in a separate process
+    """
+    logging.info("Evaluating %s", solution.id)
+    score = -1
 
     try:
         valid = solution.validate_solution(inputs=inputs, solution_dict=solution_dict)
@@ -111,10 +170,10 @@ def evaluate_solution(inputs, solution, solution_dict):
         else:
             return -1
     except:
-        print("evaluate_solution: ", sys.exc_info()[0])
+        print("evaluate_solution exception: %s", sys.exc_info()[0])
         return -1
 
-    return 0
+    return valid
 
 class Core(core_pb2_grpc.CoreServicer):
     def __init__(self):
@@ -124,59 +183,47 @@ class Core(core_pb2_grpc.CoreServicer):
         self._solution_score_map = {}
         self._search_solutions = {}
         self.async_message_thread = Pool(cpu_count()) #pool.ThreadPool(processes=1,)
-         
-        for p in primitive_lib.list_primitives():
-            if p.name == 'sklearn.ensemble.weight_boosting.AdaBoostClassifier':
-                continue
-            if p.name == 'sklearn.ensemble.gradient_boosting.GradientBoostingClassifier':
-               continue
-            #if p.name == 'common_primitives.BayesianLogisticRegression':
-            #    continue
-            self._primitives[p.classname] = solutiondescription.PrimitiveDescription(p.classname, p)
+        self._primitives = load_primitives()         
 
-        pipeline_uri = '185_pipe_v3.json'
-        #pipeline_uri = '185_withsub.json'
-        sub_pipeline_uri = '185_sub.json'
-        dataset_uri = '185_baseball/185_baseball_dataset/datasetDoc.json'
-        problem_doc_uri = '185_baseball/185_baseball_problem/problemDoc.json'
-        test_dataset_uri = '185_baseball/TEST/dataset_TEST/datasetDoc.json'
-        #solution = generate_pipeline(pipeline_uri=pipeline_uri, dataset_uri=dataset_uri, problem_doc_uri=problem_doc_uri)
-        #subsolution = generate_pipeline(pipeline_uri=sub_pipeline_uri, dataset_uri=dataset_uri, problem_doc_uri=problem_doc_uri)
-        #self._solutions[solution.id] = solution
-        #self._solutions[subsolution.id] = subsolution
+        if 0:
+            pipeline_uri = '185_pipe_v3.json'
+            #pipeline_uri = '185_withsub.json'
+            sub_pipeline_uri = '185_sub.json'
+            dataset_uri = '185_baseball/185_baseball_dataset/datasetDoc.json'
+            problem_doc_uri = '185_baseball/185_baseball_problem/problemDoc.json'
+            test_dataset_uri = '185_baseball/TEST/dataset_TEST/datasetDoc.json'
+            solution = util.generate_pipeline(pipeline_uri=pipeline_uri, dataset_uri=dataset_uri, problem_doc_uri=problem_doc_uri)
+            #subsolution = util.generate_pipeline(pipeline_uri=sub_pipeline_uri, dataset_uri=dataset_uri, problem_doc_uri=problem_doc_uri)
+            #self._solutions[solution.id] = solution
+            #self._solutions[subsolution.id] = subsolution
 
-        #if 'file:' not in dataset_uri:
-        #    dataset_uri = 'file://{dataset_uri}'.format(dataset_uri=os.path.abspath(dataset_uri))
-        #dataset = D3MDatasetLoader().load(dataset_uri)
-        #problem_doc = load_problem_doc(problem_doc_uri)
-        #dataset = add_target_columns_metadata(dataset, problem_doc)
-        #solution.fit(inputs=[dataset], solution_dict=self._solutions)
+            if 'file:' not in dataset_uri:
+                dataset_uri = 'file://{dataset_uri}'.format(dataset_uri=os.path.abspath(dataset_uri))
+            dataset = D3MDatasetLoader().load(dataset_uri)
+            problem_doc = util.load_problem_doc(problem_doc_uri)
+            dataset = util.add_target_columns_metadata(dataset, problem_doc)
+            solution.fit(inputs=[dataset], solution_dict=self._solutions)
 
-        #if 'file:' not in test_dataset_uri:
-        #    test_dataset_uri = 'file://{dataset_uri}'.format(dataset_uri=os.path.abspath(test_dataset_uri))
-        #test_dataset = D3MDatasetLoader().load(dataset_uri)
-        #prodop = solution.produce(inputs=[test_dataset], solution_dict=self._solutions)
+            if 'file:' not in test_dataset_uri:
+                test_dataset_uri = 'file://{dataset_uri}'.format(dataset_uri=os.path.abspath(test_dataset_uri))
+            test_dataset = D3MDatasetLoader().load(dataset_uri)
+            prodop = solution.produce(inputs=[test_dataset], solution_dict=self._solutions)
 
-        #score = solution.score_solution(inputs=[dataset], metric=problem_pb2.ACCURACY, primitive_dict=self._primitives)
-        #score = solution.score_solution(inputs=[dataset], metric=problem_pb2.ROOT_MEAN_SQUARED_ERROR, primitive_dict=self._primitives)
-        #print("Score = ", score)
-        #print(prodop)
-        #pb2_pd = solution.describe_solution(self._primitives)
-        #pb2_pd.steps[3].primitive.hyperparams = {}
-        #pb2_pd.steps[3].primitive.hyperparams['min_samples_split'] = pipeline_pb2.PrimitiveStepHyperparameter(value=5)
-        #new_sol = solutiondescription.SolutionDescription()
-        #new_sol.create_from_pipelinedescription(pb2_pd)
+            #score = solution.score_solution(inputs=[dataset], metric=problem_pb2.ACCURACY, primitive_dict=self._primitives)
+            #score = solution.score_solution(inputs=[dataset], metric=problem_pb2.ROOT_MEAN_SQUARED_ERROR, primitive_dict=self._primitives)
+            #print("Score = ", score)
 
     def search_solutions(self, request):
         primitives = self._primitives
         problem = request.problem.problem
         template = request.template
         task_name = problem_pb2.TaskType.Name(problem.task_type)
-        print(task_name)
+        logging.info(task_name)
 
         solutions = []
-        #if task_name is not 'CLASSIFICATION' and task_name is not 'REGRESSION':
-        #    return solutions
+        if task_name != 'CLASSIFICATION' and task_name != 'REGRESSION':
+            logging.info("No matching solutions")
+            return solutions
 
         basic_sol = solutiondescription.SolutionDescription(request.problem)
         if bool(template) and isinstance(template, pipeline_pb2.PipelineDescription) and len(template.steps) > 0:
@@ -215,7 +262,7 @@ class Core(core_pb2_grpc.CoreServicer):
             if ip.HasField("dataset_uri") == True:
                 dataset = D3MDatasetLoader().load(ip.dataset_uri)
                 targets = problem.inputs[0].targets
-                dataset = add_target_metadata(dataset, targets)
+                dataset = util.add_target_metadata(dataset, targets)
                 inputs.append(dataset)
             elif ip.Hasfield("csv_uri") == True:
                 dataset = pd.read_csv(ip.csv_uri)
@@ -262,9 +309,9 @@ class Core(core_pb2_grpc.CoreServicer):
                     yield core_pb2.GetSearchSolutionsResultsResponse(progress=msg, done_ticks=count, all_ticks=len(solutions), solution_id=id,
                                         internal_score=0.0, scores=[])
             except:
-                print(solutions[index].primitives)
-                print(sys.exc_info()[0])
-                print("Solution terminated: ", solutions[index].id)
+                logging.info(solutions[index].primitives)
+                logging.info(sys.exc_info()[0])
+                logging.info("Solution terminated: %s", solutions[index].id)
 
             index = index + 1
 
@@ -324,7 +371,7 @@ class Core(core_pb2_grpc.CoreServicer):
         inputs = self._get_inputs(self._solutions[solution_id].problem, request_params.inputs)
         score = self._solutions[solution_id].score_solution(inputs=inputs, metric=request_params.performance_metrics[0].metric,
                                 primitive_dict=self._primitives, solution_dict=self._solutions)
-        print(score)
+        logging.info("Score = %f", score)
         send_scores.append(core_pb2.Score(metric=request_params.performance_metrics[0],
              fold=request_params.configuration.folds, targets=[], value=value_pb2.Value(double=score)))
 
@@ -363,14 +410,13 @@ class Core(core_pb2_grpc.CoreServicer):
         print(type(output))
         print(output.shape)
         result = None
-        if isinstance(output, np.ndarray) and output.ndim == 1:
-            dlist = [output[i] for i in range(len(output))]
-            if output.dtype == np.float64:
-                result = value_pb2.Value(double_list = value_pb2.DoubleList(list=dlist))
-            elif np.issubclass_(output.dtype, np.integer):
-                result = value_pb2.Value(int64_list = value_pb2.Int64List(list=dlist))
-            else:
-                result = value_pb2.Value(string_list = value_pb2.StringList(list=dlist))
+        
+        outputDir = os.environ['D3MOUTPUTDIR']
+        if isinstance(output, np.ndarray):
+            output = pd.DataFrame(data=output)
+        uri = util.write_TA3_predictions(output, outputDir + "/predictions", fitted_solution, 'fit') 
+        uri = 'file://{uri}'.format(uri=os.path.abspath(uri)) 
+        result = value_pb2.Value(csv_uri=uri)
 
         yield core_pb2.GetFitSolutionResultsResponse(progress=msg, steps=[], exposed_outputs=[], fitted_solution_id=fitted_solution.id)
 
@@ -410,6 +456,14 @@ class Core(core_pb2_grpc.CoreServicer):
         print(type(output))
         print(output.shape)
         result = None
+        
+        outputDir = os.environ['D3MOUTPUTDIR']
+        if isinstance(output, np.ndarray):
+            output = pd.DataFrame(data=output)
+        uri = util.write_TA3_predictions(output, outputDir + "/predictions", solution, 'produce')
+        uri = 'file://{uri}'.format(uri=os.path.abspath(uri))
+        result = value_pb2.Value(csv_uri=uri)
+
         if isinstance(output, np.ndarray) and output.ndim == 1:
             dlist = [output[i] for i in range(len(output))]
             if output.dtype == np.float64:
