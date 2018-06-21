@@ -7,20 +7,27 @@ import d3m.metadata.base as metadata
 
 def list_primitives():
     """
-    Returns a list of all primitives, as PrimitiveLabel's.
+    Returns a list of all primitives, as PrimitiveClass[].
     """
+    primcs = []
     prims = d3m.index.search()
-    primcs = [PrimitiveClass(pc.metadata, pc) for p,pc in prims.items()]
-    
-    return primcs
+        
+    for pc in prims:
+        try:
+            primitive_obj = d3m.index.get_primitive(pc)
+        except:
+            continue
+        if hasattr(primitive_obj, 'metadata'):
+            primcs.append(PrimitiveClass(primitive_obj.metadata, primitive_obj))
 
+    return primcs
+ 
 class PrimitiveClass(object):
     """
     A loader that mainly just contains primitive metadata.
     Eventually it should be able to do more useful things too.
     """
     def __init__(self, metadata, classname):
-        self.hyperparam_spec = metadata.query()['primitive_code']['hyperparams']
         self.id = metadata.query()['id']
         self.name = metadata.query()['name']
         self.version = metadata.query()['version']

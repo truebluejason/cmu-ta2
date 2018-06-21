@@ -2,168 +2,178 @@
 Implementation of the ta2ta3 API v2 (preprocessing extensions) -- core.proto
 """
 
-
-
 import core_pb2 as core_pb2
 import core_pb2_grpc as core_pb2_grpc
 import value_pb2 as value_pb2
-import value_pb2_grpc as value_pb2_grpc
 import primitive_pb2 as primitive_pb2
-import primitive_pb2_grpc as primitive_pb2_grpc
 import problem_pb2 as problem_pb2
-import problem_pb2_grpc as problem_pb2_grpc
+import pipeline_pb2 as pipeline_pb2
 import logging
 import primitive_lib
-import json
-import os
+import os, sys
 import os.path
 import pandas as pd
+import numpy as np
+import pickle, copy
 from urllib import request as url_request
 from urllib import parse as url_parse
 
-import solutiondescription
-#from multiprocessing import Pool, cpu_count
+import solutiondescription, util
+from multiprocessing import Pool, cpu_count
 import uuid
 
 logging.basicConfig(level=logging.INFO)
 
-__symbol_idx = 0
-def gensym(id="gensym"):
-    global __symbol_idx
-    s = "{}_{}".format(id, __symbol_idx)
-    __symbol_idx += 1
-    return s
+from d3m.container.dataset import D3MDatasetLoader, Dataset
 
-def dataset_uri_path(dataset_uri):
+def load_primitives():
+    primitives = {}
+    for p in primitive_lib.list_primitives():
+        if p.name == 'sklearn.ensemble.weight_boosting.AdaBoostClassifier':
+            continue
+        if p.name == 'sklearn.ensemble.gradient_boosting.GradientBoostingClassifier':
+            continue
+        if p.name == 'common_primitives.BayesianLogisticRegression':
+            continue
+        primitives[p.classname] = solutiondescription.PrimitiveDescription(p.classname, p)
+    return primitives
+
+def search_phase():
     """
-    Takes the dataset spec file:// URI passed as a dataset and returns a file 
-    path to the directory containing it.
+    TA2 running in stand-alone search phase
     """
-    parsed_url = url_parse.urlparse(dataset_uri)
-    assert parsed_url.scheme == 'file'
-    dataset_path = parsed_url.path
-    # Find the last / and chop off any file after it
-    filename_start_loc = dataset_path.rfind('/')
-    assert filename_start_loc > 0
-    return dataset_path[:filename_start_loc]
+    inputDir = os.environ['D3MINPUTDIR']
+    outputDir = os.environ['D3MOUTPUTDIR']
 
+    config_file = inputDir + "/search_config.json"
+    (dataset, task_name, timeout_in_min) = util.load_schema(config_file)
 
+    primitives = load_primitives()
+    task_name = task_name.upper()
+    logging.info(task_name)
 
-class Column(object):
+    solutions = []
+    if task_name != 'CLASSIFICATION' and task_name != 'REGRESSION':
+        logging.info("No matching solutions")
+        return solutions
+
+    basic_sol = solutiondescription.SolutionDescription(None)
+    basic_sol.initialize_solution(task_name)
+
+    for classname, p in primitives.items():
+        if p.primitive_class.family == task_name:
+            pipe = copy.deepcopy(basic_sol)
+            pipe.id = str(uuid.uuid4())
+            pipe.add_step(p.primitive_class.python_path)
+            solutions.append(pipe)
+
+    async_message_thread = Pool(cpu_count())
+    valid_solutions = {}
+    valid_solution_scores = {}
+
+    inputs = []
+    inputs.append(dataset) 
+    results = [async_message_thread.apply_async(evaluate_solution_score, (inputs, sol, primitives,)) for sol in solutions]
+    timeout = timeout_in_min * 60
+    if timeout <= 0:
+        timeout = None
+    elif timeout > 60:
+        timeout = timeout - 60
+
+    index = 0
+    for r in results:
+        #try:
+        if 1:
+            score = r.get(timeout=timeout)
+            if score >= 0.0:
+                id = solutions[index].id
+                valid_solutions[id] = solutions[index]
+                valid_solution_scores[id] = score
+        #except:
+        #    logging.info(solutions[index].primitives)
+        #    logging.info(sys.exc_info()[0])
+        #    logging.info("Solution terminated: %s", solutions[index].id)
+
+        index = index + 1
+
+    import operator
+    sorted_x = sorted(valid_solution_scores.items(), key=operator.itemgetter(1))
+    sorted_x.reverse()
+
+    index = 1
+    for (sol, score) in sorted_x:
+        valid_solutions[sol].rank = index
+        index = index + 1
+
+    (sol,rank) = sorted_x[0]
+    solution = valid_solutions[sol]
+    solution.fit(inputs=inputs, solution_dict=None)
+
+    util.write_solution(solution, outputDir + "/supporting_files")
+    #util.write_pipeline_json(solution, primitives, outputDir + "/pipelines")
+    util.write_pipeline_executable(solution, outputDir + "/executables")
+
+def test_phase():
     """
-    Metadata for a data column in a resource specification file.
+    TA2 running in stand-alone test phase
     """
-    def __init__(self, colIndex, colName, colType, role):
-        self.col_index = colIndex
-        self.col_name = colName
-        self.col_type  = colType
-        self.role = role
+    inputDir = os.environ['D3MINPUTDIR']
+    outputDir = os.environ['D3MOUTPUTDIR']
+    executable = os.environ['D3MTESTOPT']
 
-    @staticmethod
-    def from_json_dict(json_dct):
-        return Column(json_dct['colIndex'], json_dct['colName'], json_dct['colType'], json_dct['role'])
+    config_file = inputDir + "/test_config.json"
+    (dataset, task_name, timeout_in_min) = util.load_schema(config_file)
 
+    primitives = load_primitives()
+    task_name = task_name.upper()
+    logging.info(task_name)
 
-    # TODO: Refactor this to a class method, annotation or mixin.
-    @staticmethod
-    def from_json_str(json_str):
-        "Easy way to deserialize JSON to an object, see https://stackoverflow.com/a/16826012"
-        return json.loads(json_str, object_hook=Column.from_json_dict)
+    inputs = []
+    inputs.append(dataset)
 
-    def to_json_dict(self):
-        return {
-            'colIndex':self.col_index,
-            'colName':self.col_name,
-            'colType':self.col_type,
-            'role':self.role,
-        }
+    pipeline_name = executable.split(".")[0]
+    solution = util.get_pipeline(outputDir + "/supporting_files", pipeline_name)
+    predictions = solution.produce(inputs=inputs)
+    util.write_predictions(predictions, outputDir + "/predictions", solution)
+    
 
-class DataResource(object):
+def evaluate_solution_score(inputs, solution, primitives):
     """
-    Metadata for a resource in a resource specification file.
+    Validate each potential solution
+    Runs in a separate process
     """
-    def __init__(self, res_id, path, type, format, is_collection, columns, dataset_root):
-        self.res_id = res_id
-        self.path = path
-        self.type = type
-        self.format = format
-        self.is_collection = is_collection
-        self.columns = columns
-        self.full_path = os.path.join(dataset_root, path)
+    logging.info("Evaluating %s", solution.id)
+    score = -1
 
-    def load(self):
-        """
-        Loads the dataset and returns a Pandas dataframe.
-        """
-        # Just take the first index column, assuming there's only one.
-        index_col = next((c for c in self.columns if c.role == "index"), None)
-        df = pd.read_csv(self.full_path, index_col=index_col)
-        return df
+    #try:
+    if 1:
+        score = solution.score_solution(inputs=inputs, metric=problem_pb2.ACCURACY,
+                                primitive_dict=primitives, solution_dict=None)
+    #except:
+    #    print("evaluate_solution exception: %s", sys.exc_info()[0])
+    #    return -1
 
-    @staticmethod
-    def from_json_dict(json_dct, dataset_root):
-        columns = [
-            Column.from_json_dict(dct) for dct in json_dct['columns']
-        ]
-        return DataResource(
-            json_dct['resID'], 
-            json_dct['resPath'], 
-            json_dct['resType'], 
-            json_dct['resFormat'],
-            json_dct['isCollection'],
-            columns,
-            dataset_root)
+    return score
 
-    @staticmethod
-    def from_json_str(json_str):
-        return json.loads(json_str, object_hook=DataResource.from_json_dict)
-
-    def to_json_dict(self):
-        return {
-            'resID': self.res_id,
-            'resPath': self.path,
-            'resType': self.type,
-            'resFormat': self.format,
-            'isCollection': self.is_collection,
-            'columns': list(map(lambda column: column.to_json_dict(), self.columns))
-        }
-
-class DatasetSpec(object):
+def evaluate_solution(inputs, solution, solution_dict):
     """
-    Parser/shortcut methods for a dataset specification file.
-
-    It is a JSON file that contains one or more DataResource's, each of which
-    contains one or more Column's.
-    Basically it is a collection of metadata about a dataset, including where to find
-    the actual data files (relative to its own location).
-    The TA3 client will pass a URI to a dataset spec file as a way of saying which
-    dataset it wants to operate on.
+    Validate each potential solution
+    Runs in a separate process
     """
-    def __init__(self, about, resources, root_path):
-        self.about = about
-        self.resource_specs = resources
-        self.root_path = root_path
+    logging.info("Evaluating %s", solution.id)
+    score = -1
 
-    @staticmethod
-    def from_json_dict(json_dct, root_path):
-        resources = [
-                DataResource.from_json_dict(dct, root_path) for dct in json_dct['dataResources']
-            ]
-        return DatasetSpec(
-            json_dct['about'],
-            resources,
-            root_path
-        )
-    @staticmethod
-    def from_json_str(json_str, root_path):
-        s = json.loads(json_str)
-        return DatasetSpec.from_json_dict(s, root_path)
+    try:
+        valid = solution.validate_solution(inputs=inputs, solution_dict=solution_dict)
+        if valid == True:
+            return 0
+        else:
+            return -1
+    except:
+        print("evaluate_solution exception: %s", sys.exc_info()[0])
+        return -1
 
-    def to_json_dict(self):
-        return {
-            'about': self.about,
-            'dataResources': list(map(lambda spec: spec.to_json_dict(), self.resource_specs))
-        }
+    return valid
 
 class Core(core_pb2_grpc.CoreServicer):
     def __init__(self):
@@ -172,50 +182,70 @@ class Core(core_pb2_grpc.CoreServicer):
         self._solutions = {}
         self._solution_score_map = {}
         self._search_solutions = {}
- 
-        for p in primitive_lib.list_primitives():
-            if p.name == 'sklearn.ensemble.weight_boosting.AdaBoostClassifier':
-                continue
-            if p.name == 'sklearn.ensemble.gradient_boosting.GradientBoostingClassifier':
-               continue
-            self._primitives[p.classname] = p
+        self.async_message_thread = Pool(cpu_count()) #pool.ThreadPool(processes=1,)
+        self._primitives = load_primitives()         
 
-    def _new_session_id(self):
-        "Returns an identifier string for a new session."
-        return gensym("session")
+        if 0:
+            pipeline_uri = '185_pipe_v3.json'
+            #pipeline_uri = '185_withsub.json'
+            sub_pipeline_uri = '185_sub.json'
+            dataset_uri = '185_baseball/185_baseball_dataset/datasetDoc.json'
+            problem_doc_uri = '185_baseball/185_baseball_problem/problemDoc.json'
+            test_dataset_uri = '185_baseball/TEST/dataset_TEST/datasetDoc.json'
+            solution = util.generate_pipeline(pipeline_uri=pipeline_uri, dataset_uri=dataset_uri, problem_doc_uri=problem_doc_uri)
+            #subsolution = util.generate_pipeline(pipeline_uri=sub_pipeline_uri, dataset_uri=dataset_uri, problem_doc_uri=problem_doc_uri)
+            #self._solutions[solution.id] = solution
+            #self._solutions[subsolution.id] = subsolution
 
-    def _new_pipeline_id(self):
-        "Returns an identifier string for a new pipeline."
-        return gensym("pipeline")
+            if 'file:' not in dataset_uri:
+                dataset_uri = 'file://{dataset_uri}'.format(dataset_uri=os.path.abspath(dataset_uri))
+            dataset = D3MDatasetLoader().load(dataset_uri)
+            problem_doc = util.load_problem_doc(problem_doc_uri)
+            dataset = util.add_target_columns_metadata(dataset, problem_doc)
+            solution.fit(inputs=[dataset], solution_dict=self._solutions)
 
-    def compute_timestamp(self):
-        now = time.time()
-        seconds = int(now)
-        return Timestamp(seconds=seconds)
+            if 'file:' not in test_dataset_uri:
+                test_dataset_uri = 'file://{dataset_uri}'.format(dataset_uri=os.path.abspath(test_dataset_uri))
+            test_dataset = D3MDatasetLoader().load(dataset_uri)
+            prodop = solution.produce(inputs=[test_dataset], solution_dict=self._solutions)
 
-    def evaluate_solution(self, task, metric):
-        score = task['solution'].score_solution(task['X'], task['y'], metric)
-        return score
+            #score = solution.score_solution(inputs=[dataset], metric=problem_pb2.ACCURACY, primitive_dict=self._primitives)
+            #score = solution.score_solution(inputs=[dataset], metric=problem_pb2.ROOT_MEAN_SQUARED_ERROR, primitive_dict=self._primitives)
+            #print("Score = ", score)
 
-    def search_solutions(self, task):
-        request = task[0]['request']
-        primitives = task[0]['primitives']
+    def search_solutions(self, request):
+        primitives = self._primitives
         problem = request.problem.problem
         template = request.template
         task_name = problem_pb2.TaskType.Name(problem.task_type)
-        print(task_name)
+        logging.info(task_name)
 
         solutions = []
-        for ip in request.inputs:
-            print(ip)
-            (X, y) = solutiondescription.load_dataset(ip.dataset_uri)
+        if task_name != 'CLASSIFICATION' and task_name != 'REGRESSION':
+            logging.info("No matching solutions")
+            return solutions
 
-            for classname, p in primitives.items():
-                if p.family == task_name:
-                    prim = solutiondescription.PrimitiveDescription(p.id, p.hyperparam_spec, p.classname)
-                    pipe = solutiondescription.SolutionDescription()
-                    pipe.add_step(prim)
-                    solutions.append(pipe)
+        basic_sol = solutiondescription.SolutionDescription(request.problem)
+        if bool(template) and isinstance(template, pipeline_pb2.PipelineDescription) and len(template.steps) > 0:
+            print("template:", template)
+            basic_sol.create_from_pipelinedescription(pipeline_description=template)
+        else:
+            template = None
+
+        if bool(template) == False or (basic_sol.num_steps() == 1 and basic_sol.contains_placeholder() == True):
+            basic_sol.initialize_solution(task_name)
+
+        if bool(template) == False or basic_sol.contains_placeholder() == True:
+           for classname, p in primitives.items():
+               if p.primitive_class.family == task_name:
+                   pipe = copy.deepcopy(basic_sol)
+                   pipe.id = str(uuid.uuid4())
+                   pipe.add_step(p.primitive_class.python_path)
+                   solutions.append(pipe)
+
+        # Fully defined
+        if bool(template) == True and basic_sol.contains_placeholder() == False:
+            solutions.append(basic_sol)
 
         return solutions
     
@@ -226,6 +256,22 @@ class Core(core_pb2_grpc.CoreServicer):
         self._solution_score_map[search_id_str] = request
         return core_pb2.SearchSolutionsResponse(search_id = search_id_str)
 
+    def _get_inputs(self, problem, rinputs):
+        inputs = []
+        for ip in rinputs:
+            if ip.HasField("dataset_uri") == True:
+                dataset = D3MDatasetLoader().load(ip.dataset_uri)
+                targets = problem.inputs[0].targets
+                dataset = util.add_target_metadata(dataset, targets)
+                inputs.append(dataset)
+            elif ip.Hasfield("csv_uri") == True:
+                dataset = pd.read_csv(ip.csv_uri)
+                targets = problem.inputs[0].targets
+                #dataset = add_target_metadata(dataset, targets)
+                inputs.append(dataset) 
+
+        return inputs
+       
     def GetSearchSolutionsResults(self, request, context):
         logging.info("Message received: GetSearchSolutionsRequest")
         search_id_str = request.search_id
@@ -236,24 +282,43 @@ class Core(core_pb2_grpc.CoreServicer):
                      internal_score=0.0, scores=[])
 
         request_params = self._solution_score_map[search_id_str]
-        task = [{'request': request_params, 'primitives': self._primitives}]
-        solutions = self.search_solutions(task)
+        solutions = self.search_solutions(request_params)
 
-        msg = core_pb2.Progress(state=core_pb2.RUNNING, status="", start=start, end=solutiondescription.compute_timestamp())
+        inputs = self._get_inputs(request_params.problem, request_params.inputs)
+
         count = 0
+        index = 0
         self._search_solutions[search_id_str] = []
+        msg = core_pb2.Progress(state=core_pb2.RUNNING, status="", start=start, end=solutiondescription.compute_timestamp())
 
-        for sol in solutions:
-            count = count + 1
-            self._solutions[sol.id] = sol
-            self._search_solutions[search_id_str].append(sol.id)
-            yield core_pb2.GetSearchSolutionsResultsResponse(progress=msg, done_ticks=count, all_ticks=len(solutions), solution_id=sol.id,
-             internal_score=0.0, scores=[])
+        results = [self.async_message_thread.apply_async(evaluate_solution, (inputs, sol, None,)) for sol in solutions]
+        timeout = request_params.time_bound * 60
+        if timeout <= 0:
+            timeout = None
+        elif timeout > 60:
+            timeout = timeout - 60
+
+        for r in results:
+            try:
+                val = r.get(timeout=timeout)
+                if val == 0:
+                    count = count + 1
+                    id = solutions[index].id
+                    self._solutions[id] = solutions[index]
+                    self._search_solutions[search_id_str].append(id)
+                    yield core_pb2.GetSearchSolutionsResultsResponse(progress=msg, done_ticks=count, all_ticks=len(solutions), solution_id=id,
+                                        internal_score=0.0, scores=[])
+            except:
+                logging.info(solutions[index].primitives)
+                logging.info(sys.exc_info()[0])
+                logging.info("Solution terminated: %s", solutions[index].id)
+
+            index = index + 1
 
         self._solution_score_map.pop(search_id_str, None)
        
         msg = core_pb2.Progress(state=core_pb2.COMPLETED, status="", start=start, end=solutiondescription.compute_timestamp()) 
-        yield core_pb2.GetSearchSolutionsResultsResponse(progress=msg, done_ticks=len(solutions), all_ticks=len(solutions),
+        yield core_pb2.GetSearchSolutionsResultsResponse(progress=msg, done_ticks=count, all_ticks=count,
                           solution_id="", internal_score=0.0, scores=[])
 
     def EndSearchSolutions(self, request, context):
@@ -280,7 +345,7 @@ class Core(core_pb2_grpc.CoreServicer):
         param_map = []
         num_steps = self._solutions[solution_id].num_steps()
         for j in range(num_steps):
-            param_map.append(core_pb2.StepDescription(primitive=self._solutions[solution_id].get_hyperparams(j)))
+            param_map.append(core_pb2.StepDescription(primitive=self._solutions[solution_id].get_hyperparams(j, self._primitives)))
 
         return core_pb2.DescribeSolutionResponse(pipeline=desc, steps=param_map)
 
@@ -302,16 +367,15 @@ class Core(core_pb2_grpc.CoreServicer):
         msg = core_pb2.Progress(state=core_pb2.RUNNING, status="", start=start, end=solutiondescription.compute_timestamp())
         
         send_scores = []
-        for i in range(len(request_params.inputs)):
-            ip = request_params.inputs[i]
-            (X, y) = solutiondescription.load_dataset(ip.dataset_uri)
 
-            task = {'solution': self._solutions[solution_id], 'X': X, 'y': y}
-            score = self.evaluate_solution(task, request_params.performance_metrics[0])
-            print(score)
-            send_scores.append(core_pb2.Score(metric=request_params.performance_metrics[i], fold=request_params.configuration.folds, targets=[], value=value_pb2.Value(double=score)))
+        inputs = self._get_inputs(self._solutions[solution_id].problem, request_params.inputs)
+        score = self._solutions[solution_id].score_solution(inputs=inputs, metric=request_params.performance_metrics[0].metric,
+                                primitive_dict=self._primitives, solution_dict=self._solutions)
+        logging.info("Score = %f", score)
+        send_scores.append(core_pb2.Score(metric=request_params.performance_metrics[0],
+             fold=request_params.configuration.folds, targets=[], value=value_pb2.Value(double=score)))
 
-            yield core_pb2.GetScoreSolutionResultsResponse(progress=msg, scores=[]) 
+        yield core_pb2.GetScoreSolutionResultsResponse(progress=msg, scores=[]) 
 
         # Clean up
         self._solution_score_map.pop(request_id, None)
@@ -333,21 +397,42 @@ class Core(core_pb2_grpc.CoreServicer):
 
         solution_id = request_params.solution_id
         solution = self._solutions[solution_id]
-        inputs = request_params.inputs
 
         msg = core_pb2.Progress(state=core_pb2.RUNNING, status="", start=start, end=solutiondescription.compute_timestamp())
-        for ip in inputs:
-            (X, y) = solutiondescription.load_dataset(ip.dataset_uri)
-            fitted_solution = copy.deepcopy(solution)
-            fitted_solution.id = str(uuid.uuid4()) 
-            self._solutions[fitted_solution.id] = fitted_solution
-            fitted_solution.train(X, y)
-            yield core_pb2.GetFitSolutionResultsResponse(progress=msg, steps=[], exposed_outputs=[], fitted_solution_id=fitted_solution.id)
+            
+        fitted_solution = copy.deepcopy(solution)
+        fitted_solution.id = str(uuid.uuid4()) 
+        self._solutions[fitted_solution.id] = fitted_solution
+
+        inputs = self._get_inputs(self._solutions[solution_id].problem, request_params.inputs)
+        output = fitted_solution.fit(inputs=inputs, solution_dict=self._solutions)
+
+        print(type(output))
+        print(output.shape)
+        result = None
+        
+        outputDir = os.environ['D3MOUTPUTDIR']
+        if isinstance(output, np.ndarray):
+            output = pd.DataFrame(data=output)
+        uri = util.write_TA3_predictions(output, outputDir + "/predictions", fitted_solution, 'fit') 
+        uri = 'file://{uri}'.format(uri=os.path.abspath(uri)) 
+        result = value_pb2.Value(csv_uri=uri)
+
+        yield core_pb2.GetFitSolutionResultsResponse(progress=msg, steps=[], exposed_outputs=[], fitted_solution_id=fitted_solution.id)
 
         self._solution_score_map.pop(request_id, None)
 
         msg = core_pb2.Progress(state=core_pb2.COMPLETED, status="", start=start, end=solutiondescription.compute_timestamp())
-        yield core_pb2.GetFitSolutionResultsResponse(progress=msg, steps=[], exposed_outputs=[], fitted_solution_id="")
+
+        steps = []
+        for i in range(fitted_solution.num_steps()):
+            steps.append(core_pb2.StepProgress(progress=msg))
+
+        exposed_outputs = {}
+        last_step_output = request_params.expose_outputs[len(request_params.expose_outputs)-1]
+        exposed_outputs[last_step_output] = result
+
+        yield core_pb2.GetFitSolutionResultsResponse(progress=msg, steps=steps, exposed_outputs=exposed_outputs, fitted_solution_id=fitted_solution.id)
 
     def ProduceSolution(self, request, context):
         logging.info("Message received: ProduceSolution")
@@ -364,20 +449,52 @@ class Core(core_pb2_grpc.CoreServicer):
 
         solution_id = request_params.fitted_solution_id
         solution = self._solutions[solution_id]
-        inputs = request_params.inputs
-        (X, y) = solutiondescription.load_dataset(inputs[0].dataset_uri)
-        solution.produce(X)
+
+        inputs = self._get_inputs(solution.problem, request_params.inputs)
+        output = solution.produce(inputs=inputs, solution_dict=self._solutions)[0]
+    
+        print(type(output))
+        print(output.shape)
+        result = None
         
+        outputDir = os.environ['D3MOUTPUTDIR']
+        if isinstance(output, np.ndarray):
+            output = pd.DataFrame(data=output)
+        uri = util.write_TA3_predictions(output, outputDir + "/predictions", solution, 'produce')
+        uri = 'file://{uri}'.format(uri=os.path.abspath(uri))
+        result = value_pb2.Value(csv_uri=uri)
+
+        if isinstance(output, np.ndarray) and output.ndim == 1:
+            dlist = [output[i] for i in range(len(output))]
+            if output.dtype == np.float64:
+                result = value_pb2.Value(double_list = value_pb2.DoubleList(list=dlist))
+            elif np.issubclass_(output.dtype, np.integer):
+                result = value_pb2.Value(int64_list = value_pb2.Int64List(list=dlist))
+            else:
+                result = value_pb2.Value(string_list = value_pb2.StringList(list=dlist))
+   
         self._solution_score_map.pop(request_id, None)
 
         msg = core_pb2.Progress(state=core_pb2.COMPLETED, status="", start=start, end=solutiondescription.compute_timestamp())
-        return core_pb2.GetProduceSolutionResultsResponse(progress=msg, steps=[], exposed_outputs=[])
+
+        steps = []
+        for i in range(solution.num_steps()):
+            steps.append(core_pb2.StepProgress(progress=msg))
+
+        exposed_outputs = {}
+        last_step_output = request_params.expose_outputs[len(request_params.expose_outputs)-1]
+        exposed_outputs[last_step_output] = result
+
+        yield core_pb2.GetProduceSolutionResultsResponse(progress=msg, steps=steps, exposed_outputs=exposed_outputs)
 
     def SolutionExport(self, request, context):
         logging.info("Message received: SolutionExport")
         solution_id = request.fitted_solution_id
         rank = request.rank
         solution = self._solutions[solution_id]
+        output = open(solution_id+".dump", "wb")
+        pickle.dump(solution, output)
+        output.close()
         return core_pb2.SolutionExportResponse()
 
     def UpdateProblem(self, request, context):
