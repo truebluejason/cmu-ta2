@@ -25,7 +25,7 @@ from google.protobuf.timestamp_pb2 import Timestamp
 
 from sklearn import metrics
 
-from d3m.metadata.pipeline import Pipeline, PrimitiveStep, SubpipelineStep
+from d3m.metadata.pipeline import Pipeline, PrimitiveStep, SubpipelineStep, ArgumentType, PipelineContext
 from d3m.metadata.base import PrimitiveFamily
 from d3m.primitive_interfaces.base import PrimitiveBaseMeta
 import d3m.index
@@ -70,6 +70,7 @@ class SolutionDescription(object):
         self.users = None
         self.inputs = []
         self.rank = -1
+        self.indices = None
         
         self.outputs = None
         self.execution_order = None
@@ -96,26 +97,23 @@ class SolutionDescription(object):
         else:
             return 0
 
-    def create_pipeline_json(self, filename, prim_dict):
-        pipeline_description = Pipeline(pipeline_id=self.id, context='EVALUATION')
+    def create_pipeline_json(self, prim_dict, filename):
+        pipeline_description = Pipeline(pipeline_id=self.id, context=PipelineContext.EVALUATION)
         for ip in self.inputs:
-            pipeline_description.add_input(name=ip)
+            pipeline_description.add_input(name=ip['name'])
 
-        for op in self.outputs:
-            pipeline_description.add_output(data_reference=op['data'], name=op['name'])
-       
         num = self.num_steps()
         for i in range(num):
             p = prim_dict[self.primitives[i]]
             pdesc = {}
             pdesc['id'] = p.id
-            pdesc['version'] = p.version
-            pdesc['python_path'] = p.python_path
-            pdesc['name'] = p.name
-            pdesc['digest'] = p.digest
-            step = PrimitiveStep(index=i, primitive_description=pdesc)
+            pdesc['version'] = p.primitive_class.version
+            pdesc['python_path'] = p.primitive_class.python_path
+            pdesc['name'] = p.primitive_class.name
+            pdesc['digest'] = p.primitive_class.digest
+            step = PrimitiveStep(primitive_description=pdesc)
 
-            for name, value in self.primitives_arguments[i]:
+            for name, value in self.primitives_arguments[i].items():
                 origin = value['origin']
                 if origin == 'steps':
                     argument_type = ArgumentType.DATA
@@ -124,13 +122,15 @@ class SolutionDescription(object):
                 step.add_argument(name=name, argument_type=argument_type, data_reference=value['data'])
             step.add_output(output_id=p.primitive_class.produce_methods[0])
             if bool(self.hyperparams[i]):
-                for name, value in self.hyperparams[i]:
-                    step.add_hyperparam(name=name, argument_type=ArgumentType.VALUE, data=value)
+                for name, value in self.hyperparams[i].items():
+                    step.add_hyperparameter(name=name, argument_type=ArgumentType.VALUE, data=value)
             pipeline_description.add_step(step)
 
-        valid = pipeline_description.check()
-        print("Valid = ", valid)
-        pipeline_description.to_json(filename)
+        for op in self.outputs:
+            pipeline_description.add_output(data_reference=op[2], name=op[3])
+
+        outfile = open(filename, "w")
+        pipeline_description.to_json(outfile)
 
     def create_from_pipeline(self, pipeline_description: Pipeline) -> None:
         n_steps = len(pipeline_description.steps)
@@ -206,7 +206,7 @@ class SolutionDescription(object):
         for output in pipeline_description.outputs:
             origin = output['data'].split('.')[0]
             source = output['data'].split('.')[1]
-            self.outputs.append((origin, int(source)))
+            self.outputs.append((origin, int(source), output['data'], output['name']))
 
             if origin != 'steps':
                 continue
@@ -329,7 +329,7 @@ class SolutionDescription(object):
             output = pipeline_description.outputs[i]
             origin = output.data.split('.')[0]
             source = output.data.split('.')[1]
-            self.outputs.append((origin, int(source)))
+            self.outputs.append((origin, int(source), output.data, output.name))
 
             if origin != 'steps':
                 continue
@@ -345,6 +345,11 @@ class SolutionDescription(object):
                         self.produce_order.add(step_source)
                         current_step = step_source
 
+    def isDataFrameStep(self, n_step):
+        if self.steptypes[n_step] is StepType.PRIMITIVE and self.primitives[n_step].metadata.query()['python_path'] == 'd3m.primitives.datasets.DatasetToDataFrame':
+            return True
+        return False
+
     def fit(self, **arguments):
         """
         Train all steps in the solution.
@@ -359,7 +364,8 @@ class SolutionDescription(object):
             n_step = self.execution_order[i]
         
             primitives_outputs[n_step] = self.process_step(n_step, primitives_outputs, ActionType.FIT, arguments)
-    
+            if self.isDataFrameStep(n_step) == True:
+                self.indices = primitives_outputs[n_step][['d3mIndex']] 
         return primitives_outputs[len(self.execution_order)-1]
 
     def _pipeline_step_fit(self, n_step: int, pipeline_id: str, primitive_arguments, solution_dict, primitive_dict, action):
@@ -504,6 +510,8 @@ class SolutionDescription(object):
             if self.steptypes[n_step] is StepType.PRIMITIVE:
                 if n_step in self.produce_order:
                     steps_outputs[n_step] = self.pipeline[n_step].produce(**produce_arguments).value
+                    if self.isDataFrameStep(n_step) == True:
+                        self.indices = steps_outputs[n_step][['d3mIndex']]
                 else:
                     steps_outputs[n_step] = None
             else:
@@ -619,7 +627,7 @@ class SolutionDescription(object):
         data = 'steps.' + str(n_steps-1) + '.produce'
         origin = data.split('.')[0]
         source = data.split('.')[1]
-        self.outputs.append((origin, int(source)))
+        self.outputs.append((origin, int(source), data, "output predictions"))
 
         # Creating set of steps to be call in produce
         self.produce_order = set()
@@ -638,9 +646,6 @@ class SolutionDescription(object):
             else:
                 self.produce_order.add(step_source)
                 current_step = step_source
-
-        self.outputs = []
-        self.outputs.append((origin, int(source)))
 
     def process_step(self, n_step, primitives_outputs, action, arguments):
         # Subpipeline step
@@ -775,7 +780,7 @@ class SolutionDescription(object):
             inputs.append(pipeline_pb2.PipelineDescriptionInput(name=self.inputs[i]["name"]))
 
         outputs=[]
-        outputs.append(pipeline_pb2.PipelineDescriptionOutput(name="predictions", data=str(self.outputs[0][0])+str(".")+str(self.outputs[0][1])))
+        outputs.append(pipeline_pb2.PipelineDescriptionOutput(name="predictions", data=self.outputs[0][2]))
 
         steps=[]
         
@@ -875,21 +880,17 @@ class PrimitiveDescription(object):
         prim_instance = self.primitive(hyperparams=optimal_params)
         score = 0.0
       
-        try: 
-            for train_index, test_index in kf.split(X):
-                X_train, X_test = X.iloc[train_index], X.iloc[test_index]
-                y_train, y_test = y.iloc[train_index], y.iloc[test_index]
+        for train_index, test_index in kf.split(X):
+            X_train, X_test = X.iloc[train_index], X.iloc[test_index]
+            y_train, y_test = y.iloc[train_index], y.iloc[test_index]
 
-                prim_instance.set_training_data(inputs=X_train, outputs=y_train)
-                prim_instance.fit()
-                predictions = prim_instance.produce(inputs=X_test).value                        
-                metric = self.evaluate_metric(predictions, y_test, metric_type)     
-                metric_sum += metric
+            prim_instance.set_training_data(inputs=X_train, outputs=y_train)
+            prim_instance.fit()
+            predictions = prim_instance.produce(inputs=X_test).value                        
+            metric = self.evaluate_metric(predictions, y_test, metric_type)     
+            metric_sum += metric
 
-            score = metric_sum/splits
-        except:
-            print("score_primitive: ", sys.exc_info()[0])
-            score = 0.0
+        score = metric_sum/splits
 
         return score
  
@@ -992,6 +993,8 @@ class PrimitiveDescription(object):
                 continue
             lower = lower_bounds[name]
             upper = upper_bounds[name]
+            if lower is None or upper is None:
+                continue
             domain_bounds.append([lower,upper])
             optimal_params[index] = name
             index =index+1
@@ -1004,18 +1007,18 @@ class PrimitiveDescription(object):
         try:
             (curr_opt_val, curr_opt_pt) = bo.gp_call.fmax(func, domain_bounds, 10)
         except:
-            print(sys.exc_info()[0])
-            curr_opt_val = 0.0
-            curr_opt_pt = []
-            for i in range(len(optimal_params)):
-                curr_opt_pt.append(lower_bounds[optimal_params[i]])
+            print("optimize_hyperparams: ", sys.exc_info()[0])
+            print(self.primitive)
+            optimal_params = None
 
+        optimal_params = None
         # Map optimal parameter values found
-        for index,name in optimal_params.items():
-            value = curr_opt_pt[index]
-            if hyperparam_types[name] is int:
-                value = (int)(curr_opt_pt[index]+0.5)
-            default_params[name] = value
+        if bool(optimal_params):
+            for index,name in optimal_params.items():
+                value = curr_opt_pt[index]
+                if hyperparam_types[name] is int:
+                    value = (int)(curr_opt_pt[index]+0.5)
+                default_params[name] = value
 
         if bool(custom_hyperparams):
             for name,value in custom_hyperparams.items():

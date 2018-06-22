@@ -65,6 +65,11 @@ def add_target_metadata(dataset, targets):
 
     return dataset
 
+def get_target_name(dataset: 'Dataset', problem_doc_metadata: 'Metadata'):
+    data = problem_doc_metadata.query(())['inputs']['data'][0]
+    target = data['targets'][0]['colName']
+    return target
+
 def load_schema(filename):
     print("Reading ",filename)
     with open(filename) as file:
@@ -81,7 +86,9 @@ def load_schema(filename):
     dataset = add_target_columns_metadata(dataset, problem_doc)
 
     taskname = problem_doc.query(())['about']['taskType']
-    return (dataset, taskname, timeout_in_min)
+    target = get_target_name(dataset, problem_doc)
+
+    return (dataset, taskname, target, timeout_in_min)
 
 def get_pipeline(dirname, pipeline_name):
     newdirname = dirname + "/" + pipeline_name
@@ -107,7 +114,7 @@ def write_TA3_predictions(predictions, dirname, solution, mode):
 
     outputFilePath = directory + "/predictions.csv"
     with open(outputFilePath, 'w') as outputFile:
-        predictions.to_csv(outputFile)
+        predictions.to_csv(outputFile, header=True, index=False)
     return outputFilePath
 
 def write_predictions(predictions, dirname, solution):
@@ -117,7 +124,7 @@ def write_predictions(predictions, dirname, solution):
 
     outputFilePath = directory + "/predictions.csv"
     with open(outputFilePath, 'w') as outputFile:
-        predictions.to_csv(outputFile)
+        predictions.to_csv(outputFile, header=True, index=False)
     return outputFilePath
    
 def write_pipeline_json(solution, primitives, dirname):
@@ -125,7 +132,7 @@ def write_pipeline_json(solution, primitives, dirname):
     solution.create_pipeline_json(primitives, filename) 
 
 def write_pipeline_executable(solution, dirname):
-    shell_script = '#!/bin/bash\nPYTHONPATH=$PYTHONPATH:/ python ./src/main.py test\n'
+    shell_script = '#!/bin/bash\n python ./src/main.py test\n'
     filename = dirname + "/" + solution.id + "_" + str(solution.rank) + ".sh"
     with open(filename, 'w') as f:
         f.write(shell_script)

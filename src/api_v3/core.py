@@ -23,19 +23,23 @@ from multiprocessing import Pool, cpu_count
 import uuid
 
 logging.basicConfig(level=logging.INFO)
+pd.set_option('display.max_rows', None)
 
 from d3m.container.dataset import D3MDatasetLoader, Dataset
 
 def load_primitives():
     primitives = {}
     for p in primitive_lib.list_primitives():
-        if p.name == 'sklearn.ensemble.weight_boosting.AdaBoostClassifier':
+        #if p.name == 'sklearn.ensemble.weight_boosting.AdaBoostClassifier':
+        #    continue
+        #if p.name == 'common_primitives.BayesianLogisticRegression':
+        #    continue
+        if p.python_path == 'd3m.primitives.sklearn_wrap.SKGradientBoostingClassifier':
             continue
-        if p.name == 'sklearn.ensemble.gradient_boosting.GradientBoostingClassifier':
-            continue
-        if p.name == 'common_primitives.BayesianLogisticRegression':
+        if p.python_path == 'd3m.primitives.common_primitives.ConvolutionalNeuralNet':
             continue
         primitives[p.classname] = solutiondescription.PrimitiveDescription(p.classname, p)
+
     return primitives
 
 def search_phase():
@@ -46,7 +50,7 @@ def search_phase():
     outputDir = os.environ['D3MOUTPUTDIR']
 
     config_file = inputDir + "/search_config.json"
-    (dataset, task_name, timeout_in_min) = util.load_schema(config_file)
+    (dataset, task_name, target, timeout_in_min) = util.load_schema(config_file)
 
     primitives = load_primitives()
     task_name = task_name.upper()
@@ -73,45 +77,57 @@ def search_phase():
 
     inputs = []
     inputs.append(dataset) 
-    results = [async_message_thread.apply_async(evaluate_solution_score, (inputs, sol, primitives,)) for sol in solutions]
+    if task_name == 'CLASSIFICATION':
+        metric= problem_pb2.ACCURACY
+    else:
+        metric= problem_pb2.MEAN_SQUARED_ERROR
+    results = [async_message_thread.apply_async(evaluate_solution_score, (inputs, sol, primitives, metric,)) for sol in solutions]
     timeout = timeout_in_min * 60
+    halftimeout = None
     if timeout <= 0:
         timeout = None
     elif timeout > 60:
         timeout = timeout - 60
+        halftimeout = timeout/2
 
     index = 0
     for r in results:
-        #try:
-        if 1:
-            score = r.get(timeout=timeout)
+        try:
+            score = r.get(timeout=halftimeout)
             if score >= 0.0:
                 id = solutions[index].id
                 valid_solutions[id] = solutions[index]
                 valid_solution_scores[id] = score
-        #except:
-        #    logging.info(solutions[index].primitives)
-        #    logging.info(sys.exc_info()[0])
-        #    logging.info("Solution terminated: %s", solutions[index].id)
+        except:
+            logging.info(solutions[index].primitives)
+            logging.info(sys.exc_info()[0])
+            logging.info("Solution terminated: %s", solutions[index].id)
 
         index = index + 1
 
     import operator
     sorted_x = sorted(valid_solution_scores.items(), key=operator.itemgetter(1))
-    sorted_x.reverse()
+    if metric == problem_pb2.ACCURACY:
+        sorted_x.reverse()
 
     index = 1
     for (sol, score) in sorted_x:
         valid_solutions[sol].rank = index
         index = index + 1
 
-    (sol,rank) = sorted_x[0]
-    solution = valid_solutions[sol]
-    solution.fit(inputs=inputs, solution_dict=None)
+    num = 20
+    if len(sorted_x) < 20:
+        num = len(sorted_x)
 
-    util.write_solution(solution, outputDir + "/supporting_files")
-    #util.write_pipeline_json(solution, primitives, outputDir + "/pipelines")
-    util.write_pipeline_executable(solution, outputDir + "/executables")
+    sorted_x = sorted_x[:num]
+    results = [async_message_thread.apply_async(fit_solution, (inputs, valid_solutions[sol], primitives, outputDir,))
+     for (sol,score) in sorted_x]
+
+    for r in results:
+        try:
+            valid=r.get(timeout=halftimeout)
+        except:
+            logging.info(sys.exc_info()[0])
 
 def test_phase():
     """
@@ -122,7 +138,7 @@ def test_phase():
     executable = os.environ['D3MTESTOPT']
 
     config_file = inputDir + "/test_config.json"
-    (dataset, task_name, timeout_in_min) = util.load_schema(config_file)
+    (dataset, task_name, target, timeout_in_min) = util.load_schema(config_file)
 
     primitives = load_primitives()
     task_name = task_name.upper()
@@ -131,13 +147,15 @@ def test_phase():
     inputs = []
     inputs.append(dataset)
 
-    pipeline_name = executable.split(".")[0]
+    import ntpath
+    pipeline_name = ntpath.basename(executable).split(".")[0]
     solution = util.get_pipeline(outputDir + "/supporting_files", pipeline_name)
-    predictions = solution.produce(inputs=inputs)
+    predictions = solution.produce(inputs=inputs)[0]
+    predictions = pd.DataFrame({'d3mIndex': solution.indices['d3mIndex'], target:predictions.iloc[:,0]})
     util.write_predictions(predictions, outputDir + "/predictions", solution)
     
 
-def evaluate_solution_score(inputs, solution, primitives):
+def evaluate_solution_score(inputs, solution, primitives, metric):
     """
     Validate each potential solution
     Runs in a separate process
@@ -145,16 +163,28 @@ def evaluate_solution_score(inputs, solution, primitives):
     logging.info("Evaluating %s", solution.id)
     score = -1
 
-    #try:
-    if 1:
-        score = solution.score_solution(inputs=inputs, metric=problem_pb2.ACCURACY,
+    try:
+        score = solution.score_solution(inputs=inputs, metric=metric,
                                 primitive_dict=primitives, solution_dict=None)
-    #except:
-    #    print("evaluate_solution exception: %s", sys.exc_info()[0])
-    #    return -1
+    except:
+        print("evaluate_solution exception: %s", sys.exc_info()[0])
+        return -1
 
     return score
 
+def fit_solution(inputs, solution, primitives, outputDir):
+    """
+    Validate each potential solution
+    Runs in a separate process
+    """
+    logging.info("Fitting %s", solution.id)
+    solution.fit(inputs=inputs, solution_dict=None)
+
+    util.write_solution(solution, outputDir + "/supporting_files")
+    util.write_pipeline_json(solution, primitives, outputDir + "/pipelines")
+    util.write_pipeline_executable(solution, outputDir + "/executables")
+    return True
+ 
 def evaluate_solution(inputs, solution, solution_dict):
     """
     Validate each potential solution
@@ -208,10 +238,6 @@ class Core(core_pb2_grpc.CoreServicer):
                 test_dataset_uri = 'file://{dataset_uri}'.format(dataset_uri=os.path.abspath(test_dataset_uri))
             test_dataset = D3MDatasetLoader().load(dataset_uri)
             prodop = solution.produce(inputs=[test_dataset], solution_dict=self._solutions)
-
-            #score = solution.score_solution(inputs=[dataset], metric=problem_pb2.ACCURACY, primitive_dict=self._primitives)
-            #score = solution.score_solution(inputs=[dataset], metric=problem_pb2.ROOT_MEAN_SQUARED_ERROR, primitive_dict=self._primitives)
-            #print("Score = ", score)
 
     def search_solutions(self, request):
         primitives = self._primitives
@@ -369,8 +395,12 @@ class Core(core_pb2_grpc.CoreServicer):
         send_scores = []
 
         inputs = self._get_inputs(self._solutions[solution_id].problem, request_params.inputs)
-        score = self._solutions[solution_id].score_solution(inputs=inputs, metric=request_params.performance_metrics[0].metric,
+        try:
+            score = self._solutions[solution_id].score_solution(inputs=inputs, metric=request_params.performance_metrics[0].metric,
                                 primitive_dict=self._primitives, solution_dict=self._solutions)
+        except:
+            score = 0.0
+
         logging.info("Score = %f", score)
         send_scores.append(core_pb2.Score(metric=request_params.performance_metrics[0],
              fold=request_params.configuration.folds, targets=[], value=value_pb2.Value(double=score)))
@@ -405,16 +435,21 @@ class Core(core_pb2_grpc.CoreServicer):
         self._solutions[fitted_solution.id] = fitted_solution
 
         inputs = self._get_inputs(self._solutions[solution_id].problem, request_params.inputs)
-        output = fitted_solution.fit(inputs=inputs, solution_dict=self._solutions)
+        try:
+            output = fitted_solution.fit(inputs=inputs, solution_dict=self._solutions)
+        except:
+            output = None
 
-        print(type(output))
-        print(output.shape)
         result = None
-        
         outputDir = os.environ['D3MOUTPUTDIR']
+
         if isinstance(output, np.ndarray):
             output = pd.DataFrame(data=output)
-        uri = util.write_TA3_predictions(output, outputDir + "/predictions", fitted_solution, 'fit') 
+
+        target = self._solutions[solution_id].problem.inputs[0].targets[0].column_name
+
+        predictions = pd.DataFrame({'d3mIndex': fitted_solution.indices['d3mIndex'], target:output.iloc[:,0]})
+        uri = util.write_TA3_predictions(predictions, outputDir + "/predictions", fitted_solution, 'fit') 
         uri = 'file://{uri}'.format(uri=os.path.abspath(uri)) 
         result = value_pb2.Value(csv_uri=uri)
 
@@ -453,26 +488,18 @@ class Core(core_pb2_grpc.CoreServicer):
         inputs = self._get_inputs(solution.problem, request_params.inputs)
         output = solution.produce(inputs=inputs, solution_dict=self._solutions)[0]
     
-        print(type(output))
-        print(output.shape)
         result = None
         
         outputDir = os.environ['D3MOUTPUTDIR']
         if isinstance(output, np.ndarray):
             output = pd.DataFrame(data=output)
-        uri = util.write_TA3_predictions(output, outputDir + "/predictions", solution, 'produce')
+
+        target = solution.problem.inputs[0].targets[0].column_name
+        predictions = pd.DataFrame({'d3mIndex': solution.indices['d3mIndex'], target:output.iloc[:,0]})
+        uri = util.write_TA3_predictions(predictions, outputDir + "/predictions", solution, 'produce')
         uri = 'file://{uri}'.format(uri=os.path.abspath(uri))
         result = value_pb2.Value(csv_uri=uri)
 
-        if isinstance(output, np.ndarray) and output.ndim == 1:
-            dlist = [output[i] for i in range(len(output))]
-            if output.dtype == np.float64:
-                result = value_pb2.Value(double_list = value_pb2.DoubleList(list=dlist))
-            elif np.issubclass_(output.dtype, np.integer):
-                result = value_pb2.Value(int64_list = value_pb2.Int64List(list=dlist))
-            else:
-                result = value_pb2.Value(string_list = value_pb2.StringList(list=dlist))
-   
         self._solution_score_map.pop(request_id, None)
 
         msg = core_pb2.Progress(state=core_pb2.COMPLETED, status="", start=start, end=solutiondescription.compute_timestamp())
@@ -492,9 +519,13 @@ class Core(core_pb2_grpc.CoreServicer):
         solution_id = request.fitted_solution_id
         rank = request.rank
         solution = self._solutions[solution_id]
-        output = open(solution_id+".dump", "wb")
-        pickle.dump(solution, output)
-        output.close()
+        solution.rank = rank
+
+        outputdir = os.environ['D3MOUTPUTDIR'] 
+        util.write_solution(solution, outputDir + "/supporting_files")
+        util.write_pipeline_json(solution, self.primitives, outputDir + "/pipelines")
+        util.write_pipeline_executable(solution, outputDir + "/executables")
+
         return core_pb2.SolutionExportResponse()
 
     def UpdateProblem(self, request, context):
