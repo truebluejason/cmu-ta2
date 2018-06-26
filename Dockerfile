@@ -31,4 +31,4 @@ add src/ /d3m/src
 #add primitives_repo /d3m/primitives_repo
 #add test_output /d3m/test_output
 
-cmd /d3m/src/main.py ta3
+cmd /d3m/src/main.py ta2ta3
