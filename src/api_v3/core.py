@@ -32,11 +32,17 @@ def load_primitives():
     for p in primitive_lib.list_primitives():
         #if p.name == 'sklearn.ensemble.weight_boosting.AdaBoostClassifier':
         #    continue
-        #if p.name == 'common_primitives.BayesianLogisticRegression':
-        #    continue
+        if p.name == 'common_primitives.BayesianLogisticRegression':
+            continue
         if p.python_path == 'd3m.primitives.sklearn_wrap.SKGradientBoostingClassifier':
             continue
         if p.python_path == 'd3m.primitives.common_primitives.ConvolutionalNeuralNet':
+            continue
+        if p.python_path == 'd3m.primitives.common_primitives.RandomForestClassifier':
+            continue
+        if p.python_path == 'd3m.primitives.common_primitives.FeedForwardNeuralNet':
+            continue
+        if p.python_path == 'd3m.primitives.common_primitives.Loss':
             continue
         primitives[p.classname] = solutiondescription.PrimitiveDescription(p.classname, p)
 
@@ -48,30 +54,45 @@ def search_phase():
     """
     inputDir = os.environ['D3MINPUTDIR']
     outputDir = os.environ['D3MOUTPUTDIR']
+    timeout_env = os.environ['D3MTIMEOUT']
+    num_cpus = os.environ['D3MCPU']
 
+    logging.info("D3MINPUTDIR = %s", inputDir)
+    logging.info("D3MOUTPUTDIR = %s", outputDir)
+    logging.info("timeout = %s", timeout_env)
+    logging.info("cpus = %s", num_cpus)
     config_file = inputDir + "/search_config.json"
     (dataset, task_name, target, timeout_in_min) = util.load_schema(config_file)
 
+    timeout_in_min = (int)(timeout_env)
     primitives = load_primitives()
     task_name = task_name.upper()
     logging.info(task_name)
 
     solutions = []
-    if task_name != 'CLASSIFICATION' and task_name != 'REGRESSION':
-        logging.info("No matching solutions")
-        return solutions
 
     basic_sol = solutiondescription.SolutionDescription(None)
     basic_sol.initialize_solution(task_name)
 
-    for classname, p in primitives.items():
-        if p.primitive_class.family == task_name:
-            pipe = copy.deepcopy(basic_sol)
-            pipe.id = str(uuid.uuid4())
-            pipe.add_step(p.primitive_class.python_path)
-            solutions.append(pipe)
+    if task_name == 'CLASSIFICATION' or task_name == 'REGRESSION':
+        for classname, p in primitives.items():
+            if p.primitive_class.family == task_name:
+                if 'd3m.primitives.sri.' in p.primitive_class.python_path:
+                    continue
+                pipe = copy.deepcopy(basic_sol)
+                pipe.id = str(uuid.uuid4())
+                pipe.add_step(p.primitive_class.python_path)
+                solutions.append(pipe)
+    elif task_name == 'COLLABORATIVEFILTERING' or task_name == 'VERTEXNOMINATION':
+        pipe = copy.deepcopy(basic_sol)
+        pipe.id = str(uuid.uuid4())
+        pipe.add_outputs()
+        solutions.append(pipe)
+    else:
+        logging.info("No matching solutions")
+        return solutions
 
-    async_message_thread = Pool(cpu_count())
+    async_message_thread = Pool((int)(num_cpus))
     valid_solutions = {}
     valid_solution_scores = {}
 
@@ -123,11 +144,16 @@ def search_phase():
     results = [async_message_thread.apply_async(fit_solution, (inputs, valid_solutions[sol], primitives, outputDir,))
      for (sol,score) in sorted_x]
 
+    index = 0
     for r in results:
-        try:
+        #try:
+        if 1:
             valid=r.get(timeout=halftimeout)
-        except:
-            logging.info(sys.exc_info()[0])
+        #except:
+        #    logging.info(valid_solutions[sorted_x[index][0]].primitives)
+        #    logging.info(sys.exc_info()[0])
+        #    logging.info("Solution terminated: %s", valid_solutions[sorted_x[index][0]].id)
+        index = index + 1
 
 def test_phase():
     """
@@ -151,7 +177,10 @@ def test_phase():
     pipeline_name = ntpath.basename(executable).split(".")[0]
     solution = util.get_pipeline(outputDir + "/supporting_files", pipeline_name)
     predictions = solution.produce(inputs=inputs)[0]
-    predictions = pd.DataFrame({'d3mIndex': solution.indices['d3mIndex'], target:predictions.iloc[:,0]})
+    if isinstance(predictions, np.ndarray):
+        predictions = pd.DataFrame(data=predictions)
+    if solution.indices is not None:
+        predictions = pd.DataFrame({'d3mIndex': solution.indices['d3mIndex'], target:predictions.iloc[:,0]})
     util.write_predictions(predictions, outputDir + "/predictions", solution)
     
 
@@ -161,14 +190,9 @@ def evaluate_solution_score(inputs, solution, primitives, metric):
     Runs in a separate process
     """
     logging.info("Evaluating %s", solution.id)
-    score = -1
 
-    try:
-        score = solution.score_solution(inputs=inputs, metric=metric,
+    score = solution.score_solution(inputs=inputs, metric=metric,
                                 primitive_dict=primitives, solution_dict=None)
-    except:
-        print("evaluate_solution exception: %s", sys.exc_info()[0])
-        return -1
 
     return score
 
@@ -200,7 +224,7 @@ def evaluate_solution(inputs, solution, solution_dict):
         else:
             return -1
     except:
-        print("evaluate_solution exception: %s", sys.exc_info()[0])
+        logging.info("evaluate_solution exception: %s", sys.exc_info()[0])
         return -1
 
     return valid
@@ -262,12 +286,20 @@ class Core(core_pb2_grpc.CoreServicer):
             basic_sol.initialize_solution(task_name)
 
         if bool(template) == False or basic_sol.contains_placeholder() == True:
-           for classname, p in primitives.items():
-               if p.primitive_class.family == task_name:
-                   pipe = copy.deepcopy(basic_sol)
-                   pipe.id = str(uuid.uuid4())
-                   pipe.add_step(p.primitive_class.python_path)
-                   solutions.append(pipe)
+            if task_name == 'CLASSIFICATION' or task_name == 'REGRESSION':
+                for classname, p in primitives.items():
+                    if p.primitive_class.family == task_name:
+                        if 'd3m.primitives.sri.' in p.primitive_class.python_path:
+                            continue
+                        pipe = copy.deepcopy(basic_sol)
+                        pipe.id = str(uuid.uuid4())
+                        pipe.add_step(p.primitive_class.python_path)
+                        solutions.append(pipe)
+                    elif task_name == 'COLLABORATIVEFILTERING' or task_name == 'VERTEXNOMINATION':
+                        pipe = copy.deepcopy(basic_sol)
+                        pipe.id = str(uuid.uuid4())
+                        pipe.add_outputs()
+                        solutions.append(pipe)
 
         # Fully defined
         if bool(template) == True and basic_sol.contains_placeholder() == False:

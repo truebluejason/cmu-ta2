@@ -24,6 +24,7 @@ from time import sleep
 from google.protobuf.timestamp_pb2 import Timestamp
 
 from sklearn import metrics
+from sklearn import preprocessing
 
 from d3m.metadata.pipeline import Pipeline, PrimitiveStep, SubpipelineStep, ArgumentType, PipelineContext
 from d3m.metadata.base import PrimitiveFamily
@@ -34,6 +35,12 @@ import networkx as nx
 
 import bo.gp_call
 
+task_paths = {'CLASSIFICATION': ['d3m.primitives.datasets.DatasetToDataFrame','d3m.primitives.data.ExtractColumnsBySemanticTypes', 'd3m.primitives.data.ExtractColumnsBySemanticTypes'], 
+'REGRESSION': ['d3m.primitives.datasets.DatasetToDataFrame','d3m.primitives.data.ExtractColumnsBySemanticTypes', 'd3m.primitives.data.ExtractColumnsBySemanticTypes'],
+#'COLLABORATIVEFILTERING': ['d3m.primitives.sri.graph.CollaborativeFilteringParser', 'd3m.primitives.sri.graph.GraphTransformer', 'd3m.primitives.sri.psl.LinkPrediction']}
+'COLLABORATIVEFILTERING': ['d3m.primitives.sri.psl.CollaborativeFilteringLinkPrediction'],
+'VERTEXNOMINATION': ['d3m.primitives.sri.graph.VertexNominationParser', 'd3m.primitives.sri.psl.VertexNomination']}
+ 
 def compute_timestamp():
     now = time.time()
     seconds = int(now)
@@ -81,6 +88,8 @@ class SolutionDescription(object):
         self.hyperparams = None
         self.problem = problem
         self.steptypes = None
+        self.le = None
+        self.taskname = None
 
     def contains_placeholder(self):
         if bool(self.steptypes) == False:
@@ -131,6 +140,7 @@ class SolutionDescription(object):
 
         outfile = open(filename, "w")
         pipeline_description.to_json(outfile)
+        outfile.close()
 
     def create_from_pipeline(self, pipeline_description: Pipeline) -> None:
         n_steps = len(pipeline_description.steps)
@@ -408,7 +418,6 @@ class SolutionDescription(object):
             Arguments for set_training_data, fit, produce of the primitive for this step.
         """
         primitive_hyperparams = primitive.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
-        family = primitive.metadata.query()['primitive_family']
 
         custom_hyperparams = dict()
   
@@ -426,8 +435,6 @@ class SolutionDescription(object):
         produce_params = {}
 
         for param, value in primitive_arguments.items():
-            value = self.transform_data(family, value)
-
             if param in produce_params_primitive:
                 produce_params[param] = value
             if param in training_arguments_primitive:
@@ -454,12 +461,20 @@ class SolutionDescription(object):
         """
         return set(primitive.metadata.query()['primitive_code']['instance_methods'][method]['arguments'])
 
-    def transform_data(self, family, v):
-        if family is not PrimitiveFamily.DATA_TRANSFORMATION and isinstance(v, pd.DataFrame) and v.ndim > 1 and len(v.columns) > 1:
-            v = v.fillna('0').replace('', '0')
-            v = v.apply(pd.to_numeric,errors="ignore")
-            v = v.select_dtypes(['number'])
-            return v
+    def transform_data(self, primitive, v):
+        path = primitive.metadata.query()['python_path']
+        if path == 'd3m.primitives.data.ExtractColumnsBySemanticTypes':
+            if len(v.columns) > 1:
+                v = v.fillna('0').replace('', '0')
+                v = v.apply(pd.to_numeric,errors="ignore")
+                v = v.select_dtypes(['number'])
+                return v
+            else:
+                if self.taskname == 'CLASSIFICATION':
+                    self.le = preprocessing.LabelEncoder()
+                    v = pd.DataFrame(self.le.fit_transform(v))
+                    return v
+
         return v
 
     def produce(self, **arguments):
@@ -488,12 +503,10 @@ class SolutionDescription(object):
                     v = produce_arguments[len(produce_arguments)-1]
                     if v is None:
                         continue
-                    v = self.transform_data(family, v)
                     produce_arguments[len(produce_arguments)-1] = v
 
             if self.steptypes[n_step] is StepType.PRIMITIVE:
                 primitive = self.primitives[n_step]
-                family = primitive.metadata.query()['primitive_family']
                 produce_arguments_primitive = self._primitive_arguments(primitive, 'produce')
                 for argument, value in self.primitives_arguments[n_step].items():
                     if argument in produce_arguments_primitive:
@@ -503,13 +516,12 @@ class SolutionDescription(object):
                             produce_arguments[argument] = arguments['inputs'][value['source']]
                         if produce_arguments[argument] is None:
                             continue
-                        v = produce_arguments[argument]
-                        v = self.transform_data(family, v)
-                        produce_arguments[argument] = v
 
             if self.steptypes[n_step] is StepType.PRIMITIVE:
                 if n_step in self.produce_order:
-                    steps_outputs[n_step] = self.pipeline[n_step].produce(**produce_arguments).value
+                    v = self.pipeline[n_step].produce(**produce_arguments).value
+                    v = self.transform_data(primitive, v)
+                    steps_outputs[n_step] = v
                     if self.isDataFrameStep(n_step) == True:
                         self.indices = steps_outputs[n_step][['d3mIndex']]
                 else:
@@ -524,6 +536,9 @@ class SolutionDescription(object):
         for output in self.outputs:
             if output[0] == 'steps':
                 pipeline_output.append(steps_outputs[output[1]])
+                if self.le is not None:
+                    inverted_op = self.le.inverse_transform(steps_outputs[output[1]])
+                    pipeline_output[0] = inverted_op
             else:
                 pipeline_output.append(arguments[output[0][output[1]]])
         return pipeline_output
@@ -533,13 +548,10 @@ class SolutionDescription(object):
         Initialize a solution from scratch consisting of predefined steps
         Leave last step for filling in primitive
         """
-        python_paths = ['d3m.primitives.datasets.DatasetToDataFrame', 'd3m.primitives.data.ExtractColumnsBySemanticTypes', 'd3m.primitives.data.ExtractColumnsBySemanticTypes']
+        python_paths = task_paths[taskname]
         num = len(python_paths)
 
-        if taskname != 'CLASSIFICATION' and taskname != 'REGRESSION':
-            print("One less")
-            num = num - 1 
-       
+        self.taskname = taskname
         self.primitives_arguments = {}
         self.primitives = {}
         self.hyperparams = {}
@@ -562,22 +574,32 @@ class SolutionDescription(object):
             self.primitives[i] = prim          
             self.steptypes.append(StepType.PRIMITIVE)
 
-            data = 'inputs.0'
-            if i > 0:
+            if i == 0:
+                data = 'inputs.0'
+            else:
                 data = 'steps.0.produce'
             
             origin = data.split('.')[0]
             source = data.split('.')[1]
             self.primitives_arguments[i]['inputs'] = {'origin': origin, 'source': int(source), 'data': data}
 
-            if i == 2:
-                self.hyperparams[i] = {}
-                self.hyperparams[i]['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/Target']
+            if taskname == 'VERTEXNOMINATION' and i == 1:
+                self.primitives_arguments[i]['outputs'] = {'origin': origin, 'source': int(source), 'data': data}
+
+            if taskname == 'CLASSIFICATION' or taskname == 'REGRESSION':
+                if i == num-1:
+                    self.hyperparams[i] = {}
+                    self.hyperparams[i]['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/Target']
             
-            if i == 0:
-                execution_graph.add_edge(origin, str(i))
+                if i == 0:
+                    execution_graph.add_edge(origin, str(i))
+                else:
+                    execution_graph.add_edge(str(source), str(i))
             else:
-                execution_graph.add_edge(str(source), str(i))
+                if i == 0:
+                    execution_graph.add_edge(origin, str(i))
+                else:
+                    execution_graph.add_edge(str(i-1), str(i))
 
         execution_order = list(nx.topological_sort(execution_graph))
 
@@ -606,7 +628,6 @@ class SolutionDescription(object):
         self.hyperparams[i] = None
 
         self.pipeline.append([None])
-        self.outputs = []
 
         prim = d3m.index.get_primitive(python_path)
         self.primitives[i] = prim
@@ -622,7 +643,12 @@ class SolutionDescription(object):
             self.primitives_arguments[i]['outputs'] = {'origin': origin, 'source': int(source), 'data': data}
             
         self.execution_order.append(i)
+        self.add_outputs()
 
+    def add_outputs(self):
+        n_steps = len(self.execution_order)
+        
+        self.outputs = []
         # Creating set of steps to be call in produce
         data = 'steps.' + str(n_steps-1) + '.produce'
         origin = data.split('.')[0]
@@ -631,10 +657,6 @@ class SolutionDescription(object):
 
         # Creating set of steps to be call in produce
         self.produce_order = set()
-
-        data = 'steps.' + str(n_steps-1) + '.produce'
-        origin = data.split('.')[0]
-        source = data.split('.')[1]
 
         current_step = int(source)
         self.produce_order.add(current_step)
@@ -675,7 +697,9 @@ class SolutionDescription(object):
             elif action is ActionType.VALIDATE and self.is_last_step(n_step) == True:
                 return self.validate_step(self.primitives[n_step], primitive_arguments)    
             else:
-                return self.fit_step(n_step, self.primitives[n_step], primitive_arguments)
+                v = self.fit_step(n_step, self.primitives[n_step], primitive_arguments)
+                v = self.transform_data(self.primitives[n_step], v)    
+                return v
  
     def is_last_step(self, n):
         if n == len(self.execution_order)-1:
@@ -688,12 +712,14 @@ class SolutionDescription(object):
         """
         score = 0.0
         primitives_outputs = [None] * len(self.execution_order)
-      
+     
         for i in range(0, len(self.execution_order)): 
             n_step = self.execution_order[i]
             primitives_outputs[n_step] = self.process_step(n_step, primitives_outputs, ActionType.SCORE, arguments)
 
-        score = primitives_outputs[len(self.execution_order)-1]
+        (score, optimal_params) = primitives_outputs[len(self.execution_order)-1]
+        self.hyperparams[len(self.execution_order)-1] = optimal_params
+
         return score
 
     def validate_solution(self,**arguments):
@@ -716,8 +742,6 @@ class SolutionDescription(object):
         Last step of a solution evaluated for score_solution()
         Does hyperparameters tuning
         """
-        family = primitive.metadata.query()['primitive_family']
-
         training_arguments_primitive = self._primitive_arguments(primitive, 'set_training_data')
         training_arguments = {}
 
@@ -730,13 +754,14 @@ class SolutionDescription(object):
                     custom_hyperparams[hyperparam] = value
 
         for param, value in primitive_arguments.items():
-            value = self.transform_data(family, value)
-
             if param in training_arguments_primitive:
                 training_arguments[param] = value
 
-        score = primitive_desc.score_primitive(training_arguments['inputs'], training_arguments['outputs'], metric, custom_hyperparams)
-        return score 
+        outputs = None
+        if 'outputs' in training_arguments:
+            outputs = training_arguments['outputs']
+        (score, optimal_params) = primitive_desc.score_primitive(training_arguments['inputs'], outputs, metric, custom_hyperparams)
+        return (score, optimal_params) 
 
     def validate_step(self, primitive: PrimitiveBaseMeta, primitive_arguments):
         """
@@ -748,8 +773,6 @@ class SolutionDescription(object):
         training_arguments = {}
 
         for param, value in primitive_arguments.items():
-            value = self.transform_data(family, value)
-
             if param in training_arguments_primitive:
                 training_arguments[param] = value
 
@@ -863,13 +886,16 @@ class PrimitiveDescription(object):
         Evaluates model on inputs X and outputs y
         Returns metric.
         """
-        if 'hyperparams' in self.primitive.metadata.query()['primitive_code']:
+        if 'hyperparams' in self.primitive.metadata.query()['primitive_code'] and y is not None:
             hyperparam_spec = self.primitive.metadata.query()['primitive_code']['hyperparams']
             optimal_params = self.find_optimal_hyperparams(train=X, output=y, hyperparam_spec=hyperparam_spec,
           metric=metric_type, custom_hyperparams=custom_hyperparams) 
         else:
             optimal_params = self.primitive.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams'].defaults()
-             
+           
+        if y is None or self.primitive.metadata.query()['python_path'] == 'd3m.primitives.sri.psl.VertexNomination':
+            return (0.0, optimal_params)
+              
         from sklearn.model_selection import KFold
 
         kf = KFold(n_splits=3, shuffle=True, random_state=9001)
@@ -882,9 +908,10 @@ class PrimitiveDescription(object):
       
         for train_index, test_index in kf.split(X):
             X_train, X_test = X.iloc[train_index], X.iloc[test_index]
-            y_train, y_test = y.iloc[train_index], y.iloc[test_index]
 
+            y_train, y_test = y.iloc[train_index], y.iloc[test_index]
             prim_instance.set_training_data(inputs=X_train, outputs=y_train)
+
             prim_instance.fit()
             predictions = prim_instance.produce(inputs=X_test).value                        
             metric = self.evaluate_metric(predictions, y_test, metric_type)     
@@ -892,7 +919,7 @@ class PrimitiveDescription(object):
 
         score = metric_sum/splits
 
-        return score
+        return (score, optimal_params)
  
     def evaluate_metric(self, predictions, Ytest, metric):
         """
@@ -939,7 +966,7 @@ class PrimitiveDescription(object):
         else:
             return metrics.accuracy_score(Ytest, predictions)
 
-    def optimize_primitive(self, train, output, inputs, default_params, optimal_params, hyperparam_types, metric):
+    def optimize_primitive(self, train, output, inputs, default_params, optimal_params, hyperparam_types, metric_type):
         """
         Function to evaluate each input point in the hyper parameter space.
         This is called for every input sample being evaluated by the bayesian optimization package.
@@ -973,11 +1000,20 @@ class PrimitiveDescription(object):
         prim_instance.fit()
         predictions = prim_instance.produce(inputs=Xtest).value
 
-        metric = self.evaluate_metric(predictions, Ytest, metric)
+        metric = self.evaluate_metric(predictions, Ytest, metric_type)
+        
+        min_metrics = set()
+        min_metrics.add(problem_pb2.MEAN_SQUARED_ERROR)
+        min_metrics.add(problem_pb2.ROOT_MEAN_SQUARED_ERROR)
+        min_metrics.add(problem_pb2.ROOT_MEAN_SQUARED_ERROR_AVG)
+        min_metrics.add(problem_pb2.MEAN_ABSOLUTE_ERROR)
+        if metric_type in min_metrics:
+            metric = metric * (-1)
         print('Metric: %f' %(metric))
         return metric
 
-    def optimize_hyperparams(self, train, output, lower_bounds, upper_bounds, default_params, hyperparam_types, metric, custom_hyperparams):
+    def optimize_hyperparams(self, train, output, lower_bounds, upper_bounds, default_params, hyperparam_types,
+     hyperparam_semantic_types, metric_type, custom_hyperparams):
         """
         Optimize primitive's hyper parameters using Bayesian Optimization package 'bo'.
         Optimization is done for the parameters with specified range(lower - upper).
@@ -991,6 +1027,9 @@ class PrimitiveDescription(object):
         for name,value in lower_bounds.items():
             if bool(custom_hyperparams) and name in custom_hyperparams.keys():
                 continue
+            sem = hyperparam_semantic_types[name]
+            if "https://metadata.datadrivendiscovery.org/types/TuningParameter" not in sem:
+                continue
             lower = lower_bounds[name]
             upper = upper_bounds[name]
             if lower is None or upper is None:
@@ -1002,7 +1041,7 @@ class PrimitiveDescription(object):
         if index == 0:
             return default_params
 
-        func = lambda inputs : self.optimize_primitive(train, output, inputs, default_params, optimal_params, hyperparam_types, metric)
+        func = lambda inputs : self.optimize_primitive(train, output, inputs, default_params, optimal_params, hyperparam_types, metric_type)
        
         try:
             (curr_opt_val, curr_opt_pt) = bo.gp_call.fmax(func, domain_bounds, 10)
@@ -1032,10 +1071,11 @@ class PrimitiveDescription(object):
         hyperparam_lower_ranges = {name:filter_hyperparam(vl['lower']) for name,vl in hyperparam_spec.items() if 'lower' in vl.keys()}
         hyperparam_upper_ranges = {name:filter_hyperparam(vl['upper']) for name,vl in hyperparam_spec.items() if 'upper' in vl.keys()}
         hyperparam_types = {name:filter_hyperparam(vl['structural_type']) for name,vl in hyperparam_spec.items() if 'structural_type' in vl.keys()}
+        hyperparam_semantic_types = {name:filter_hyperparam(vl['semantic_types']) for name,vl in hyperparam_spec.items() if 'semantic_types' in vl.keys()}
         #print("Defaults: ", default_hyperparams)
         if len(hyperparam_lower_ranges) > 0:
             default_hyperparams = self.optimize_hyperparams(train, output, hyperparam_lower_ranges, hyperparam_upper_ranges,
- default_hyperparams, hyperparam_types, metric, custom_hyperparams)
+ default_hyperparams, hyperparam_types, hyperparam_semantic_types, metric, custom_hyperparams)
             #print("Optimals: ", default_hyperparams)
 
         return default_hyperparams
