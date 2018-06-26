@@ -472,7 +472,7 @@ class SolutionDescription(object):
             else:
                 if self.taskname == 'CLASSIFICATION':
                     self.le = preprocessing.LabelEncoder()
-                    v = pd.DataFrame(self.le.fit_transform(v))
+                    v = pd.DataFrame(self.le.fit_transform(v.values.ravel()))
                     return v
 
         return v
