@@ -1,5 +1,5 @@
 # JPL base image
-from registry.datadrivendiscovery.org/jpl/docker_images/complete:ubuntu-artful-python36-v2018.6.5-20180620-120449
+from registry.datadrivendiscovery.org/jpl/docker_images/complete:ubuntu-artful-python36-v2018.6.5-20180625-122157
 
 maintainer "Donghan Wang<donghanw@cs.cmu.edu>, Simon Heath <sheath@andrew.cmu.edu>"
 
@@ -31,4 +31,4 @@ add src/ /d3m/src
 #add primitives_repo /d3m/primitives_repo
 #add test_output /d3m/test_output
 
-cmd /d3m/src/main.py ta3
+cmd /d3m/src/main.py ta2ta3
