@@ -146,13 +146,12 @@ def search_phase():
 
     index = 0
     for r in results:
-        #try:
-        if 1:
+        try:
             valid=r.get(timeout=halftimeout)
-        #except:
-        #    logging.info(valid_solutions[sorted_x[index][0]].primitives)
-        #    logging.info(sys.exc_info()[0])
-        #    logging.info("Solution terminated: %s", valid_solutions[sorted_x[index][0]].id)
+        except:
+            logging.info(valid_solutions[sorted_x[index][0]].primitives)
+            logging.info(sys.exc_info()[0])
+            logging.info("Solution terminated: %s", valid_solutions[sorted_x[index][0]].id)
         index = index + 1
 
 def test_phase():
@@ -518,7 +517,10 @@ class Core(core_pb2_grpc.CoreServicer):
         solution = self._solutions[solution_id]
 
         inputs = self._get_inputs(solution.problem, request_params.inputs)
-        output = solution.produce(inputs=inputs, solution_dict=self._solutions)[0]
+        try:
+            output = solution.produce(inputs=inputs, solution_dict=self._solutions)[0]
+        except:
+            output = None
     
         result = None
         

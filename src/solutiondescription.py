@@ -376,7 +376,8 @@ class SolutionDescription(object):
             primitives_outputs[n_step] = self.process_step(n_step, primitives_outputs, ActionType.FIT, arguments)
             if self.isDataFrameStep(n_step) == True:
                 self.indices = primitives_outputs[n_step][['d3mIndex']] 
-        return primitives_outputs[len(self.execution_order)-1]
+        v = primitives_outputs[len(self.execution_order)-1]
+        return self.invert_output(v)
 
     def _pipeline_step_fit(self, n_step: int, pipeline_id: str, primitive_arguments, solution_dict, primitive_dict, action):
         """
@@ -477,6 +478,16 @@ class SolutionDescription(object):
 
         return v
 
+    def invert_output(self, v):
+        if self.le is not None:
+            if isinstance(v, pd.DataFrame):
+                values = v.iloc[:,0].tolist()
+            else:
+                values = v
+            inverted_op = self.le.inverse_transform(values)
+            return inverted_op
+        return v
+ 
     def produce(self, **arguments):
         """
         Run produce on the solution.
@@ -535,10 +546,7 @@ class SolutionDescription(object):
         pipeline_output = []
         for output in self.outputs:
             if output[0] == 'steps':
-                pipeline_output.append(steps_outputs[output[1]])
-                if self.le is not None:
-                    inverted_op = self.le.inverse_transform(steps_outputs[output[1]])
-                    pipeline_output[0] = inverted_op
+                pipeline_output.append(self.invert_output(steps_outputs[output[1]]))
             else:
                 pipeline_output.append(arguments[output[0][output[1]]])
         return pipeline_output
@@ -905,7 +913,7 @@ class PrimitiveDescription(object):
 
         prim_instance = self.primitive(hyperparams=optimal_params)
         score = 0.0
-      
+     
         for train_index, test_index in kf.split(X):
             X_train, X_test = X.iloc[train_index], X.iloc[test_index]
 
