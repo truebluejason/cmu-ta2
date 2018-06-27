@@ -32,11 +32,10 @@ from d3m.primitive_interfaces.base import PrimitiveBaseMeta
 import d3m.index
 
 import networkx as nx
-
 import bo.gp_call
 
-task_paths = {'CLASSIFICATION': ['d3m.primitives.datasets.DatasetToDataFrame','d3m.primitives.data.ExtractColumnsBySemanticTypes', 'd3m.primitives.data.ExtractColumnsBySemanticTypes'], 
-'REGRESSION': ['d3m.primitives.datasets.DatasetToDataFrame','d3m.primitives.data.ExtractColumnsBySemanticTypes', 'd3m.primitives.data.ExtractColumnsBySemanticTypes'],
+task_paths = {'CLASSIFICATION': ['d3m.primitives.datasets.DatasetToDataFrame','d3m.primitives.data.ColumnParser','d3m.primitives.data.ExtractColumnsBySemanticTypes', 'd3m.primitives.data.ExtractColumnsBySemanticTypes'], 
+'REGRESSION': ['d3m.primitives.datasets.DatasetToDataFrame','d3m.primitives.data.ColumnParser', 'd3m.primitives.data.ExtractColumnsBySemanticTypes', 'd3m.primitives.data.ExtractColumnsBySemanticTypes'],
 #'COLLABORATIVEFILTERING': ['d3m.primitives.sri.graph.CollaborativeFilteringParser', 'd3m.primitives.sri.graph.GraphTransformer', 'd3m.primitives.sri.psl.LinkPrediction']}
 'COLLABORATIVEFILTERING': ['d3m.primitives.sri.psl.CollaborativeFilteringLinkPrediction'],
 'VERTEXNOMINATION': ['d3m.primitives.sri.graph.VertexNominationParser', 'd3m.primitives.sri.psl.VertexNomination']}
@@ -63,9 +62,6 @@ class SolutionDescription(object):
 
     The idea is that this can be evaluated, produce a model and performance metrics,
     and the hyperparameter tuning can consume that and choose what to do next.
-
-    Output is fairly basic right now; it writes to a single numpy CSV file with a given name
-    based off the results of the primitive (numpy arrays only atm)
     """
     def __init__(self, problem):
         self.id = str(uuid.uuid4())
@@ -90,6 +86,7 @@ class SolutionDescription(object):
         self.steptypes = None
         self.le = None
         self.taskname = None
+        self.exclude_columns = None
 
     def contains_placeholder(self):
         if bool(self.steptypes) == False:
@@ -360,6 +357,13 @@ class SolutionDescription(object):
             return True
         return False
 
+    def exclude(self, metadata):
+        self.exclude_columns = metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/CategoricalData")
+        targets = metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/Target")
+        for t in targets:
+            if t in self.exclude_columns:
+                self.exclude_columns.remove(t)
+
     def fit(self, **arguments):
         """
         Train all steps in the solution.
@@ -375,7 +379,9 @@ class SolutionDescription(object):
         
             primitives_outputs[n_step] = self.process_step(n_step, primitives_outputs, ActionType.FIT, arguments)
             if self.isDataFrameStep(n_step) == True:
-                self.indices = primitives_outputs[n_step][['d3mIndex']] 
+                self.indices = primitives_outputs[n_step][['d3mIndex']]
+                self.exclude(primitives_outputs[n_step].metadata)
+                 
         v = primitives_outputs[len(self.execution_order)-1]
         return self.invert_output(v)
 
@@ -441,6 +447,11 @@ class SolutionDescription(object):
             if param in training_arguments_primitive:
                 training_arguments[param] = value
 
+        if self.exclude_columns is not None:
+            custom_hyperparams['exclude_columns'] = self.exclude_columns
+        if 'd3m.primitives.sklearn_wrap' in primitive.metadata.query()['python_path']:
+            custom_hyperparams["use_semantic_types"] = True
+                         
         model = primitive(hyperparams=primitive_hyperparams(
                     primitive_hyperparams.defaults(), **custom_hyperparams))
 
@@ -466,14 +477,18 @@ class SolutionDescription(object):
         path = primitive.metadata.query()['python_path']
         if path == 'd3m.primitives.data.ExtractColumnsBySemanticTypes':
             if len(v.columns) > 1:
-                v = v.fillna('0').replace('', '0')
-                v = v.apply(pd.to_numeric,errors="ignore")
-                v = v.select_dtypes(['number'])
-                return v
+                X = pd.DataFrame(data=v.values)
+                X = X.fillna(0).replace('',0)
+                X.metadata = v.metadata
+                #v = v.apply(pd.to_numeric,errors="ignore")
+                #v = v.select_dtypes(['number'])
+                return X
             else:
                 if self.taskname == 'CLASSIFICATION':
                     self.le = preprocessing.LabelEncoder()
+                    orig_metadata = v.metadata
                     v = pd.DataFrame(self.le.fit_transform(v.values.ravel()))
+                    v.metadata = orig_metadata
                     return v
 
         return v
@@ -584,8 +599,10 @@ class SolutionDescription(object):
 
             if i == 0:
                 data = 'inputs.0'
-            else:
+            elif i == 1:
                 data = 'steps.0.produce'
+            else:
+                data = 'steps.1.produce'
             
             origin = data.split('.')[0]
             source = data.split('.')[1]
@@ -640,12 +657,12 @@ class SolutionDescription(object):
         prim = d3m.index.get_primitive(python_path)
         self.primitives[i] = prim
 
-        data = 'steps.' + str(1) + str('.produce')
+        data = 'steps.' + str(2) + str('.produce')
         origin = data.split('.')[0]
         source = data.split('.')[1]
         self.primitives_arguments[i]['inputs'] = {'origin': origin, 'source': int(source), 'data': data}
         if i > 2:
-            data = 'steps.' + str(2) + str('.produce')
+            data = 'steps.' + str(3) + str('.produce')
             origin = data.split('.')[0]
             source = data.split('.')[1]
             self.primitives_arguments[i]['outputs'] = {'origin': origin, 'source': int(source), 'data': data}
@@ -724,6 +741,8 @@ class SolutionDescription(object):
         for i in range(0, len(self.execution_order)): 
             n_step = self.execution_order[i]
             primitives_outputs[n_step] = self.process_step(n_step, primitives_outputs, ActionType.SCORE, arguments)
+            if self.isDataFrameStep(n_step) is True:
+                self.exclude(primitives_outputs[n_step].metadata)
 
         (score, optimal_params) = primitives_outputs[len(self.execution_order)-1]
         self.hyperparams[len(self.execution_order)-1] = optimal_params
@@ -911,19 +930,29 @@ class PrimitiveDescription(object):
         splits = 3 
         metric_sum = 0
 
+        if 'd3m.primitives.sklearn_wrap' in self.primitive.metadata.query()['python_path']:
+            optimal_params["use_semantic_types"] = True
+
         prim_instance = self.primitive(hyperparams=optimal_params)
         score = 0.0
-     
+    
+        Xnew = pd.DataFrame(data=X.values)
         for train_index, test_index in kf.split(X):
-            X_train, X_test = X.iloc[train_index], X.iloc[test_index]
-
+            t0 = time.time()
+            X_train, X_test = Xnew.iloc[train_index], Xnew.iloc[test_index]
+            t1 = time.time()
+            #print("Time = ", t1-t0)
             y_train, y_test = y.iloc[train_index], y.iloc[test_index]
+            y_train.metadata = y.metadata
+            X_train.metadata = X.metadata
+            X_test.metadata = X.metadata
             prim_instance.set_training_data(inputs=X_train, outputs=y_train)
 
             prim_instance.fit()
             predictions = prim_instance.produce(inputs=X_test).value                        
             metric = self.evaluate_metric(predictions, y_test, metric_type)     
             metric_sum += metric
+            #print("metric= ", metric)
 
         score = metric_sum/splits
 
@@ -986,6 +1015,8 @@ class PrimitiveDescription(object):
                 value = (int)(inputs[index]+0.5)
             default_params[name] = value
 
+        if 'd3m.primitives.sklearn_wrap' in self.primitive.metadata.query()['python_path']:
+            default_params["use_semantic_types"] = True
         prim_instance = self.primitive(hyperparams=default_params)
 
         import random
@@ -999,12 +1030,17 @@ class PrimitiveDescription(object):
 
         trainindices = [seq[x] for x in range(len(train)-testsize)]
         testindices = [seq[x] for x in range(len(train)-testsize, len(train))]
-        Xtrain = train.iloc[trainindices]
+
+        Xnew = pd.DataFrame(data=train.values)
+        Xtrain = Xnew.iloc[trainindices]
         Ytrain = output.iloc[trainindices]
-        Xtest = train.iloc[testindices]
+        Xtest = Xnew.iloc[testindices]
         Ytest = output.iloc[testindices]
 
-        prim_instance.set_training_data(inputs=Xtrain.values, outputs=Ytrain.values)
+        Xtrain.metadata = train.metadata
+        Xtest.metadata = train.metadata
+        Ytrain.metadata = output.metadata
+        prim_instance.set_training_data(inputs=Xtrain, outputs=Ytrain)
         prim_instance.fit()
         predictions = prim_instance.produce(inputs=Xtest).value
 
