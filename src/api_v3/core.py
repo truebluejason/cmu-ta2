@@ -532,10 +532,14 @@ class Core(core_pb2_grpc.CoreServicer):
             output = pd.DataFrame(data=output)
 
         target = solution.problem.inputs[0].targets[0].column_name
-        predictions = pd.DataFrame({'d3mIndex': solution.indices['d3mIndex'], target:output.iloc[:,0]})
-        uri = util.write_TA3_predictions(predictions, outputDir + "/predictions", solution, 'produce')
-        uri = 'file://{uri}'.format(uri=os.path.abspath(uri))
-        result = value_pb2.Value(csv_uri=uri)
+
+        if output is not None:
+            predictions = pd.DataFrame({'d3mIndex': solution.indices['d3mIndex'], target:output.iloc[:,0]})
+            uri = util.write_TA3_predictions(predictions, outputDir + "/predictions", solution, 'produce')
+            uri = 'file://{uri}'.format(uri=os.path.abspath(uri))
+            result = value_pb2.Value(csv_uri=uri)
+        else:
+            result = value_pb2.Value(error = value_pb2.ValueError(message="Output is NULL"))
 
         self._solution_score_map.pop(request_id, None)
 
