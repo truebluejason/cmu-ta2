@@ -24,6 +24,9 @@ RUN cd /tmp/bayesian_optimization/bo/utils/direct_fortran; \
     python3 setup.py bdist_wheel; \
     pip3 install ./dist/bo*.whl
 
+# Install old sklearn_wrap
+RUN pip3 install -U -e git+https://gitlab.com/datadrivendiscovery/sklearn-wrap.git@8d8a53ec71dff5906c4e3f206967a6ec63b66bab#egg=sklearn_wrap
+
 expose 45042
 
 run mkdir /d3m
