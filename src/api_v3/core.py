@@ -479,10 +479,13 @@ class Core(core_pb2_grpc.CoreServicer):
 
         target = self._solutions[solution_id].problem.inputs[0].targets[0].column_name
 
-        predictions = pd.DataFrame({'d3mIndex': fitted_solution.indices['d3mIndex'], target:output.iloc[:,0]})
-        uri = util.write_TA3_predictions(predictions, outputDir + "/predictions", fitted_solution, 'fit') 
-        uri = 'file://{uri}'.format(uri=os.path.abspath(uri)) 
-        result = value_pb2.Value(csv_uri=uri)
+        if output is not None:
+            predictions = pd.DataFrame({'d3mIndex': fitted_solution.indices['d3mIndex'], target:output.iloc[:,0]})
+            uri = util.write_TA3_predictions(predictions, outputDir + "/predictions", fitted_solution, 'fit') 
+            uri = 'file://{uri}'.format(uri=os.path.abspath(uri)) 
+            result = value_pb2.Value(csv_uri=uri)
+        else:
+            result = value_pb2.Value(error = value_pb2.ValueError(message="Output is NULL"))
 
         yield core_pb2.GetFitSolutionResultsResponse(progress=msg, steps=[], exposed_outputs=[], fitted_solution_id=fitted_solution.id)
 
