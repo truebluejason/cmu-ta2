@@ -34,4 +34,12 @@ add src/ /d3m/src
 #add primitives_repo /d3m/primitives_repo
 #add test_output /d3m/test_output
 
-cmd /d3m/src/main.py ta2ta3
+# D3M environment variables
+ARG D3MINPUTDIR = /input
+ARG D3MOUTPUTDIR = /output
+ARG D3MCPU = 8
+ARG D3MTIMEOUT = 5
+# Three modes: search, test and ta2ta3(default)
+ARG D3MRUN=ta2ta3
+
+cmd /d3m/src/main.py $D3MRUN
