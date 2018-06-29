@@ -162,11 +162,11 @@ If you don't specify ```D3MRUN``` while ```docker run...```, it runs in ```ta2ta
 ```bash
 docker run -i -t \
     -p 45042:45042  \
-    -e D3MINPUTDIR = "</path/to/input_folder>"  \
-    -e D3MOUTPUTDIR = "</path/to/output_folder>" \
-    -e D3MCPU = 8 \
-    -e D3MTIMEOUT = 5 \
-    -e D3MRUN = "ta2ta3" \
+    -e D3MINPUTDIR="</path/to/input_folder>"  \
+    -e D3MOUTPUTDIR="</path/to/output_folder>" \
+    -e D3MCPU=8 \
+    -e D3MTIMEOUT=5 \
+    -e D3MRUN="ta2ta3" \
     registry.datadrivendiscovery.org/sheath/cmu-ta2:live
 ```
 
@@ -174,11 +174,11 @@ docker run -i -t \
 ```bash
 docker run -i -t \
     -p 45042:45042  \
-    -e D3MINPUTDIR = "</path/to/input_folder>"  \
-    -e D3MOUTPUTDIR = "</path/to/output_folder>" \
-    -e D3MCPU = 8 \
-    -e D3MTIMEOUT = 5 \
-    -e D3MRUN = "search" \
+    -e D3MINPUTDIR="</path/to/input_folder>"  \
+    -e D3MOUTPUTDIR="</path/to/output_folder>" \
+    -e D3MCPU=8 \
+    -e D3MTIMEOUT=5 \
+    -e D3MRUN="search" \
     registry.datadrivendiscovery.org/sheath/cmu-ta2:live
 ```
 
@@ -186,11 +186,11 @@ docker run -i -t \
 ```bash
 docker run -i -t \
     -p 45042:45042  \
-    -e D3MINPUTDIR = "</path/to/input_folder>"  \
-    -e D3MOUTPUTDIR = "</path/to/output_folder>" \
-    -e D3MCPU = 8 \
-    -e D3MTIMEOUT = 5 \
-    -e D3MRUN = "test" \
+    -e D3MINPUTDIR="</path/to/input_folder>"  \
+    -e D3MOUTPUTDIR="</path/to/output_folder>" \
+    -e D3MCPU=8 \
+    -e D3MTIMEOUT=5 \
+    -e D3MRUN="test" \
     registry.datadrivendiscovery.org/sheath/cmu-ta2:live
 ```
 
