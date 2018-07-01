@@ -7,9 +7,11 @@ user root
 
 # libcurl4-openssl-dev for pycurl
 # fortran for bayesian_optimization
+# python3-tk for d3m.index
 RUN apt-get update && apt-get install -y \
     libcurl4-openssl-dev \
-    gfortran
+    gfortran \
+    python3-tk
 
 # install d3m and grpc, a D3M dependency
 RUN pip3 install --upgrade pip \
