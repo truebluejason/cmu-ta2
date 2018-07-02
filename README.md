@@ -151,9 +151,46 @@ docker pull registry.datadrivendiscovery.org/sheath/cmu-ta2:latest
 ```
 
 ## Run the docker image
+The following commands map 
 Run the docker image, mapping your machine’s port 45042 to the container’s published port 45042 using ```-p```
+
+You can run TA2 image in one of three modes: ```search```, ```test```, and ```ta2ta3```.
+This is controlled by the environment variable ```D3MRUN```.
+If you don't specify ```D3MRUN``` while ```docker run...```, it runs in ```ta2ta3``` mode.
+
+### Run in ta2ta3 mode
 ```bash
 docker run -i -t \
-    -p 45042:45042 # TODO other arguments
+    -p 45042:45042  \
+    -e D3MINPUTDIR="</path/to/input_folder>"  \
+    -e D3MOUTPUTDIR="</path/to/output_folder>" \
+    -e D3MCPU=8 \
+    -e D3MTIMEOUT=5 \
+    -e D3MRUN="ta2ta3" \
     registry.datadrivendiscovery.org/sheath/cmu-ta2:live
 ```
+
+### Run in search mode
+```bash
+docker run -i -t \
+    -p 45042:45042  \
+    -e D3MINPUTDIR="</path/to/input_folder>"  \
+    -e D3MOUTPUTDIR="</path/to/output_folder>" \
+    -e D3MCPU=8 \
+    -e D3MTIMEOUT=5 \
+    -e D3MRUN="search" \
+    registry.datadrivendiscovery.org/sheath/cmu-ta2:live
+```
+
+### Run in test mode
+```bash
+docker run -i -t \
+    -p 45042:45042  \
+    -e D3MINPUTDIR="</path/to/input_folder>"  \
+    -e D3MOUTPUTDIR="</path/to/output_folder>" \
+    -e D3MCPU=8 \
+    -e D3MTIMEOUT=5 \
+    -e D3MRUN="test" \
+    registry.datadrivendiscovery.org/sheath/cmu-ta2:live
+```
+
