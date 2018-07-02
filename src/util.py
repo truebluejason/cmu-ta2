@@ -7,6 +7,7 @@ from d3m.container.dataset import D3MDatasetLoader, Dataset
 from d3m.metadata import base as metadata_base
 from d3m.metadata.base import Metadata
 from d3m.metadata.pipeline import Pipeline, PrimitiveStep
+import problem_pb2 as problem_pb2
 import os, json
 import pickle
 import solutiondescription
@@ -65,7 +66,7 @@ def add_target_metadata(dataset, targets):
 
     return dataset
 
-def get_target_name(dataset: 'Dataset', problem_doc_metadata: 'Metadata'):
+def get_target_name(problem_doc_metadata: 'Metadata'):
     data = problem_doc_metadata.query(())['inputs']['data'][0]
     target = data['targets'][0]['colName']
     return target
@@ -77,7 +78,6 @@ def load_schema(filename):
 
     dataset_schema = schema['dataset_schema']
     problem_schema = schema['problem_schema']
-    timeout_in_min = schema['timeout']
 
     dataset_uri = 'file://{dataset_uri}'.format(dataset_uri=dataset_schema)
     dataset = D3MDatasetLoader().load(dataset_uri)
@@ -86,9 +86,9 @@ def load_schema(filename):
     dataset = add_target_columns_metadata(dataset, problem_doc)
 
     taskname = problem_doc.query(())['about']['taskType']
-    target = get_target_name(dataset, problem_doc)
+    target = get_target_name(problem_doc)
 
-    return (dataset, taskname, target, timeout_in_min)
+    return (dataset, taskname, target)
 
 def get_pipeline(dirname, pipeline_name):
     newdirname = dirname + "/" + pipeline_name
@@ -137,3 +137,14 @@ def write_pipeline_executable(solution, dirname):
     with open(filename, 'w') as f:
         f.write(shell_script)
     os.chmod(filename, 0o755)
+
+def invert_metric(metric_type):
+    min_metrics = set()
+    min_metrics.add(problem_pb2.MEAN_SQUARED_ERROR)
+    min_metrics.add(problem_pb2.ROOT_MEAN_SQUARED_ERROR)
+    min_metrics.add(problem_pb2.ROOT_MEAN_SQUARED_ERROR_AVG)
+    min_metrics.add(problem_pb2.MEAN_ABSOLUTE_ERROR)
+    if metric_type in min_metrics:
+        return True
+    return False
+

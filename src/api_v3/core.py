@@ -62,7 +62,11 @@ def search_phase():
     logging.info("timeout = %s", timeout_env)
     logging.info("cpus = %s", num_cpus)
     config_file = inputDir + "/search_config.json"
-    (dataset, task_name, target, timeout_in_min) = util.load_schema(config_file)
+    (dataset, task_name, target) = util.load_schema(config_file)
+
+    #cols = dataset.metadata.get_columns_with_semantic_type("http://schema.org/Text")
+    #print("Str: ", cols)
+    #resType = dataset.metadata.query(('0',))['semantic_types']
 
     timeout_in_min = (int)(timeout_env)
     primitives = load_primitives()
@@ -73,7 +77,7 @@ def search_phase():
 
     basic_sol = solutiondescription.SolutionDescription(None)
     basic_sol.initialize_solution(task_name)
-
+    
     if task_name == 'CLASSIFICATION' or task_name == 'REGRESSION':
         for classname, p in primitives.items():
             if p.primitive_class.family == task_name:
@@ -83,7 +87,7 @@ def search_phase():
                 pipe.id = str(uuid.uuid4())
                 pipe.add_step(p.primitive_class.python_path)
                 solutions.append(pipe)
-    elif task_name == 'COLLABORATIVEFILTERING' or task_name == 'VERTEXNOMINATION':
+    elif task_name == 'COLLABORATIVEFILTERING' or task_name == 'VERTEXNOMINATION' or task_name == 'COMMUNITYDETECTION'  or task_name == 'GRAPHMATCHING' or task_name == 'LINKPREDICTION':
         pipe = copy.deepcopy(basic_sol)
         pipe.id = str(uuid.uuid4())
         pipe.add_outputs()
@@ -114,21 +118,22 @@ def search_phase():
     index = 0
     for r in results:
         try:
-            score = r.get(timeout=halftimeout)
-            if score >= 0.0:
-                id = solutions[index].id
-                valid_solutions[id] = solutions[index]
-                valid_solution_scores[id] = score
+            (score, optimal_params) = r.get(timeout=halftimeout)
+            id = solutions[index].id
+            valid_solutions[id] = solutions[index]
+            valid_solution_scores[id] = score
+            if optimal_params is not None and len(optimal_params) > 0:
+                valid_solutions[id].set_hyperparams(optimal_params)
         except:
             logging.info(solutions[index].primitives)
             logging.info(sys.exc_info()[0])
             logging.info("Solution terminated: %s", solutions[index].id)
-
+        
         index = index + 1
 
     import operator
     sorted_x = sorted(valid_solution_scores.items(), key=operator.itemgetter(1))
-    if metric == problem_pb2.ACCURACY:
+    if util.invert_metric(metric) is False:
         sorted_x.reverse()
 
     index = 1
@@ -163,7 +168,7 @@ def test_phase():
     executable = os.environ['D3MTESTOPT']
 
     config_file = inputDir + "/test_config.json"
-    (dataset, task_name, target, timeout_in_min) = util.load_schema(config_file)
+    (dataset, task_name, target) = util.load_schema(config_file)
 
     primitives = load_primitives()
     task_name = task_name.upper()
@@ -190,10 +195,10 @@ def evaluate_solution_score(inputs, solution, primitives, metric):
     """
     logging.info("Evaluating %s", solution.id)
 
-    score = solution.score_solution(inputs=inputs, metric=metric,
+    (score, optimal_params) = solution.score_solution(inputs=inputs, metric=metric,
                                 primitive_dict=primitives, solution_dict=None)
 
-    return score
+    return (score, optimal_params)
 
 def fit_solution(inputs, solution, primitives, outputDir):
     """
@@ -214,19 +219,12 @@ def evaluate_solution(inputs, solution, solution_dict):
     Runs in a separate process
     """
     logging.info("Evaluating %s", solution.id)
-    score = -1
 
-    try:
-        valid = solution.validate_solution(inputs=inputs, solution_dict=solution_dict)
-        if valid == True:
-            return 0
-        else:
-            return -1
-    except:
-        logging.info("evaluate_solution exception: %s", sys.exc_info()[0])
+    valid = solution.validate_solution(inputs=inputs, solution_dict=solution_dict)
+    if valid == True:
+        return 0
+    else:
         return -1
-
-    return valid
 
 class Core(core_pb2_grpc.CoreServicer):
     def __init__(self):
@@ -427,7 +425,7 @@ class Core(core_pb2_grpc.CoreServicer):
 
         inputs = self._get_inputs(self._solutions[solution_id].problem, request_params.inputs)
         try:
-            score = self._solutions[solution_id].score_solution(inputs=inputs, metric=request_params.performance_metrics[0].metric,
+            (score, optimal_params) = self._solutions[solution_id].score_solution(inputs=inputs, metric=request_params.performance_metrics[0].metric,
                                 primitive_dict=self._primitives, solution_dict=self._solutions)
         except:
             score = 0.0
@@ -469,6 +467,8 @@ class Core(core_pb2_grpc.CoreServicer):
         try:
             output = fitted_solution.fit(inputs=inputs, solution_dict=self._solutions)
         except:
+            logging.info(fitted_solution.primitives)
+            logging.info(sys.exc_info()[0])
             output = None
 
         result = None
@@ -523,6 +523,8 @@ class Core(core_pb2_grpc.CoreServicer):
         try:
             output = solution.produce(inputs=inputs, solution_dict=self._solutions)[0]
         except:
+            logging.info(solution.primitives)
+            logging.info(sys.exc_info()[0])
             output = None
     
         result = None
