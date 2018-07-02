@@ -185,7 +185,7 @@ def test_phase():
         predictions = pd.DataFrame(data=predictions)
     if solution.indices is not None:
         predictions = pd.DataFrame({'d3mIndex': solution.indices['d3mIndex'], target:predictions.iloc[:,0]})
-    util.write_predictions(predictions, outputDir + "/predictions", solution)
+    util.write_predictions(predictions, outputDir + "/predictions", solution, ['d3mIndex', target])
     
 
 def evaluate_solution_score(inputs, solution, primitives, metric):
@@ -481,7 +481,7 @@ class Core(core_pb2_grpc.CoreServicer):
 
         if output is not None:
             predictions = pd.DataFrame({'d3mIndex': fitted_solution.indices['d3mIndex'], target:output.iloc[:,0]})
-            uri = util.write_TA3_predictions(predictions, outputDir + "/predictions", fitted_solution, 'fit') 
+            uri = util.write_TA3_predictions(predictions, outputDir + "/predictions", fitted_solution, 'fit', ['d3mIndex', target]) 
             uri = 'file://{uri}'.format(uri=os.path.abspath(uri)) 
             result = value_pb2.Value(csv_uri=uri)
         else:
@@ -537,7 +537,7 @@ class Core(core_pb2_grpc.CoreServicer):
 
         if output is not None:
             predictions = pd.DataFrame({'d3mIndex': solution.indices['d3mIndex'], target:output.iloc[:,0]})
-            uri = util.write_TA3_predictions(predictions, outputDir + "/predictions", solution, 'produce')
+            uri = util.write_TA3_predictions(predictions, outputDir + "/predictions", solution, 'produce', ['d3mIndex', target])
             uri = 'file://{uri}'.format(uri=os.path.abspath(uri))
             result = value_pb2.Value(csv_uri=uri)
         else:

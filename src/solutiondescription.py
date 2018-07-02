@@ -33,6 +33,7 @@ import d3m.index
 
 import networkx as nx
 import bo.gp_call
+import util
 
 task_paths = {
 #'CLASSIFICATION': ['d3m.primitives.datasets.DatasetToDataFrame','d3m.primitives.sklearn_wrap.SKCountVectorizer','d3m.primitives.data.ExtractColumnsBySemanticTypes', 'd3m.primitives.data.ExtractColumnsBySemanticTypes'], 

@@ -107,24 +107,24 @@ def write_solution(solution, dirname):
     pickle.dump(solution, output)
     output.close()
 
-def write_TA3_predictions(predictions, dirname, solution, mode):
+def write_TA3_predictions(predictions, dirname, solution, mode, columns):
     directory = dirname + "/" + solution.id + "_" + mode
     if not os.path.exists(directory):
         os.makedirs(directory)
 
     outputFilePath = directory + "/predictions.csv"
     with open(outputFilePath, 'w') as outputFile:
-        predictions.to_csv(outputFile, header=True, index=False)
+        predictions.to_csv(outputFile, header=True, index=False, columns=columns)
     return outputFilePath
 
-def write_predictions(predictions, dirname, solution):
+def write_predictions(predictions, dirname, solution, columns):
     directory = dirname + "/" + solution.id + "_" + str(solution.rank)
     if not os.path.exists(directory):
         os.makedirs(directory)
 
     outputFilePath = directory + "/predictions.csv"
     with open(outputFilePath, 'w') as outputFile:
-        predictions.to_csv(outputFile, header=True, index=False)
+        predictions.to_csv(outputFile, header=True, index=False, columns=columns)
     return outputFilePath
    
 def write_pipeline_json(solution, primitives, dirname):
