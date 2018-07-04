@@ -30,11 +30,7 @@ from d3m.container.dataset import D3MDatasetLoader, Dataset
 def load_primitives():
     primitives = {}
     for p in primitive_lib.list_primitives():
-        #if p.name == 'sklearn.ensemble.weight_boosting.AdaBoostClassifier':
-        #    continue
         if p.name == 'common_primitives.BayesianLogisticRegression':
-            continue
-        if p.python_path == 'd3m.primitives.sklearn_wrap.SKGradientBoostingClassifier':
             continue
         if p.python_path == 'd3m.primitives.common_primitives.ConvolutionalNeuralNet':
             continue
@@ -43,6 +39,8 @@ def load_primitives():
         if p.python_path == 'd3m.primitives.common_primitives.FeedForwardNeuralNet':
             continue
         if p.python_path == 'd3m.primitives.common_primitives.Loss':
+            continue
+        if p.python_path == 'd3m.primitives.sklearn_wrap.SKKNeighborsRegressor':
             continue
         primitives[p.classname] = solutiondescription.PrimitiveDescription(p.classname, p)
 
@@ -66,7 +64,7 @@ def search_phase():
 
     #cols = dataset.metadata.get_columns_with_semantic_type("http://schema.org/Text")
     #print("Str: ", cols)
-    #resType = dataset.metadata.query(('0',))['semantic_types']
+    #resType = dataset.metadata.query(('0',))['semantic_types'][0]
 
     timeout_in_min = (int)(timeout_env)
     primitives = load_primitives()

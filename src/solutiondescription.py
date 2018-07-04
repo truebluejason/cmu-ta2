@@ -39,10 +39,10 @@ task_paths = {
 #'CLASSIFICATION': ['d3m.primitives.datasets.DatasetToDataFrame','d3m.primitives.sklearn_wrap.SKCountVectorizer','d3m.primitives.data.ExtractColumnsBySemanticTypes', 'd3m.primitives.data.ExtractColumnsBySemanticTypes'], 
 'CLASSIFICATION': ['d3m.primitives.datasets.DatasetToDataFrame','d3m.primitives.data.ColumnParser','d3m.primitives.data.ExtractColumnsBySemanticTypes', 'd3m.primitives.data.ExtractColumnsBySemanticTypes'], 
 'REGRESSION': ['d3m.primitives.datasets.DatasetToDataFrame','d3m.primitives.data.ColumnParser', 'd3m.primitives.data.ExtractColumnsBySemanticTypes', 'd3m.primitives.data.ExtractColumnsBySemanticTypes'],
-'GRAPHMATCHING': ['d3m.primitives.sri.graph.GraphMatchingParser', 'd3m.primitives.sri.graph.GraphTransformer', 'd3m.primitives.sri.psl.LinkPrediction'],
+'GRAPHMATCHING': ['d3m.primitives.sri.psl.GraphMatchingLinkPrediction'],
 'COLLABORATIVEFILTERING': ['d3m.primitives.sri.psl.CollaborativeFilteringLinkPrediction'],
 'VERTEXNOMINATION': ['d3m.primitives.sri.graph.VertexNominationParser', 'd3m.primitives.sri.psl.VertexNomination'],
-'LINKPREDICTION': ['d3m.primitives.sri.graph.LinkPredictionParser'],
+'LINKPREDICTION': ['d3m.primitives.sri.graph.GraphMatchingParser','d3m.primitives.sri.graph.GraphTransformer', 'd3m.primitives.sri.psl.LinkPrediction'],
 'COMMUNITYDETECTION': ['d3m.primitives.sri.graph.CommunityDetectionParser', 'd3m.primitives.sri.psl.CommunityDetection'],
 'AUDIO': ['d3m.primitives.bbn.time_series.TargetsReader', 'd3m.primitives.bbn.time_series.AudioReader', 'd3m.primitives.bbn.time_series.ChannelAverager', 'd3m.primitives.bbn.time_series.SignalDither', 'd3m.primitives.bbn.time_series.SignalFramer', 'd3m.primitives.bbn.time_series.SignalMFCC', 'd3m.primitives.bbn.time_series.IVectorExtractor', 'd3m.primitives.bbn.sklearn_wrap.BBNMLPClassifier']}
  
@@ -462,8 +462,11 @@ class SolutionDescription(object):
                 custom_hyperparams['exclude_columns'] = self.exclude_columns
         if self.cols is not None:
             if python_path == 'd3m.primitives.sklearn_wrap.SKCountVectorizer':
-                produce_params['inputs'] = produce_params['inputs'].iloc[:,self.cols].values
-                print(produce_params['inputs'])
+                print(self.cols)
+                produce_params['inputs'] = produce_params['inputs'].iloc[:,self.cols[0]].tolist()
+                from sklearn.feature_extraction.text import CountVectorizer
+                tf_vectorizer = CountVectorizer()
+                tf = tf_vectorizer.fit_transform(produce_params['inputs'])
         model = primitive(hyperparams=primitive_hyperparams(
                     primitive_hyperparams.defaults(), **custom_hyperparams))
         model.set_training_data(**training_arguments)
@@ -617,9 +620,6 @@ class SolutionDescription(object):
             source = data.split('.')[1]
             self.primitives_arguments[i]['inputs'] = {'origin': origin, 'source': int(source), 'data': data}
             
-            if i == 1 and (taskname == 'VERTEXNOMINATION' or taskname == 'COMMUNITYDETECTION'):
-                self.primitives_arguments[i]['outputs'] = {'origin': origin, 'source': int(source), 'data': data}
-
             if 'SKCountVectorizer' in python_paths[i]:
                 self.hyperparams[i] = {}
                 self.hyperparams[i]['input'] = 'content'
@@ -948,7 +948,7 @@ class PrimitiveDescription(object):
         primitive_hyperparams = self.primitive.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
         prim_instance = self.primitive(hyperparams=primitive_hyperparams(primitive_hyperparams.defaults(), **optimal_params))
         score = 0.0
-    
+   
         Xnew = pd.DataFrame(data=X.values)
         for train_index, test_index in kf.split(X):
             t0 = time.time()
@@ -1015,19 +1015,20 @@ class PrimitiveDescription(object):
         else:
             return metrics.accuracy_score(Ytest, predictions)
 
-    def optimize_primitive(self, train, output, inputs, default_params, optimal_params, hyperparam_types, metric_type):
+    def optimize_primitive(self, train, output, inputs, primitive_hyperparams, optimal_params, hyperparam_types, metric_type):
         """
         Function to evaluate each input point in the hyper parameter space.
         This is called for every input sample being evaluated by the bayesian optimization package.
         Return value from this function is used to decide on function optimality.
         """
+        custom_hyperparams=dict()
         for index,name in optimal_params.items():
             value = inputs[index]
             if hyperparam_types[name] is int:
                 value = (int)(inputs[index]+0.5)
-            default_params[name] = value
+            custom_hyperparams[name] = value
 
-        prim_instance = self.primitive(hyperparams=default_params)
+        prim_instance = self.primitive(hyperparams=primitive_hyperparams(primitive_hyperparams.defaults(), **custom_hyperparams))
 
         import random
         random.seed(9001)
@@ -1036,7 +1037,7 @@ class PrimitiveDescription(object):
         seq = [i for i in range(len(train))]
         random.shuffle(seq)
 
-        testsize = (int)(0.3 * len(train) + 0.5)
+        testsize = (int)(0.1 * len(train) + 0.5)
 
         trainindices = [seq[x] for x in range(len(train)-testsize)]
         testindices = [seq[x] for x in range(len(train)-testsize, len(train))]
@@ -1061,8 +1062,8 @@ class PrimitiveDescription(object):
         print('Metric: %f' %(metric))
         return metric
 
-    def optimize_hyperparams(self, train, output, lower_bounds, upper_bounds, default_params, hyperparam_types,
-     hyperparam_semantic_types, metric_type, custom_hyperparams):
+    def optimize_hyperparams(self, train, output, lower_bounds, upper_bounds, hyperparam_types, hyperparam_semantic_types,
+     metric_type, custom_hyperparams):
         """
         Optimize primitive's hyper parameters using Bayesian Optimization package 'bo'.
         Optimization is done for the parameters with specified range(lower - upper).
@@ -1070,6 +1071,7 @@ class PrimitiveDescription(object):
         domain_bounds = []
         optimal_params = {}
         index = 0
+        optimal_found_params = {}
 
         # Create parameter ranges in domain_bounds. 
         # Map parameter names to indices in optimal_params
@@ -1088,10 +1090,11 @@ class PrimitiveDescription(object):
             index =index+1
 
         if index == 0:
-            return default_params
+            return optimal_found_params
 
-        func = lambda inputs : self.optimize_primitive(train, output, inputs, default_params, optimal_params, hyperparam_types, metric_type)
-       
+        primitive_hyperparams = self.primitive.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
+        func = lambda inputs : self.optimize_primitive(train, output, inputs, primitive_hyperparams, optimal_params, hyperparam_types, metric_type)
+      
         try:
             (curr_opt_val, curr_opt_pt) = bo.gp_call.fmax(func, domain_bounds, 10)
         except:
@@ -1099,32 +1102,26 @@ class PrimitiveDescription(object):
             print(self.primitive)
             optimal_params = None
 
-        optimal_params = None
         # Map optimal parameter values found
-        if optimal_params is not None:
+        if optimal_params != None:
             for index,name in optimal_params.items():
                 value = curr_opt_pt[index]
                 if hyperparam_types[name] is int:
                     value = (int)(curr_opt_pt[index]+0.5)
-                default_params[name] = value
+                optimal_found_params[name] = value
 
-        if custom_hyperparams is not None:
-            for name,value in custom_hyperparams.items():
-                default_params[name] = value
-
-        return default_params
+        return optimal_found_params
 
     def find_optimal_hyperparams(self, train, output, hyperparam_spec, metric, custom_hyperparams):
         filter_hyperparam = lambda vl: None if vl == 'None' else vl
-        default_hyperparams = {name:filter_hyperparam(vl['default']) for name,vl in hyperparam_spec.items()}
         hyperparam_lower_ranges = {name:filter_hyperparam(vl['lower']) for name,vl in hyperparam_spec.items() if 'lower' in vl.keys()}
         hyperparam_upper_ranges = {name:filter_hyperparam(vl['upper']) for name,vl in hyperparam_spec.items() if 'upper' in vl.keys()}
         hyperparam_types = {name:filter_hyperparam(vl['structural_type']) for name,vl in hyperparam_spec.items() if 'structural_type' in vl.keys()}
         hyperparam_semantic_types = {name:filter_hyperparam(vl['semantic_types']) for name,vl in hyperparam_spec.items() if 'semantic_types' in vl.keys()}
-        #print("Defaults: ", default_hyperparams)
+        optimal_hyperparams = {}
         if len(hyperparam_lower_ranges) > 0:
-            default_hyperparams = self.optimize_hyperparams(train, output, hyperparam_lower_ranges, hyperparam_upper_ranges,
- default_hyperparams, hyperparam_types, hyperparam_semantic_types, metric, custom_hyperparams)
-            #print("Optimals: ", default_hyperparams)
+            optimal_hyperparams = self.optimize_hyperparams(train, output, hyperparam_lower_ranges, hyperparam_upper_ranges,
+             hyperparam_types, hyperparam_semantic_types, metric, custom_hyperparams)
+            print("Optimals: ", optimal_hyperparams)
 
-        return default_hyperparams
+        return optimal_hyperparams
