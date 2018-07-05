@@ -41,7 +41,6 @@ build_image:
 release-image:
   stage: release
   script:
-    - echo $CI_REGISTRY
     - docker login -u gitlab-ci-token -p "$CI_BUILD_TOKEN" $CI_REGISTRY
     - docker pull $CI_REGISTRY_IMAGE:live
     - docker tag $CI_REGISTRY_IMAGE:live $CONTAINER_RELEASE_IMAGE
