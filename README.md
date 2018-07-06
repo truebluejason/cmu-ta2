@@ -161,6 +161,9 @@ If you don't specify ```D3MRUN``` while ```docker run...```, it runs in ```ta2ta
 ### Run in ta2ta3 mode
 ```bash
 docker run -i -t \
+    --name d3m-cmu-ta2 \
+    --mount type=bind,source=</path/to/seed_dataset/on/host>,target=/input \
+    --mount type=bind,source=</path/to/output/on/host>,target=/output \
     -p 45042:45042  \
     -e D3MINPUTDIR="</path/to/input_folder>"  \
     -e D3MOUTPUTDIR="</path/to/output_folder>" \
@@ -170,10 +173,15 @@ docker run -i -t \
     registry.datadrivendiscovery.org/sheath/cmu-ta2:live
 ```
 
+where ```</path/to/seed_dataset/on/host>``` is something like ```/data/data/d3m/dryrun2018summer/input/LL0_1100_popularkids```.
+
 ### Run in search mode
 ```bash
 docker run -i -t \
     -p 45042:45042  \
+    --name d3m-cmu-ta2-search \
+    --mount type=bind,source=</path/to/seed_dataset/on/host>,target=/input \
+    --mount type=bind,source=</path/to/output/on/host>,target=/output \
     -e D3MINPUTDIR="</path/to/input_folder>"  \
     -e D3MOUTPUTDIR="</path/to/output_folder>" \
     -e D3MCPU=8 \
@@ -182,9 +190,13 @@ docker run -i -t \
     registry.datadrivendiscovery.org/sheath/cmu-ta2:live
 ```
 
+where ```</path/to/seed_dataset/on/host>``` is something like ```/data/data/d3m/dryrun2018summer/input/LL0_1100_popularkids```.
+
 ### Run in test mode
 ```bash
-docker run -i -t \
+    --name d3m-cmu-ta2-test \
+    --mount type=bind,source=</path/to/seed_dataset/on/host>,target=/input \
+    --mount type=bind,source=</path/to/output/on/host>,target=/output \
     -p 45042:45042  \
     -e D3MINPUTDIR="</path/to/input_folder>"  \
     -e D3MOUTPUTDIR="</path/to/output_folder>" \
@@ -194,3 +206,4 @@ docker run -i -t \
     registry.datadrivendiscovery.org/sheath/cmu-ta2:live
 ```
 
+where ```</path/to/seed_dataset/on/host>``` is something like ```/data/data/d3m/dryrun2018summer/input/LL0_1100_popularkids```.
