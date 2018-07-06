@@ -5,9 +5,6 @@ stages:
 variables:
   CONTAINER_RELEASE_IMAGE: $CI_REGISTRY/cmu/ta2eval:live
 
-before_script:
-  - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
-
 build_image:
   stage: build  
 
@@ -44,6 +41,7 @@ build_image:
 release-image:
   stage: release
   script:
+    - docker login -u $CMU_CI_USER -p $CMU_CI_SECURITY $CI_REGISTRY
     - docker pull $CI_REGISTRY_IMAGE:live
     - docker tag $CI_REGISTRY_IMAGE:live $CONTAINER_RELEASE_IMAGE
     - docker push $CONTAINER_RELEASE_IMAGE
