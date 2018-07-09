@@ -314,16 +314,15 @@ class Core(core_pb2_grpc.CoreServicer):
     def _get_inputs(self, problem, rinputs):
         inputs = []
         for ip in rinputs:
+            dataset = None
             if ip.HasField("dataset_uri") == True:
                 dataset = D3MDatasetLoader().load(ip.dataset_uri)
-                targets = problem.inputs[0].targets
-                dataset = util.add_target_metadata(dataset, targets)
-                inputs.append(dataset)
-            elif ip.Hasfield("csv_uri") == True:
-                dataset = pd.read_csv(ip.csv_uri)
-                targets = problem.inputs[0].targets
-                #dataset = add_target_metadata(dataset, targets)
-                inputs.append(dataset) 
+            elif ip.HasField("csv_uri") == True:
+                dataset = D3MDatasetLoader().load(ip.csv_uri)
+
+            targets = problem.inputs[0].targets
+            dataset = util.add_target_metadata(dataset, targets)
+            inputs.append(dataset) 
 
         return inputs
        
@@ -424,6 +423,7 @@ class Core(core_pb2_grpc.CoreServicer):
         send_scores = []
 
         if solution_id not in self._solutions:
+            logging.info("GetScoreSolutionResults: Solution %s not found!", solution_id)  
             msg = core_pb2.Progress(state=core_pb2.ERRORED, status="", start=start, end=solutiondescription.compute_timestamp())
             # Clean up
             self._solution_score_map.pop(request_id, None)
@@ -438,7 +438,7 @@ class Core(core_pb2_grpc.CoreServicer):
 
             logging.info("Score = %f", score)
             send_scores.append(core_pb2.Score(metric=request_params.performance_metrics[0],
-                 fold=request_params.configuration.folds, targets=[], value=value_pb2.Value(double=score)))
+             fold=request_params.configuration.folds, targets=[], value=value_pb2.Value(raw=value_pb2.ValueRaw(double=score))))
 
             yield core_pb2.GetScoreSolutionResultsResponse(progress=msg, scores=[]) 
 
@@ -463,6 +463,7 @@ class Core(core_pb2_grpc.CoreServicer):
         solution_id = request_params.solution_id
 
         if solution_id not in self._solutions:
+            logging.info("GetFitSolutionResults: Solution %s not found!", solution_id)
             msg = core_pb2.Progress(state=core_pb2.ERRORED, status="", start=start, end=solutiondescription.compute_timestamp())
             # Clean up
             self._solution_score_map.pop(request_id, None)
