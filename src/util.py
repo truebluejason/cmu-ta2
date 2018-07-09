@@ -117,6 +117,14 @@ def write_TA3_predictions(predictions, dirname, solution, mode, columns):
         predictions.to_csv(outputFile, header=True, index=False, columns=columns)
     return outputFilePath
 
+def initialize_for_search(exe_dir, pred_dir, pipe_dir):
+    if not os.path.exists(exe_dir):
+        os.makedirs(exe_dir)
+    if not os.path.exists(pred_dir):
+        os.makedirs(pred_dir)
+    if not os.path.exists(pipe_dir):
+        os.makedirs(pipe_dir)
+
 def write_predictions(predictions, dirname, solution, columns):
     directory = dirname + "/" + solution.id + "_" + str(solution.rank)
     if not os.path.exists(directory):
@@ -128,10 +136,15 @@ def write_predictions(predictions, dirname, solution, columns):
     return outputFilePath
    
 def write_pipeline_json(solution, primitives, dirname):
+    if not os.path.exists(dirname):
+        os.makedirs(dirname)
+
     filename = dirname + "/" + solution.id + "_" + str(solution.rank) + ".json"
     solution.create_pipeline_json(primitives, filename) 
 
 def write_pipeline_executable(solution, dirname):
+    if not os.path.exists(dirname):
+        os.makedirs(dirname)
     shell_script = '#!/bin/bash\n python ./src/main.py test\n'
     filename = dirname + "/" + solution.id + "_" + str(solution.rank) + ".sh"
     with open(filename, 'w') as f:

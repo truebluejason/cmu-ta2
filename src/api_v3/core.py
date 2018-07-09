@@ -64,8 +64,9 @@ def search_phase():
 
     #cols = dataset.metadata.get_columns_with_semantic_type("http://schema.org/Text")
     #print("Str: ", cols)
-    #resType = dataset.metadata.query(('0',))['semantic_types'][0]
 
+    resType = dataset.metadata.query(('0',))['semantic_types'][0]
+    print(resType)
     timeout_in_min = (int)(timeout_env)
     primitives = load_primitives()
     task_name = task_name.upper()
@@ -75,7 +76,7 @@ def search_phase():
 
     basic_sol = solutiondescription.SolutionDescription(None)
     basic_sol.initialize_solution(task_name)
-    
+
     if task_name == 'CLASSIFICATION' or task_name == 'REGRESSION':
         for classname, p in primitives.items():
             if p.primitive_class.family == task_name:
@@ -125,8 +126,7 @@ def search_phase():
         except:
             logging.info(solutions[index].primitives)
             logging.info(sys.exc_info()[0])
-            logging.info("Solution terminated: %s", solutions[index].id)
-        
+            logging.info("Solution terminated: %s", solutions[index].id) 
         index = index + 1
 
     import operator
@@ -142,6 +142,8 @@ def search_phase():
     num = 20
     if len(sorted_x) < 20:
         num = len(sorted_x)
+
+    util.initialize_for_search(outputDir + "/executables", outputDir + "/predictions", outputDir + "/pipelines")
 
     sorted_x = sorted_x[:num]
     results = [async_message_thread.apply_async(fit_solution, (inputs, valid_solutions[sol], primitives, outputDir,))
@@ -421,24 +423,30 @@ class Core(core_pb2_grpc.CoreServicer):
         
         send_scores = []
 
-        inputs = self._get_inputs(self._solutions[solution_id].problem, request_params.inputs)
-        try:
-            (score, optimal_params) = self._solutions[solution_id].score_solution(inputs=inputs, metric=request_params.performance_metrics[0].metric,
+        if solution_id not in self._solutions:
+            msg = core_pb2.Progress(state=core_pb2.ERRORED, status="", start=start, end=solutiondescription.compute_timestamp())
+            # Clean up
+            self._solution_score_map.pop(request_id, None)
+            yield core_pb2.GetScoreSolutionResultsResponse(progress=msg, scores=[])
+        else:
+            inputs = self._get_inputs(self._solutions[solution_id].problem, request_params.inputs)
+            try:
+                (score, optimal_params) = self._solutions[solution_id].score_solution(inputs=inputs, metric=request_params.performance_metrics[0].metric,
                                 primitive_dict=self._primitives, solution_dict=self._solutions)
-        except:
-            score = 0.0
+            except:
+                score = 0.0
 
-        logging.info("Score = %f", score)
-        send_scores.append(core_pb2.Score(metric=request_params.performance_metrics[0],
-             fold=request_params.configuration.folds, targets=[], value=value_pb2.Value(double=score)))
+            logging.info("Score = %f", score)
+            send_scores.append(core_pb2.Score(metric=request_params.performance_metrics[0],
+                 fold=request_params.configuration.folds, targets=[], value=value_pb2.Value(double=score)))
 
-        yield core_pb2.GetScoreSolutionResultsResponse(progress=msg, scores=[]) 
+            yield core_pb2.GetScoreSolutionResultsResponse(progress=msg, scores=[]) 
 
-        # Clean up
-        self._solution_score_map.pop(request_id, None)
+            # Clean up
+            self._solution_score_map.pop(request_id, None)
 
-        msg = core_pb2.Progress(state=core_pb2.COMPLETED, status="", start=start, end=solutiondescription.compute_timestamp())
-        yield core_pb2.GetScoreSolutionResultsResponse(progress=msg, scores=send_scores)
+            msg = core_pb2.Progress(state=core_pb2.COMPLETED, status="", start=start, end=solutiondescription.compute_timestamp())
+            yield core_pb2.GetScoreSolutionResultsResponse(progress=msg, scores=send_scores)
 
     def FitSolution(self, request, context):
         logging.info("Message received: FitSolution")
@@ -453,53 +461,61 @@ class Core(core_pb2_grpc.CoreServicer):
         start=solutiondescription.compute_timestamp()
 
         solution_id = request_params.solution_id
-        solution = self._solutions[solution_id]
 
-        msg = core_pb2.Progress(state=core_pb2.RUNNING, status="", start=start, end=solutiondescription.compute_timestamp())
-            
-        fitted_solution = copy.deepcopy(solution)
-        fitted_solution.id = str(uuid.uuid4()) 
-        self._solutions[fitted_solution.id] = fitted_solution
-
-        inputs = self._get_inputs(self._solutions[solution_id].problem, request_params.inputs)
-        try:
-            output = fitted_solution.fit(inputs=inputs, solution_dict=self._solutions)
-        except:
-            logging.info(fitted_solution.primitives)
-            logging.info(sys.exc_info()[0])
-            output = None
-
-        result = None
-        outputDir = os.environ['D3MOUTPUTDIR']
-
-        if isinstance(output, np.ndarray):
-            output = pd.DataFrame(data=output)
-
-        target = self._solutions[solution_id].problem.inputs[0].targets[0].column_name
-
-        if output is not None:
-            predictions = pd.DataFrame({'d3mIndex': fitted_solution.indices['d3mIndex'], target:output.iloc[:,0]})
-            uri = util.write_TA3_predictions(predictions, outputDir + "/predictions", fitted_solution, 'fit', ['d3mIndex', target]) 
-            uri = 'file://{uri}'.format(uri=os.path.abspath(uri)) 
-            result = value_pb2.Value(csv_uri=uri)
+        if solution_id not in self._solutions:
+            msg = core_pb2.Progress(state=core_pb2.ERRORED, status="", start=start, end=solutiondescription.compute_timestamp())
+            # Clean up
+            self._solution_score_map.pop(request_id, None)
+            yield core_pb2.GetFitSolutionResultsResponse(progress=msg, steps=[], exposed_outputs=[], fitted_solution_id=None)
         else:
-            result = value_pb2.Value(error = value_pb2.ValueError(message="Output is NULL"))
+            solution = self._solutions[solution_id]
 
-        yield core_pb2.GetFitSolutionResultsResponse(progress=msg, steps=[], exposed_outputs=[], fitted_solution_id=fitted_solution.id)
+            msg = core_pb2.Progress(state=core_pb2.RUNNING, status="", start=start, end=solutiondescription.compute_timestamp())
+            
+            fitted_solution = copy.deepcopy(solution)
+            fitted_solution.id = str(uuid.uuid4()) 
+            self._solutions[fitted_solution.id] = fitted_solution
 
-        self._solution_score_map.pop(request_id, None)
+            inputs = self._get_inputs(solution.problem, request_params.inputs)
+            try:
+                output = fitted_solution.fit(inputs=inputs, solution_dict=self._solutions)
+            except:
+                logging.info(fitted_solution.primitives)
+                logging.info(sys.exc_info()[0])
+                output = None
 
-        msg = core_pb2.Progress(state=core_pb2.COMPLETED, status="", start=start, end=solutiondescription.compute_timestamp())
+            result = None
+            outputDir = os.environ['D3MOUTPUTDIR']
 
-        steps = []
-        for i in range(fitted_solution.num_steps()):
-            steps.append(core_pb2.StepProgress(progress=msg))
+            if isinstance(output, np.ndarray):
+                output = pd.DataFrame(data=output)
 
-        exposed_outputs = {}
-        last_step_output = request_params.expose_outputs[len(request_params.expose_outputs)-1]
-        exposed_outputs[last_step_output] = result
+            target = self._solutions[solution_id].problem.inputs[0].targets[0].column_name
 
-        yield core_pb2.GetFitSolutionResultsResponse(progress=msg, steps=steps, exposed_outputs=exposed_outputs, fitted_solution_id=fitted_solution.id)
+            if output is not None:
+                predictions = pd.DataFrame({'d3mIndex': fitted_solution.indices['d3mIndex'], target:output.iloc[:,0]})
+                uri = util.write_TA3_predictions(predictions, outputDir + "/predictions", fitted_solution, 'fit', ['d3mIndex', target]) 
+                uri = 'file://{uri}'.format(uri=os.path.abspath(uri)) 
+                result = value_pb2.Value(csv_uri=uri)
+            else:
+                result = value_pb2.Value(error = value_pb2.ValueError(message="Output is NULL"))
+
+            yield core_pb2.GetFitSolutionResultsResponse(progress=msg, steps=[], exposed_outputs=[], fitted_solution_id=fitted_solution.id)
+
+            msg = core_pb2.Progress(state=core_pb2.COMPLETED, status="", start=start, end=solutiondescription.compute_timestamp())
+
+            steps = []
+            for i in range(fitted_solution.num_steps()):
+                steps.append(core_pb2.StepProgress(progress=msg))
+
+            exposed_outputs = {}
+            last_step_output = request_params.expose_outputs[len(request_params.expose_outputs)-1]
+            exposed_outputs[last_step_output] = result
+
+            # Clean up
+            self._solution_score_map.pop(request_id, None)
+
+            yield core_pb2.GetFitSolutionResultsResponse(progress=msg, steps=steps, exposed_outputs=exposed_outputs, fitted_solution_id=fitted_solution.id)
 
     def ProduceSolution(self, request, context):
         logging.info("Message received: ProduceSolution")
