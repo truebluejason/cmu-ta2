@@ -161,8 +161,11 @@ If you don't specify ```D3MRUN``` while ```docker run...```, it runs in ```ta2ta
 ### Run in ta2ta3 mode
 ```bash
 docker run -i -t \
+    --name d3m-cmu-ta2 \
+    --mount type=bind,source=</path/to/seed_dataset/on/host>,target=/input \
+    --mount type=bind,source=</path/to/output/on/host>,target=/output \
     -p 45042:45042  \
-    -e D3MINPUTDIR="</path/to/input_folder>"  \
+    -e D3MINPUTDIR="</path/to/dataset>"  \
     -e D3MOUTPUTDIR="</path/to/output_folder>" \
     -e D3MCPU=8 \
     -e D3MTIMEOUT=5 \
@@ -170,10 +173,30 @@ docker run -i -t \
     registry.datadrivendiscovery.org/sheath/cmu-ta2:live
 ```
 
+Below is an example:
+```bash
+docker run -i -t \
+    --rm \
+    --name d3m-cmu-ta2 \
+    -p 45042:45042 \
+    --mount type=bind,source=/data/data/d3m/dryrun2018summer/input/LL0_1100_popularkids,target=/input \
+    --mount type=bind,source=/data/data/d3m/dryrun2018summer/output,target=/output \
+    -e D3MINPUTDIR=/input  \
+    -e D3MOUTPUTDIR=/output  \
+    -e D3MCPU=8 \
+    -e D3MTIMEOUT=5 \
+    -e D3MRUN="search" \
+    registry.datadrivendiscovery.org/sheath/cmu-ta2:live
+```
+
 ### Run in search mode
 ```bash
 docker run -i -t \
+    --rm \
     -p 45042:45042  \
+    --name d3m-cmu-ta2-search \
+    --mount type=bind,source=</path/to/seed_dataset/on/host>,target=/input \
+    --mount type=bind,source=</path/to/output/on/host>,target=/output \
     -e D3MINPUTDIR="</path/to/input_folder>"  \
     -e D3MOUTPUTDIR="</path/to/output_folder>" \
     -e D3MCPU=8 \
@@ -182,10 +205,33 @@ docker run -i -t \
     registry.datadrivendiscovery.org/sheath/cmu-ta2:live
 ```
 
-### Run in test mode
+Below is an example:
 ```bash
 docker run -i -t \
+    --rm \
+    --name d3m-cmu-ta2-search \
+    -p 45042:45042 \
+    --mount type=bind,source=/data/data/d3m/dryrun2018summer/input/LL0_1100_popularkids,target=/input \
+    --mount type=bind,source=/data/data/d3m/dryrun2018summer/output,target=/output \
+    -e D3MINPUTDIR=/input  \
+    -e D3MOUTPUTDIR=/output  \
+    -e D3MCPU=8 \
+    -e D3MTIMEOUT=5 \
+    -e D3MRUN="search" \
+    registry.datadrivendiscovery.org/sheath/cmu-ta2:live
+```
+
+### Run in test mode
+WIP
+
+```bash
+docker run -i -t \
+    --rm \
+    --name d3m-cmu-ta2-test \
     -p 45042:45042  \
+    --mount type=bind,source=</path/to/seed_dataset/on/host>,target=/input \
+    --mount type=bind,source=</path/to/output/on/host>,target=/output \
+    -e D3MTESTOPT="</path/to/executable/file>"  \
     -e D3MINPUTDIR="</path/to/input_folder>"  \
     -e D3MOUTPUTDIR="</path/to/output_folder>" \
     -e D3MCPU=8 \
@@ -194,3 +240,24 @@ docker run -i -t \
     registry.datadrivendiscovery.org/sheath/cmu-ta2:live
 ```
 
+#### An example:
+```bash
+docker run -i -t \
+    --rm \
+    -p 45042:45042  \
+    --name d3m-cmu-ta2-test \
+    --mount type=bind,source=/input,target=/input \
+    --mount type=bind,source=/output,target=/output \
+    -e D3MTESTOPT="/output/executables/dcebb3c9-6889-41e2-82b9-8d2d2484d5d5_1.sh"  \
+    -e D3MINPUTDIR="/input/185_baseball"  \
+    -e D3MOUTPUTDIR="/output" \
+    -e D3MCPU=8 \
+    -e D3MTIMEOUT=5 \
+    -e D3MRUN="test" \
+    registry.datadrivendiscovery.org/sheath/cmu-ta2:live
+```
+
+Run the command to produce the score from the executable of pipeline that ranked #1
+```bash
+python evaluate_script.py ./185_baseball/SCORE/targets.csv ../output/predictions/dcebb3c9-6889-41e2-82b9-8d2d2484d5d5_1/predictions.csv Hall_of_Fame F1
+```
