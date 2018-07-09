@@ -28,10 +28,13 @@ from sklearn import preprocessing
 
 from d3m.metadata.pipeline import Pipeline, PrimitiveStep, SubpipelineStep, ArgumentType, PipelineContext
 from d3m.metadata.base import PrimitiveFamily
+from d3m.metadata import base as metadata_base
 from d3m.primitive_interfaces.base import PrimitiveBaseMeta
+from d3m.container import DataFrame as d3m_dataframe
 import d3m.index
 
 import networkx as nx
+from sklearn.feature_extraction.text import CountVectorizer
 import bo.gp_call
 import util
 
@@ -436,7 +439,7 @@ class SolutionDescription(object):
         primitive_hyperparams = primitive.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
 
         custom_hyperparams = dict()
-  
+ 
         hyperparams = self.hyperparams[n_step]
         if hyperparams is not None:
             for hyperparam, value in hyperparams.items():
@@ -462,11 +465,17 @@ class SolutionDescription(object):
                 custom_hyperparams['exclude_columns'] = self.exclude_columns
         if self.cols is not None:
             if python_path == 'd3m.primitives.sklearn_wrap.SKCountVectorizer':
-                print(self.cols)
-                produce_params['inputs'] = produce_params['inputs'].iloc[:,self.cols[0]].tolist()
-                from sklearn.feature_extraction.text import CountVectorizer
-                tf_vectorizer = CountVectorizer()
-                tf = tf_vectorizer.fit_transform(produce_params['inputs'])
+                pr = produce_params['inputs'].iloc[:,self.cols[0]].tolist()
+                tf_vectorizer = CountVectorizer(ngram_range = (1, 2))
+                tf = tf_vectorizer.fit_transform(pr)
+                df = d3m_dataframe(tf.todense(), generate_metadata=False)
+                df.metadata = produce_params['inputs'].metadata.clear(for_value=produce_params['inputs'], generate_metadata=True)
+                for column_index in range(df.metadata.query((metadata_base.ALL_ELEMENTS,))['dimension']['length']):
+                    df.metadata = df.metadata.add_semantic_type((metadata_base.ALL_ELEMENTS, column_index),
+                     'https://metadata.datadrivendiscovery.org/types/Attribute')
+                model = tf_vectorizer
+                self.pipeline[n_step] = model
+                return df
         model = primitive(hyperparams=primitive_hyperparams(
                     primitive_hyperparams.defaults(), **custom_hyperparams))
         model.set_training_data(**training_arguments)
@@ -557,7 +566,16 @@ class SolutionDescription(object):
 
             if self.steptypes[n_step] is StepType.PRIMITIVE:
                 if n_step in self.produce_order:
-                    v = self.pipeline[n_step].produce(**produce_arguments).value
+                    if isinstance(self.pipeline[n_step], CountVectorizer):
+                        v = self.pipeline[n_step].transform(produce_arguments['inputs'].iloc[:,self.cols[0]].tolist())
+                        df = d3m_dataframe(v.todense(), generate_metadata=False)
+                        df.metadata = produce_arguments['inputs'].metadata.clear(for_value=produce_arguments['inputs'], generate_metadata=True)
+                        for column_index in range(df.metadata.query((metadata_base.ALL_ELEMENTS,))['dimension']['length']):
+                            df.metadata = df.metadata.add_semantic_type((metadata_base.ALL_ELEMENTS, column_index),
+                          'https://metadata.datadrivendiscovery.org/types/Attribute')
+                        v = df
+                    else:
+                        v = self.pipeline[n_step].produce(**produce_arguments).value
                     v = self.transform_data(primitive, v)
                     steps_outputs[n_step] = v
                     if self.isDataFrameStep(n_step) == True:
@@ -639,6 +657,106 @@ class SolutionDescription(object):
         # Removing non-step inputs from the order
         execution_order = list(filter(lambda x: x.isdigit(), execution_order))
         self.execution_order = [int(x) for x in execution_order]
+
+    def initialize_audio_solution(self, taskname):
+        """
+        Initialize a solution from scratch consisting of predefined steps
+        Leave last step for filling in primitive
+        """
+        python_paths = task_paths['AUDIO']
+        num = len(python_paths)
+
+        self.taskname = taskname
+        self.primitives_arguments = {}
+        self.primitives = {}
+        self.hyperparams = {}
+        self.steptypes = []
+        for i in range(0, num):
+            self.primitives_arguments[i] = {}
+            self.hyperparams[i] = None
+
+        self.execution_order = None
+
+        self.pipeline = [None] * num
+        self.inputs = []
+        self.inputs.append({"name": "dataset inputs"})
+
+        # Constructing DAG to determine the execution order
+        execution_graph = nx.DiGraph()
+
+        for i in range(num):
+            prim = d3m.index.get_primitive(python_paths[i])
+            self.primitives[i] = prim
+            self.steptypes.append(StepType.PRIMITIVE)
+
+            if i == 0 or i == 1:
+                data = 'inputs.0'
+            else:
+                data = 'steps.' + str(i-1) + '.produce'
+
+            origin = data.split('.')[0]
+            source = data.split('.')[1]
+            self.primitives_arguments[i]['inputs'] = {'origin': origin, 'source': int(source), 'data': data}
+
+            if i == 7:
+                self.primitives_arguments[i]['outputs'] = {'origin': 'steps', 'source': 0, 'data': 'steps.0.produce'}
+
+            if i == 1:
+                self.hyperparams[i] = {}
+                self.hyperparams[i]['read_as_mono'] = True
+                self.hyperparams[i]['resampling_rate'] = 16000.0
+            elif i == 3:
+                self.hyperparams[i] = {}
+                self.hyperparams[i]['level'] = 0.0001
+                self.hyperparams[i]['reseed'] = True
+            elif i == 4:
+                self.hyperparams[i] = {}
+                self.hyperparams[i]['flatten_output'] = False
+                self.hyperparams[i]['frame_length_s'] = 0.025
+                self.hyperparams[i]['frame_shift_s'] = 0.01
+            elif i == 5:
+                self.hyperparams[i] = {}
+                self.hyperparams[i]['cep_lifter'] = 22.0
+                self.hyperparams[i]['frame_mean_norm'] = False
+                self.hyperparams[i]['nfft'] = None
+                self.hyperparams[i]['num_ceps'] = 20
+                self.hyperparams[i]['num_chans'] = 20
+                self.hyperparams[i]['preemcoef'] = None
+                self.hyperparams[i]['use_power'] = False
+            elif i == 6:
+                self.hyperparams[i] = {}
+                self.hyperparams[i]['gmm_covariance_type'] = 'diag'
+                self.hyperparams[i]['ivec_dim'] = 100
+                self.hyperparams[i]['max_gmm_iter'] = 20
+                self.hyperparams[i]['num_gauss'] = 32
+                self.hyperparams[i]['num_ivec_iter'] = 7
+            elif i == 7:
+                self.hyperparams[i] = {}
+                self.hyperparams[i]['activation'] = 'relu'
+                self.hyperparams[i]['alpha'] = 0.0001
+                self.hyperparams[i]['beta_1'] = 0.9
+                self.hyperparams[i]['beta_2'] = 0.999
+                self.hyperparams[i]['early_stopping'] = True
+                self.hyperparams[i]['epsilon'] = 1E-8
+                self.hyperparams[i]['hidden_layer_sizes'] = "gANjY29weXJlZwpfcmVjb25zdHJ1Y3RvcgpxAGNkM20uY29udGFpbmVyLmxpc3QKTGlzdApxAWNidWlsdGlucwpsaXN0CnECXXEDKEvIS8hlh3EEUnEFfXEGWAgAAABtZXRhZGF0YXEHY2QzbS5tZXRhZGF0YS5iYXNlCkRhdGFNZXRhZGF0YQpxCCmBcQl9cQooWA0AAABfbWV0YWRhdGFfbG9ncQspWBEAAABfY3VycmVudF9tZXRhZGF0YXEMY2QzbS5tZXRhZGF0YS5iYXNlCk1ldGFkYXRhRW50cnkKcQ0pgXEOfXEPKFgIAAAAZWxlbWVudHNxEH1xEVgMAAAAYWxsX2VsZW1lbnRzcRJoDSmBcRN9cRQoaBB9cRVoEk5oB2Nmcm96ZW5kaWN0CkZyb3plbk9yZGVyZWREaWN0CnEWKYFxF31xGChYBQAAAF9kaWN0cRljY29sbGVjdGlvbnMKT3JkZXJlZERpY3QKcRopUnEbWA8AAABzdHJ1Y3R1cmFsX3R5cGVxHGNidWlsdGlucwppbnQKcR1zWAUAAABfaGFzaHEeTnVidWJoB2gWKYFxH31xIChoGWgaKVJxIShYBgAAAHNjaGVtYXEiWEIAAABodHRwczovL21ldGFkYXRhLmRhdGFkcml2ZW5kaXNjb3Zlcnkub3JnL3NjaGVtYXMvdjAvY29udGFpbmVyLmpzb25xI2gcaAFYCQAAAGRpbWVuc2lvbnEkaBYpgXElfXEmKGgZaBopUnEnWAYAAABsZW5ndGhxKEsCc2geTnVidWgeTnVidWJoHk5YCQAAAGZvcl92YWx1ZXEpaAV1YnNiLg=="
+                self.hyperparams[i]['learning_rate'] = "constant"
+                self.hyperparams[i]['learning_rate_init'] = 0.01
+                self.hyperparams[i]['max_iter'] = 200
+                self.hyperparams[i]['shuffle'] = True
+                self.hyperparams[i]['solver'] = "adam"
+                self.hyperparams[i]['tol'] = 0.0001
+                self.hyperparams[i]['warm_start'] = False
+
+            if i == 0 or i == 1:
+                execution_graph.add_edge(origin, str(i))
+            else:
+                execution_graph.add_edge(str(source), str(i))
+
+        execution_order = list(nx.topological_sort(execution_graph))
+
+        # Removing non-step inputs from the order
+        execution_order = list(filter(lambda x: x.isdigit(), execution_order))
+        self.execution_order = [int(x) for x in execution_order]  
 
     def add_step(self, python_path):
         """
@@ -895,22 +1013,22 @@ class SolutionDescription(object):
             for name, value in hyperparams.items():
                 tp = hyperparam_types[name]
                 if tp is int:
-                    send_params[name]=value_pb2.Value(int64=value)
+                    send_params[name]=value_pb2.Value(raw=value_pb2.ValueRaw(int64=value))
                 elif tp is float:
-                    send_params[name]=value_pb2.Value(double=value)
+                    send_params[name]=value_pb2.Value(raw=value_pb2.ValueRaw(double=value))
                 elif tp is bool:
-                    send_params[name]=value_pb2.Value(bool=value)
+                    send_params[name]=value_pb2.Value(raw=value_pb2.ValueRaw(bool=value))
                 elif tp is str:
-                    send_params[name]=value_pb2.Value(string=value)
+                    send_params[name]=value_pb2.Value(raw=value_pb2.ValueRaw(string=value))
                 else:
                     if isinstance(value, int):
-                        send_params[name]=value_pb2.Value(int64=value)
+                        send_params[name]=value_pb2.Value(raw=value_pb2.ValueRaw(int64=value))
                     elif isinstance(value, float):
-                        send_params[name]=value_pb2.Value(double=value)
+                        send_params[name]=value_pb2.Value(raw=value_pb2.ValueRaw(double=value))
                     elif isinstance(value, bool):
-                        send_params[name]=value_pb2.Value(bool=value)
+                        send_params[name]=value_pb2.Value(raw=value_pb2.ValueRaw(bool=value))
                     elif isinstance(value, str):
-                        send_params[name]=value_pb2.Value(string=value)
+                        send_params[name]=value_pb2.Value(raw=value_pb2.ValueRaw(string=value))
            
         return core_pb2.PrimitiveStepDescription(hyperparams=send_params)
 
@@ -948,7 +1066,7 @@ class PrimitiveDescription(object):
         primitive_hyperparams = self.primitive.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
         prim_instance = self.primitive(hyperparams=primitive_hyperparams(primitive_hyperparams.defaults(), **optimal_params))
         score = 0.0
-   
+  
         Xnew = pd.DataFrame(data=X.values)
         for train_index, test_index in kf.split(X):
             t0 = time.time()
