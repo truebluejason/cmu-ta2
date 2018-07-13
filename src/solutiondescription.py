@@ -25,6 +25,7 @@ from google.protobuf.timestamp_pb2 import Timestamp
 
 from sklearn import metrics
 from sklearn import preprocessing
+import json
 
 from d3m.metadata.pipeline import Pipeline, PrimitiveStep, SubpipelineStep, ArgumentType, PipelineContext
 from d3m.metadata.base import PrimitiveFamily
@@ -47,6 +48,7 @@ task_paths = {
 'VERTEXNOMINATION': ['d3m.primitives.sri.graph.VertexNominationParser', 'd3m.primitives.sri.psl.VertexNomination'],
 'LINKPREDICTION': ['d3m.primitives.sri.graph.GraphMatchingParser','d3m.primitives.sri.graph.GraphTransformer', 'd3m.primitives.sri.psl.LinkPrediction'],
 'COMMUNITYDETECTION': ['d3m.primitives.sri.graph.CommunityDetectionParser', 'd3m.primitives.sri.psl.CommunityDetection'],
+'TIMESERIESFORECASTING': ['d3m.primitives.datasets.DatasetToDataFrame','d3m.primitives.data.ColumnParser', 'd3m.primitives.data.ExtractColumnsBySemanticTypes', 'd3m.primitives.data.ExtractColumnsBySemanticTypes'],
 'AUDIO': ['d3m.primitives.bbn.time_series.TargetsReader', 'd3m.primitives.bbn.time_series.AudioReader', 'd3m.primitives.bbn.time_series.ChannelAverager', 'd3m.primitives.bbn.time_series.SignalDither', 'd3m.primitives.bbn.time_series.SignalFramer', 'd3m.primitives.bbn.time_series.SignalMFCC', 'd3m.primitives.bbn.time_series.IVectorExtractor', 'd3m.primitives.bbn.sklearn_wrap.BBNMLPClassifier']}
  
 def compute_timestamp():
@@ -131,10 +133,10 @@ class SolutionDescription(object):
 
             for name, value in self.primitives_arguments[i].items():
                 origin = value['origin']
-                if origin == 'steps':
-                    argument_type = ArgumentType.DATA
-                else:
-                    argument_type = ArgumentType.CONTAINER
+                #if origin == 'steps':
+                #    argument_type = ArgumentType.DATA
+                #else:
+                argument_type = ArgumentType.CONTAINER
                 step.add_argument(name=name, argument_type=argument_type, data_reference=value['data'])
             step.add_output(output_id=p.primitive_class.produce_methods[0])
             if self.hyperparams[i] is not None:
@@ -145,9 +147,10 @@ class SolutionDescription(object):
         for op in self.outputs:
             pipeline_description.add_output(data_reference=op[2], name=op[3])
 
-        outfile = open(filename, "w")
-        pipeline_description.to_json(outfile)
-        outfile.close()
+        with open(filename, "w") as out:
+            parsed = json.loads(pipeline_description.to_json())
+            parsed['pipeline_rank'] = str(self.rank)
+            json.dump(parsed, out, indent=4)     
 
     def create_from_pipeline(self, pipeline_description: Pipeline) -> None:
         n_steps = len(pipeline_description.steps)
@@ -476,6 +479,7 @@ class SolutionDescription(object):
                 model = tf_vectorizer
                 self.pipeline[n_step] = model
                 return df
+
         model = primitive(hyperparams=primitive_hyperparams(
                     primitive_hyperparams.defaults(), **custom_hyperparams))
         model.set_training_data(**training_arguments)
@@ -500,10 +504,11 @@ class SolutionDescription(object):
         path = primitive.metadata.query()['python_path']
         if path == 'd3m.primitives.data.ExtractColumnsBySemanticTypes':
             if len(v.columns) > 1:
-                X = pd.DataFrame(data=v.values)
+                X = pd.DataFrame(data=v.values, columns=v.columns.values.tolist())
                 X = X.fillna(0).replace('',0)
-                X.metadata = v.metadata
-                return X
+                newv = d3m_dataframe(X, generate_metadata=False)
+                newv.metadata = v.metadata.clear(for_value=v, generate_metadata=True, source=v)
+                return newv
             else:
                 if self.taskname == 'CLASSIFICATION':
                     self.le = preprocessing.LabelEncoder()
@@ -641,6 +646,14 @@ class SolutionDescription(object):
             if 'SKCountVectorizer' in python_paths[i]:
                 self.hyperparams[i] = {}
                 self.hyperparams[i]['input'] = 'content'
+
+            if taskname == 'TIMESERIESFORECASTING':
+                if i == 2:
+                    self.hyperparams[i] = {}
+                    self.hyperparams[i]['semantic_types'] = ('https://metadata.datadrivendiscovery.org/types/Attribute', 'https://metadata.datadrivendiscovery.org/types/PrimaryKey')
+                elif i == 3:
+                    self.hyperparams[i] = {}
+                    self.hyperparams[i]['semantic_types'] = ('https://metadata.datadrivendiscovery.org/types/Target', 'https://metadata.datadrivendiscovery.org/types/PrimaryKey')
 
             if taskname == 'CLASSIFICATION' or taskname == 'REGRESSION':
                 if i == num-1:
@@ -979,10 +992,10 @@ class SolutionDescription(object):
                 origin = argument_edge.split('.')[0]
                 source = argument_edge.split('.')[1]
                 
-                if origin == 'steps':
-                    sa = pipeline_pb2.PrimitiveStepArgument(data = pipeline_pb2.DataArgument(data=argument_edge))
-                else:
-                    sa = pipeline_pb2.PrimitiveStepArgument(container = pipeline_pb2.ContainerArgument(data=argument_edge))
+                #if origin == 'steps':
+                #    sa = pipeline_pb2.PrimitiveStepArgument(data = pipeline_pb2.DataArgument(data=argument_edge))
+                #else:
+                sa = pipeline_pb2.PrimitiveStepArgument(container = pipeline_pb2.ContainerArgument(data=argument_edge))
                 arguments[argument] = sa
 
             step_outputs = []
@@ -1066,7 +1079,7 @@ class PrimitiveDescription(object):
         primitive_hyperparams = self.primitive.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
         prim_instance = self.primitive(hyperparams=primitive_hyperparams(primitive_hyperparams.defaults(), **optimal_params))
         score = 0.0
-  
+ 
         Xnew = pd.DataFrame(data=X.values)
         for train_index, test_index in kf.split(X):
             t0 = time.time()
@@ -1080,7 +1093,7 @@ class PrimitiveDescription(object):
             prim_instance.set_training_data(inputs=X_train, outputs=y_train)
 
             prim_instance.fit()
-            predictions = prim_instance.produce(inputs=X_test).value                        
+            predictions = prim_instance.produce(inputs=X_test).value         
             metric = self.evaluate_metric(predictions, y_test, metric_type)     
             metric_sum += metric
 
@@ -1133,7 +1146,7 @@ class PrimitiveDescription(object):
         else:
             return metrics.accuracy_score(Ytest, predictions)
 
-    def optimize_primitive(self, train, output, inputs, primitive_hyperparams, optimal_params, hyperparam_types, metric_type):
+    def optimize_primitive(self, Xtrain, Ytrain, Xtest, Ytest, inputs, primitive_hyperparams, optimal_params, hyperparam_types, metric_type):
         """
         Function to evaluate each input point in the hyper parameter space.
         This is called for every input sample being evaluated by the bayesian optimization package.
@@ -1148,27 +1161,6 @@ class PrimitiveDescription(object):
 
         prim_instance = self.primitive(hyperparams=primitive_hyperparams(primitive_hyperparams.defaults(), **custom_hyperparams))
 
-        import random
-        random.seed(9001)
-
-        # Run training on 90% and testing on 10% random split of the dataset.
-        seq = [i for i in range(len(train))]
-        random.shuffle(seq)
-
-        testsize = (int)(0.1 * len(train) + 0.5)
-
-        trainindices = [seq[x] for x in range(len(train)-testsize)]
-        testindices = [seq[x] for x in range(len(train)-testsize, len(train))]
-
-        Xnew = pd.DataFrame(data=train.values)
-        Xtrain = Xnew.iloc[trainindices]
-        Ytrain = output.iloc[trainindices]
-        Xtest = Xnew.iloc[testindices]
-        Ytest = output.iloc[testindices]
-
-        Xtrain.metadata = train.metadata
-        Xtest.metadata = train.metadata
-        Ytrain.metadata = output.metadata
         prim_instance.set_training_data(inputs=Xtrain, outputs=Ytrain)
         prim_instance.fit()
         predictions = prim_instance.produce(inputs=Xtest).value
@@ -1207,11 +1199,41 @@ class PrimitiveDescription(object):
             optimal_params[index] = name
             index =index+1
 
+        python_path = self.primitive.metadata.query()['python_path']
+        if python_path == 'd3m.primitives.sri.psl.RelationalTimeseries':
+            optimal_params[0] = 'period'
+            index =index+1
+            domain_bounds.append([1,20])
+
         if index == 0:
             return optimal_found_params
 
+        print("OPti for ", python_path)
+        import random
+        random.seed(9001)
+
+        # Run training on 90% and testing on 10% random split of the dataset.
+        seq = [i for i in range(len(train))]
+        random.shuffle(seq)
+
+        testsize = (int)(0.1 * len(train) + 0.5)
+        trainindices = [seq[x] for x in range(len(train)-testsize)]
+        testindices = [seq[x] for x in range(len(train)-testsize, len(train))]
+
+        Xnew = pd.DataFrame(data=train.values, columns=train.columns.values.tolist())
+        Xtrain = Xnew.iloc[trainindices]
+        Ytrain = output.iloc[trainindices]
+        Xtest = Xnew.iloc[testindices]
+        Ytest = output.iloc[testindices]
+
+        Xtrain = d3m_dataframe(Xtrain, generate_metadata=False)
+        Xtrain.metadata = train.metadata.clear(for_value=Xtrain, generate_metadata=True)
+        Xtest = d3m_dataframe(Xtest, generate_metadata=False)
+        Xtest.metadata = train.metadata.clear(for_value=Xtest, generate_metadata=True)
+        Ytrain.metadata = output.metadata
+
         primitive_hyperparams = self.primitive.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
-        func = lambda inputs : self.optimize_primitive(train, output, inputs, primitive_hyperparams, optimal_params, hyperparam_types, metric_type)
+        func = lambda inputs : self.optimize_primitive(Xtrain, Ytrain, Xtest, Ytest, inputs, primitive_hyperparams, optimal_params, hyperparam_types, metric_type)
       
         try:
             (curr_opt_val, curr_opt_pt) = bo.gp_call.fmax(func, domain_bounds, 10)

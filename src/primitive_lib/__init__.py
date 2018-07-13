@@ -17,8 +17,13 @@ def list_primitives():
             primitive_obj = d3m.index.get_primitive(pc)
         except:
             continue
+
         if hasattr(primitive_obj, 'metadata'):
-            primcs.append(PrimitiveClass(primitive_obj.metadata, primitive_obj))
+            try:
+                primitive = PrimitiveClass(primitive_obj.metadata, primitive_obj)
+            except:
+                continue
+            primcs.append(primitive)
 
     return primcs
  

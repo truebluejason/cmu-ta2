@@ -34,7 +34,7 @@ def load_primitives():
             continue
         if p.python_path == 'd3m.primitives.common_primitives.ConvolutionalNeuralNet':
             continue
-        if p.python_path == 'd3m.primitives.common_primitives.RandomForestClassifier':
+        if p.python_path == 'd3m.primitives.classifier.RandomForest':
             continue
         if p.python_path == 'd3m.primitives.common_primitives.FeedForwardNeuralNet':
             continue
@@ -86,7 +86,9 @@ def search_phase():
                 pipe.id = str(uuid.uuid4())
                 pipe.add_step(p.primitive_class.python_path)
                 solutions.append(pipe)
-    elif task_name == 'COLLABORATIVEFILTERING' or task_name == 'VERTEXNOMINATION' or task_name == 'COMMUNITYDETECTION'  or task_name == 'GRAPHMATCHING' or task_name == 'LINKPREDICTION':
+    elif task_name == 'COLLABORATIVEFILTERING' or task_name == 'VERTEXNOMINATION' or task_name == 'COMMUNITYDETECTION'  or task_name == 'GRAPHMATCHING' or task_name == 'LINKPREDICTION' or task_name == 'TIMESERIESFORECASTING':
+        if task_name == 'TIMESERIESFORECASTING':
+            basic_sol.add_step('d3m.primitives.sri.psl.RelationalTimeseries')
         pipe = copy.deepcopy(basic_sol)
         pipe.id = str(uuid.uuid4())
         pipe.add_outputs()
@@ -137,6 +139,9 @@ def search_phase():
     index = 1
     for (sol, score) in sorted_x:
         valid_solutions[sol].rank = index
+        #print("Rank ", index)
+        #print("Score ", score)
+        #logging.info(valid_solutions[sol].primitives)
         index = index + 1
 
     num = 20
@@ -185,6 +190,7 @@ def test_phase():
         predictions = pd.DataFrame(data=predictions)
     if solution.indices is not None:
         predictions = pd.DataFrame({'d3mIndex': solution.indices['d3mIndex'], target:predictions.iloc[:,0]})
+    print(predictions.shape)
     util.write_predictions(predictions, outputDir + "/predictions", solution, ['d3mIndex', target])
     
 
@@ -292,11 +298,11 @@ class Core(core_pb2_grpc.CoreServicer):
                         pipe.id = str(uuid.uuid4())
                         pipe.add_step(p.primitive_class.python_path)
                         solutions.append(pipe)
-                    elif task_name == 'COLLABORATIVEFILTERING' or task_name == 'VERTEXNOMINATION':
-                        pipe = copy.deepcopy(basic_sol)
-                        pipe.id = str(uuid.uuid4())
-                        pipe.add_outputs()
-                        solutions.append(pipe)
+            elif task_name == 'COLLABORATIVEFILTERING' or task_name == 'VERTEXNOMINATION' or task_name == 'COMMUNITYDETECTION'  or task_name == 'GRAPHMATCHING' or task_name == 'LINKPREDICTION':
+                pipe = copy.deepcopy(basic_sol)
+                pipe.id = str(uuid.uuid4())
+                pipe.add_outputs()
+                solutions.append(pipe)
 
         # Fully defined
         if bool(template) == True and basic_sol.contains_placeholder() == False:
