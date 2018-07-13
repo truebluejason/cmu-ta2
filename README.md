@@ -179,13 +179,13 @@ docker run -i -t \
     --rm \
     --name d3m-cmu-ta2 \
     -p 45042:45042 \
-    --mount type=bind,source=/data/data/d3m/dryrun2018summer/input/LL0_1100_popularkids,target=/input \
+    --mount type=bind,source=/data/data/d3m/dryrun2018summer/input,target=/input \
     --mount type=bind,source=/data/data/d3m/dryrun2018summer/output,target=/output \
     -e D3MINPUTDIR=/input  \
     -e D3MOUTPUTDIR=/output  \
     -e D3MCPU=8 \
     -e D3MTIMEOUT=5 \
-    -e D3MRUN="search" \
+    -e D3MRUN="ta2ta3" \
     registry.datadrivendiscovery.org/sheath/cmu-ta2:live
 ```
 
