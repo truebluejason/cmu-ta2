@@ -21,6 +21,7 @@ build_image:
     - git fetch
     - git checkout master
     - git merge origin/master
+    - git status # show bayesian_optimization hash
     - cd -
     - git status # should show that your submodule changed
 
