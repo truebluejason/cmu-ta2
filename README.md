@@ -103,7 +103,8 @@ There are three configuration files:
 Prerequisites:
 1. [Install docker](https://docs.docker.com/install/).
     1. Check docker ```docker --version```
-1. The use of submodule is deprecated since submodule itself doesn’t update unless you manually update it.
+1. ```git clone  git@gitlab.datadrivendiscovery.org:sray/bayesian_optimization.git```
+1. The use of submodule is **deprecated** since submodule itself doesn’t update unless you manually update it.
     1. We keep ta3ta2-api-v2 for reference only
     1. ta3ta2-api-v2 is used in ```rebuild_grpc.sh```
         1. You probably want to create a local copy of the shell script in which it points to the latest version of the api repo instead.
