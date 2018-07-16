@@ -26,11 +26,9 @@ RUN cd /tmp/bayesian_optimization/bo/utils/direct_fortran; \
     python3 setup.py bdist_wheel; \
     pip3 install ./dist/bo*.whl
 
-expose 45042
+EXPOSE 45042
 
-run mkdir /d3m
-add src/ /d3m/src
-#add primitives_repo /d3m/primitives_repo
-#add test_output /d3m/test_output
+RUN mkdir /d3m
+ADD src/ /d3m/src
 
-cmd /d3m/src/main.py ${D3MRUN}
+CMD /d3m/src/main.py ${D3MRUN}
