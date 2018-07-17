@@ -42,9 +42,58 @@ def load_primitives():
             continue
         if p.python_path == 'd3m.primitives.sklearn_wrap.SKKNeighborsRegressor':
             continue
+        if p.python_path == 'd3m.primitives.dsbox.CorexSupervised':
+            continue
         primitives[p.classname] = solutiondescription.PrimitiveDescription(p.classname, p)
 
     return primitives
+
+def get_solutions(task_name, dataset, primitives, problem):
+    solutions = []
+
+    basic_sol = solutiondescription.SolutionDescription(problem)
+    basic_sol.initialize_solution(task_name)
+
+    rows = dataset.metadata.query(('0',))['dimension']['length']
+
+    if task_name == 'CLASSIFICATION' or task_name == 'REGRESSION':
+        types_present = solutiondescription.column_types_present(dataset)
+
+        if 'TIMESERIES' in types_present:
+            basic_sol = solutiondescription.SolutionDescription(problem)
+            basic_sol.initialize_solution('TIMESERIES')
+        elif 'IMAGE' in types_present:
+            basic_sol = solutiondescription.SolutionDescription(problem)
+            basic_sol.initialize_solution('IMAGE')
+        elif 'TEXT' in types_present:
+            basic_sol = solutiondescription.SolutionDescription(problem)
+            basic_sol.initialize_solution('TEXT')
+        elif 'AUDIO' in types_present:
+            basic_sol = solutiondescription.SolutionDescription(problem)
+            basic_sol.initialize_solution('AUDIO')
+
+        for classname, p in primitives.items():
+            if p.primitive_class.family == task_name:
+                if 'd3m.primitives.sri.' in p.primitive_class.python_path:
+                    continue
+
+                if rows > 1500 and 'find_projections' in p.primitive_class.python_path:
+                    continue
+                pipe = copy.deepcopy(basic_sol)
+                pipe.id = str(uuid.uuid4())
+                pipe.add_step(p.primitive_class.python_path)
+                solutions.append(pipe)
+    elif task_name == 'COLLABORATIVEFILTERING' or task_name == 'VERTEXNOMINATION' or task_name == 'COMMUNITYDETECTION'  or task_name == 'GRAPHMATCHING' or task_name == 'LINKPREDICTION' or task_name == 'TIMESERIESFORECASTING':
+        if task_name == 'TIMESERIESFORECASTING':
+            basic_sol.add_step('d3m.primitives.sri.psl.RelationalTimeseries')
+        pipe = copy.deepcopy(basic_sol)
+        pipe.id = str(uuid.uuid4())
+        pipe.add_outputs()
+        solutions.append(pipe)
+    else:
+        logging.info("No matching solutions")
+        
+    return solutions
 
 def search_phase():
     """
@@ -62,9 +111,6 @@ def search_phase():
     config_file = inputDir + "/search_config.json"
     (dataset, task_name, target) = util.load_schema(config_file)
 
-    #cols = dataset.metadata.get_columns_with_semantic_type("http://schema.org/Text")
-    #print("Str: ", cols)
-
     resType = dataset.metadata.query(('0',))['semantic_types'][0]
     print(resType)
     timeout_in_min = (int)(timeout_env)
@@ -72,30 +118,7 @@ def search_phase():
     task_name = task_name.upper()
     logging.info(task_name)
 
-    solutions = []
-
-    basic_sol = solutiondescription.SolutionDescription(None)
-    basic_sol.initialize_solution(task_name)
-
-    if task_name == 'CLASSIFICATION' or task_name == 'REGRESSION':
-        for classname, p in primitives.items():
-            if p.primitive_class.family == task_name:
-                if 'd3m.primitives.sri.' in p.primitive_class.python_path:
-                    continue
-                pipe = copy.deepcopy(basic_sol)
-                pipe.id = str(uuid.uuid4())
-                pipe.add_step(p.primitive_class.python_path)
-                solutions.append(pipe)
-    elif task_name == 'COLLABORATIVEFILTERING' or task_name == 'VERTEXNOMINATION' or task_name == 'COMMUNITYDETECTION'  or task_name == 'GRAPHMATCHING' or task_name == 'LINKPREDICTION' or task_name == 'TIMESERIESFORECASTING':
-        if task_name == 'TIMESERIESFORECASTING':
-            basic_sol.add_step('d3m.primitives.sri.psl.RelationalTimeseries')
-        pipe = copy.deepcopy(basic_sol)
-        pipe.id = str(uuid.uuid4())
-        pipe.add_outputs()
-        solutions.append(pipe)
-    else:
-        logging.info("No matching solutions")
-        return solutions
+    solutions = get_solutions(task_name, dataset, primitives, None)
 
     async_message_thread = Pool((int)(num_cpus))
     valid_solutions = {}
@@ -107,6 +130,7 @@ def search_phase():
         metric= problem_pb2.ACCURACY
     else:
         metric= problem_pb2.MEAN_SQUARED_ERROR
+
     results = [async_message_thread.apply_async(evaluate_solution_score, (inputs, sol, primitives, metric,)) for sol in solutions]
     timeout = timeout_in_min * 60
     halftimeout = None
@@ -266,7 +290,7 @@ class Core(core_pb2_grpc.CoreServicer):
             test_dataset = D3MDatasetLoader().load(dataset_uri)
             prodop = solution.produce(inputs=[test_dataset], solution_dict=self._solutions)
 
-    def search_solutions(self, request):
+    def search_solutions(self, request, dataset):
         primitives = self._primitives
         problem = request.problem.problem
         template = request.template
@@ -274,39 +298,16 @@ class Core(core_pb2_grpc.CoreServicer):
         logging.info(task_name)
 
         solutions = []
-        if task_name != 'CLASSIFICATION' and task_name != 'REGRESSION':
-            logging.info("No matching solutions")
-            return solutions
 
-        basic_sol = solutiondescription.SolutionDescription(request.problem)
-        if bool(template) and isinstance(template, pipeline_pb2.PipelineDescription) and len(template.steps) > 0:
+        if template != None and isinstance(template, pipeline_pb2.PipelineDescription) and len(template.steps) > 0:
             print("template:", template)
+            basic_sol = solutiondescription.SolutionDescription(problem)
             basic_sol.create_from_pipelinedescription(pipeline_description=template)
-        else:
-            template = None
+            if basic_sol.contains_placeholder() == False:  # Fully defined
+                solutions.append(basic_sol)
+                return solutions
 
-        if bool(template) == False or (basic_sol.num_steps() == 1 and basic_sol.contains_placeholder() == True):
-            basic_sol.initialize_solution(task_name)
-
-        if bool(template) == False or basic_sol.contains_placeholder() == True:
-            if task_name == 'CLASSIFICATION' or task_name == 'REGRESSION':
-                for classname, p in primitives.items():
-                    if p.primitive_class.family == task_name:
-                        if 'd3m.primitives.sri.' in p.primitive_class.python_path:
-                            continue
-                        pipe = copy.deepcopy(basic_sol)
-                        pipe.id = str(uuid.uuid4())
-                        pipe.add_step(p.primitive_class.python_path)
-                        solutions.append(pipe)
-            elif task_name == 'COLLABORATIVEFILTERING' or task_name == 'VERTEXNOMINATION' or task_name == 'COMMUNITYDETECTION'  or task_name == 'GRAPHMATCHING' or task_name == 'LINKPREDICTION':
-                pipe = copy.deepcopy(basic_sol)
-                pipe.id = str(uuid.uuid4())
-                pipe.add_outputs()
-                solutions.append(pipe)
-
-        # Fully defined
-        if bool(template) == True and basic_sol.contains_placeholder() == False:
-            solutions.append(basic_sol)
+        solutions = get_solutions(task_name, dataset, primitives, request.problem)
 
         return solutions
     
@@ -342,9 +343,8 @@ class Core(core_pb2_grpc.CoreServicer):
                      internal_score=0.0, scores=[])
 
         request_params = self._solution_score_map[search_id_str]
-        solutions = self.search_solutions(request_params)
-
         inputs = self._get_inputs(request_params.problem, request_params.inputs)
+        solutions = self.search_solutions(request_params, inputs[0])
 
         count = 0
         index = 0
