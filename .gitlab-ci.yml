@@ -16,10 +16,9 @@ build_image:
   before_script:
     - docker info
     - apk update && apk add git
-    - cd bayesian_optimization 
-    - git fetch
-    - git checkout master
-    - git merge origin/master
+    - git clone  https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.datadrivendiscovery.org/sray/bayesian_optimization.git
+    - cd bayesian_optimization
+    - git rev-parse --verify HEAD # show bayesian_optimization hash for the commit that is using here
     - cd -
     - git status # should show that your submodule changed
 

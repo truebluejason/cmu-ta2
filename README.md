@@ -103,15 +103,16 @@ There are three configuration files:
 Prerequisites:
 1. [Install docker](https://docs.docker.com/install/).
     1. Check docker ```docker --version```
-1. We use [Git submodules](https://docs.gitlab.com/ce/ci/git_submodules.html) to manage dependent repositories, including
-    1. [bayesian_optimization](https://gitlab.datadrivendiscovery.org/sray/bayesian_optimization)
-    1. ta3ta2-api-v1
-    1. ta3ta2-api-v2
-1. To clone into submodules, run following command at repository top level as a normal user
-```bash
-git submodule sync --recursive
-git submodule update --init --recursive
-```
+1. ```git clone  git@gitlab.datadrivendiscovery.org:sray/bayesian_optimization.git```
+1. The use of submodule is **deprecated** since submodule itself doesn’t update unless you manually update it.
+    1. We keep ta3ta2-api-v2 for reference only
+    1. ta3ta2-api-v2 is used in ```rebuild_grpc.sh```
+        1. You probably want to create a local copy of the shell script in which it points to the latest version of the api repo instead.
+    1. To clone into submodules, run following command at repository top level as a normal user
+    ```bash
+    git submodule sync --recursive
+    git submodule update --init --recursive
+    ```
 
 ## Create a docker image
 Run all commands as root.
