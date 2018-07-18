@@ -74,7 +74,7 @@ def get_solutions(task_name, dataset, primitives, problem):
 
         for classname, p in primitives.items():
             if p.primitive_class.family == task_name:
-                if 'd3m.primitives.sri.' in p.primitive_class.python_path:
+                if 'd3m.primitives.sri.' in p.primitive_class.python_path or 'd3m.primitives.jhu_primitives' in p.primitive_class.python_path:
                     continue
 
                 if rows > 1500 and 'find_projections' in p.primitive_class.python_path:
@@ -307,7 +307,8 @@ class Core(core_pb2_grpc.CoreServicer):
                 solutions.append(basic_sol)
                 return solutions
 
-        solutions = get_solutions(task_name, dataset, primitives, request.problem)
+        taskname = task_name.replace('_', '')
+        solutions = get_solutions(taskname, dataset, primitives, request.problem)
 
         return solutions
     
