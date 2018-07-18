@@ -74,11 +74,14 @@ def get_solutions(task_name, dataset, primitives, problem):
 
         for classname, p in primitives.items():
             if p.primitive_class.family == task_name:
-                if 'd3m.primitives.sri.' in p.primitive_class.python_path or 'd3m.primitives.jhu_primitives' in p.primitive_class.python_path:
+                python_path = p.primitive_class.python_path
+                if 'd3m.primitives.sri.' in python_path or 'd3m.primitives.jhu_primitives' in python_path or 'd3m.primitives.bbn' in python_path or 'lupi_svm' in python_path:
                     continue
 
-                if rows > 1500 and 'find_projections' in p.primitive_class.python_path:
+                if rows > 1500 and 'find_projections' in python_path:
                     continue
+                #if python_path != 'd3m.primitives.bbn.sklearn_wrap.BBNMLPClassifier':
+                #    continue
                 pipe = copy.deepcopy(basic_sol)
                 pipe.id = str(uuid.uuid4())
                 pipe.add_step(p.primitive_class.python_path)
@@ -501,7 +504,11 @@ class Core(core_pb2_grpc.CoreServicer):
             target = self._solutions[solution_id].problem.inputs[0].targets[0].column_name
 
             if output is not None:
-                predictions = pd.DataFrame({'d3mIndex': fitted_solution.indices['d3mIndex'], target:output.iloc[:,0]})
+                if fitted_solution.indices is not None:
+                    indices = fitted_solution.indices
+                else:
+                    indices = output['d3mIndex'] 
+                predictions = pd.DataFrame({'d3mIndex': indices, target:output.iloc[:,0]})
                 uri = util.write_TA3_predictions(predictions, outputDir + "/predictions", fitted_solution, 'fit', ['d3mIndex', target]) 
                 uri = 'file://{uri}'.format(uri=os.path.abspath(uri)) 
                 result = value_pb2.Value(csv_uri=uri)
@@ -558,7 +565,11 @@ class Core(core_pb2_grpc.CoreServicer):
         target = solution.problem.inputs[0].targets[0].column_name
 
         if output is not None:
-            predictions = pd.DataFrame({'d3mIndex': solution.indices['d3mIndex'], target:output.iloc[:,0]})
+            if solution.indices is not None:
+                indices = solution.indices
+            else:
+                indices = output['d3mIndex']
+            predictions = pd.DataFrame({'d3mIndex': indices, target:output.iloc[:,0]})
             uri = util.write_TA3_predictions(predictions, outputDir + "/predictions", solution, 'produce', ['d3mIndex', target])
             uri = 'file://{uri}'.format(uri=os.path.abspath(uri))
             result = value_pb2.Value(csv_uri=uri)

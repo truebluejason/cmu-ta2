@@ -40,18 +40,18 @@ import bo.gp_call
 import util
 
 task_paths = {
-'TEXT': ['d3m.primitives.dsbox.Denormalize','d3m.primitives.datasets.DatasetToDataFrame','d3m.primitives.data.ColumnParser','d3m.primitives.data.ExtractColumnsBySemanticTypes', 'd3m.primitives.dsbox.CorexText', 'd3m.primitives.data.ExtractColumnsBySemanticTypes'],
+'TEXT': ['d3m.primitives.dsbox.Denormalize','d3m.primitives.datasets.DatasetToDataFrame','d3m.primitives.data.ColumnParser','d3m.primitives.data.ExtractColumnsBySemanticTypes', 'd3m.primitives.dsbox.CorexText', 'd3m.primitives.sklearn_wrap.SKImputer', 'd3m.primitives.data.ExtractColumnsBySemanticTypes'],
 'TIMESERIES': ['d3m.primitives.dsbox.Denormalize','d3m.primitives.datasets.DatasetToDataFrame','d3m.primitives.data.ColumnParser','d3m.primitives.data.ExtractColumnsBySemanticTypes', 'd3m.primitives.dsbox.TimeseriesToList', 'd3m.primitives.dsbox.RandomProjectionTimeSeriesFeaturization', 'd3m.primitives.data.ExtractColumnsBySemanticTypes'], 
 'IMAGE': ['d3m.primitives.dsbox.Denormalize','d3m.primitives.datasets.DatasetToDataFrame','d3m.primitives.data.ColumnParser','d3m.primitives.data.ExtractColumnsBySemanticTypes', 'd3m.primitives.dsbox.DataFrameToTensor', 'd3m.primitives.dsbox.ResNet50ImageFeature', 'd3m.primitives.data.ExtractColumnsBySemanticTypes'],
-'CLASSIFICATION': ['d3m.primitives.dsbox.Denormalize','d3m.primitives.datasets.DatasetToDataFrame','d3m.primitives.data.ColumnParser','d3m.primitives.data.ExtractColumnsBySemanticTypes', 'd3m.primitives.data.ExtractColumnsBySemanticTypes'], 
-'REGRESSION': ['d3m.primitives.dsbox.Denormalize','d3m.primitives.datasets.DatasetToDataFrame','d3m.primitives.data.ColumnParser', 'd3m.primitives.data.ExtractColumnsBySemanticTypes', 'd3m.primitives.data.ExtractColumnsBySemanticTypes'],
+'CLASSIFICATION': ['d3m.primitives.dsbox.Denormalize','d3m.primitives.datasets.DatasetToDataFrame','d3m.primitives.data.ColumnParser','d3m.primitives.data.ExtractColumnsBySemanticTypes', 'd3m.primitives.sklearn_wrap.SKImputer', 'd3m.primitives.data.ExtractColumnsBySemanticTypes'], 
+'REGRESSION': ['d3m.primitives.dsbox.Denormalize','d3m.primitives.datasets.DatasetToDataFrame','d3m.primitives.data.ColumnParser', 'd3m.primitives.data.ExtractColumnsBySemanticTypes', 'd3m.primitives.sklearn_wrap.SKImputer', 'd3m.primitives.data.ExtractColumnsBySemanticTypes'],
 'GRAPHMATCHING': ['d3m.primitives.sri.psl.GraphMatchingLinkPrediction'],
 'COLLABORATIVEFILTERING': ['d3m.primitives.sri.psl.CollaborativeFilteringLinkPrediction'],
 'VERTEXNOMINATION': ['d3m.primitives.sri.graph.VertexNominationParser', 'd3m.primitives.sri.psl.VertexNomination'],
 'LINKPREDICTION': ['d3m.primitives.sri.graph.GraphMatchingParser','d3m.primitives.sri.graph.GraphTransformer', 'd3m.primitives.sri.psl.LinkPrediction'],
 'COMMUNITYDETECTION': ['d3m.primitives.sri.graph.CommunityDetectionParser', 'd3m.primitives.sri.psl.CommunityDetection'],
 'TIMESERIESFORECASTING': ['d3m.primitives.datasets.DatasetToDataFrame','d3m.primitives.data.ColumnParser', 'd3m.primitives.data.ExtractColumnsBySemanticTypes', 'd3m.primitives.data.ExtractColumnsBySemanticTypes'],
-'AUDIO': ['d3m.primitives.bbn.time_series.AudioReader', 'd3m.primitives.bbn.time_series.ChannelAverager', 'd3m.primitives.bbn.time_series.SignalDither', 'd3m.primitives.bbn.time_series.SignalFramer', 'd3m.primitives.bbn.time_series.SignalMFCC', 'd3m.primitives.bbn.time_series.IVectorExtractor']}
+'AUDIO': ['d3m.primitives.bbn.time_series.AudioReader', 'd3m.primitives.bbn.time_series.ChannelAverager', 'd3m.primitives.bbn.time_series.SignalDither', 'd3m.primitives.bbn.time_series.SignalFramer', 'd3m.primitives.bbn.time_series.SignalMFCC', 'd3m.primitives.bbn.time_series.IVectorExtractor', 'd3m.primitives.bbn.time_series.TargetsReader']}
 
 def column_types_present(dataset):
     primitive = d3m.index.get_primitive('d3m.primitives.dsbox.Denormalize')
@@ -129,7 +129,6 @@ class SolutionDescription(object):
         self.le = None
         self.taskname = None
         self.exclude_columns = None
-        self.cols = None
 
     def contains_placeholder(self):
         if self.steptypes is not None:
@@ -404,11 +403,10 @@ class SolutionDescription(object):
     def exclude(self, metadata):
         self.exclude_columns = metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/CategoricalData")
         total_cols = len(metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/Attribute"))
-        self.cols = metadata.get_columns_with_semantic_type("http://schema.org/Text")
-        if len(self.cols) < total_cols:
-            for col in self.cols:
+        cols = metadata.get_columns_with_semantic_type("http://schema.org/Text")
+        if len(cols) < total_cols:
+            for col in cols:
                 self.exclude_columns.append(col)
-            self.cols = None
 
         targets = metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/Target")
         for t in targets:
@@ -540,30 +538,27 @@ class SolutionDescription(object):
     def transform_data(self, primitive, v):
         path = primitive.metadata.query()['python_path']
         if path == 'd3m.primitives.data.ExtractColumnsBySemanticTypes':
-            if len(v.columns) > 1:
-                X = pd.DataFrame(data=v.values, columns=v.columns.values.tolist())
-                
+            if len(v.columns) > 1: # Attributes
                 timecols = v.metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/Time")
+
                 if len(timecols):
+                    X = pd.DataFrame(data=v.values, columns=v.columns.values.tolist())
                     for col in timecols:
                         semantic_types = v.metadata.query((metadata_base.ALL_ELEMENTS, col))['semantic_types']
                         if 'http://schema.org/Float' in semantic_types:
                             continue
                         colname = v.columns.values.tolist()[col]
                         X[colname] = X[colname].apply(lambda dt: self.time_to_float(dt))
-                        
-                X = X.fillna(0).replace('',0)
-                newv = d3m_dataframe(X, generate_metadata=False)
-                newv.metadata = v.metadata
-                return newv
-            else:
+                    newv = d3m_dataframe(X, generate_metadata=False)
+                    newv.metadata = v.metadata
+                    return newv      
+            else: # Targets
                 if self.taskname == 'CLASSIFICATION':
                     self.le = preprocessing.LabelEncoder()
                     orig_metadata = v.metadata
                     v = pd.DataFrame(self.le.fit_transform(v.values.ravel()))
                     v.metadata = orig_metadata
                     return v
-
         return v
 
     def invert_output(self, v):
@@ -685,7 +680,7 @@ class SolutionDescription(object):
                     self.hyperparams[i] = {}
                     self.hyperparams[i]['semantic_types'] = ('https://metadata.datadrivendiscovery.org/types/Target', 'https://metadata.datadrivendiscovery.org/types/PrimaryKey')
 
-            elif taskname == 'CLASSIFICATION' or taskname == 'REGRESSION' or taskname == 'TEXT' or taskname == 'IMAGE' or taskname == 'TIMESERIES' or taskname == 'AUDIO':
+            elif taskname == 'CLASSIFICATION' or taskname == 'REGRESSION' or taskname == 'TEXT' or taskname == 'IMAGE' or taskname == 'TIMESERIES':
                 if i == 0:
                     data = 'inputs.0'
                 elif i == num-1:
@@ -696,6 +691,11 @@ class SolutionDescription(object):
                 if i == num-1:
                     self.hyperparams[i] = {}
                     self.hyperparams[i]['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/Target']
+            elif taskname == 'AUDIO':
+                if i == 0 or i == num-1:
+                    data = 'inputs.0'
+                else:
+                    data = 'steps.' + str(i-1) + '.produce'
             else:
                 if i == 0:
                     data = 'inputs.0'
@@ -898,7 +898,7 @@ class SolutionDescription(object):
         model = primitive(hyperparams=primitive_hyperparams(
                             primitive_hyperparams.defaults()))
 
-        if family is not PrimitiveFamily.DATA_TRANSFORMATION and 'd3m.primitives.sri.' not in p.primitive_class.python_path:
+        if family is not PrimitiveFamily.DATA_TRANSFORMATION and 'd3m.primitives.sri.' not in primitive.metadata.query()['python_path']:
             ip = training_arguments['inputs']
             from sklearn.model_selection import KFold
             # Train on just 20% of the data to validate
@@ -1027,8 +1027,11 @@ class PrimitiveDescription(object):
         primitive_hyperparams = self.primitive.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
         prim_instance = self.primitive(hyperparams=primitive_hyperparams(primitive_hyperparams.defaults(), **optimal_params))
         score = 0.0
- 
-        Xnew = pd.DataFrame(data=X.values)
+
+        if isinstance(X, pd.DataFrame): 
+            Xnew = pd.DataFrame(data=X.values)
+        else:
+            Xnew = pd.DataFrame(data=X)
         for train_index, test_index in kf.split(X):
             t0 = time.time()
             X_train, X_test = Xnew.iloc[train_index], Xnew.iloc[test_index]
