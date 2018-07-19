@@ -80,7 +80,9 @@ def column_types_present(dataset):
     if cols > 0:
         types.append('AUDIO')
 
-    return types
+    total_cols = len(metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/Attribute"))
+    print("Data types present: ", types)
+    return (types, total_cols)
 
 def compute_timestamp():
     now = time.time()
@@ -115,7 +117,6 @@ class SolutionDescription(object):
         self.users = None
         self.inputs = []
         self.rank = -1
-        self.indices = None
         
         self.outputs = None
         self.execution_order = None
@@ -404,7 +405,7 @@ class SolutionDescription(object):
         self.exclude_columns = metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/CategoricalData")
         total_cols = len(metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/Attribute"))
         cols = metadata.get_columns_with_semantic_type("http://schema.org/Text")
-        if len(cols) < total_cols:
+        if len(cols) < total_cols - len(self.exclude_columns):
             for col in cols:
                 self.exclude_columns.append(col)
 
@@ -412,13 +413,6 @@ class SolutionDescription(object):
         for t in targets:
             if t in self.exclude_columns:
                 self.exclude_columns.remove(t)
-
-    def get_indices(self, data):
-        if 'd3mIndex' in data:
-            indices = data[['d3mIndex']]
-        else:
-            indices = pd.DataFrame({'d3mIndex': data.iloc[:,0]})
-        return indices
 
     def fit(self, **arguments):
         """
@@ -432,10 +426,10 @@ class SolutionDescription(object):
         primitives_outputs = [None] * len(self.execution_order)
         for i in range(0, len(self.execution_order)):
             n_step = self.execution_order[i]
-       
+            
             primitives_outputs[n_step] = self.process_step(n_step, primitives_outputs, ActionType.FIT, arguments)
+                
             if self.isDataFrameStep(n_step) == True:
-                self.indices = self.get_indices(primitives_outputs[n_step])
                 self.exclude(primitives_outputs[n_step].metadata)
                  
         v = primitives_outputs[len(self.execution_order)-1]
@@ -480,6 +474,17 @@ class SolutionDescription(object):
         primitive_arguments
             Arguments for set_training_data, fit, produce of the primitive for this step.
         """
+        model = self.pipeline[n_step]
+        produce_params_primitive = self._primitive_arguments(primitive, 'produce')
+        produce_params = {}
+
+        for param, value in primitive_arguments.items():
+            if param in produce_params_primitive:
+                produce_params[param] = value
+
+        if model is not None:
+            return model.produce(**produce_params).value
+        
         primitive_hyperparams = primitive.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
 
         custom_hyperparams = dict()
@@ -494,12 +499,8 @@ class SolutionDescription(object):
 
         training_arguments_primitive = self._primitive_arguments(primitive, 'set_training_data')
         training_arguments = {}
-        produce_params_primitive = self._primitive_arguments(primitive, 'produce')
-        produce_params = {}
 
         for param, value in primitive_arguments.items():
-            if param in produce_params_primitive:
-                produce_params[param] = value
             if param in training_arguments_primitive:
                 training_arguments[param] = value
 
@@ -537,7 +538,7 @@ class SolutionDescription(object):
 
     def transform_data(self, primitive, v):
         path = primitive.metadata.query()['python_path']
-        if path == 'd3m.primitives.data.ExtractColumnsBySemanticTypes':
+        if path == 'd3m.primitives.data.ExtractColumnsBySemanticTypes' or path == 'd3m.primitives.time_series.TargetsReader':
             if len(v.columns) > 1: # Attributes
                 timecols = v.metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/Time")
 
@@ -564,7 +565,8 @@ class SolutionDescription(object):
     def invert_output(self, v):
         if self.le is not None:
             if isinstance(v, pd.DataFrame):
-                values = v.iloc[:,0].tolist()
+                cols = len(v.columns)
+                values = v.iloc[:,cols-1].tolist()
             else:
                 values = v
             inverted_op = self.le.inverse_transform(values)
@@ -616,8 +618,6 @@ class SolutionDescription(object):
                     v = self.pipeline[n_step].produce(**produce_arguments).value
                     v = self.transform_data(primitive, v)
                     steps_outputs[n_step] = v
-                    if self.isDataFrameStep(n_step) == True:
-                        self.indices = self.get_indices(steps_outputs[n_step])
                 else:
                     steps_outputs[n_step] = None
             else:
@@ -737,7 +737,7 @@ class SolutionDescription(object):
         self.primitives_arguments[i] = {}
         self.hyperparams[i] = None
 
-        self.pipeline.append([None])
+        self.pipeline.append(None)
 
         prim = d3m.index.get_primitive(python_path)
         self.primitives[i] = prim
@@ -822,10 +822,12 @@ class SolutionDescription(object):
         """
         score = 0.0
         primitives_outputs = [None] * len(self.execution_order)
-     
+
         for i in range(0, len(self.execution_order)): 
             n_step = self.execution_order[i]
+       
             primitives_outputs[n_step] = self.process_step(n_step, primitives_outputs, ActionType.SCORE, arguments)
+
             if self.isDataFrameStep(n_step) is True:
                 self.exclude(primitives_outputs[n_step].metadata)
 
@@ -1012,9 +1014,9 @@ class PrimitiveDescription(object):
           metric=metric_type, custom_hyperparams=custom_hyperparams) 
         else:
             optimal_params = dict()
-          
+  
         python_path = self.primitive.metadata.query()['python_path'] 
-        if y is None or 'd3m.primitives.sri' in python_path:
+        if y is None or 'd3m.primitives.sri' in python_path or 'bbn' in python_path:
             return (0.0, optimal_params)
               
         from sklearn.model_selection import KFold
@@ -1041,10 +1043,13 @@ class PrimitiveDescription(object):
             y_train.metadata = y.metadata
             X_train.metadata = X.metadata
             X_test.metadata = X.metadata
+
             prim_instance.set_training_data(inputs=X_train, outputs=y_train)
 
             prim_instance.fit()
-            predictions = prim_instance.produce(inputs=X_test).value         
+            predictions = prim_instance.produce(inputs=X_test).value
+            if len(predictions.columns) > 1:
+                predictions = predictions.iloc[:,len(predictions.columns)-1]         
             metric = self.evaluate_metric(predictions, y_test, metric_type)     
             metric_sum += metric
 
@@ -1116,6 +1121,8 @@ class PrimitiveDescription(object):
         prim_instance.fit()
         predictions = prim_instance.produce(inputs=Xtest).value
 
+        if len(predictions.columns) > 1:
+            predictions = predictions.iloc[:,len(predictions.columns)-1]
         metric = self.evaluate_metric(predictions, Ytest, metric_type)
 
         if util.invert_metric(metric_type) is True:        

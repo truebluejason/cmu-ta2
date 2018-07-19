@@ -44,6 +44,9 @@ def load_primitives():
             continue
         if p.python_path == 'd3m.primitives.dsbox.CorexSupervised':
             continue
+        if p.python_path == 'd3m.primitives.sklearn_wrap.SKSVC':
+            continue
+
         primitives[p.classname] = solutiondescription.PrimitiveDescription(p.classname, p)
 
     return primitives
@@ -56,8 +59,9 @@ def get_solutions(task_name, dataset, primitives, problem):
 
     rows = dataset.metadata.query(('0',))['dimension']['length']
 
+    print("Rows = ", rows)
     if task_name == 'CLASSIFICATION' or task_name == 'REGRESSION':
-        types_present = solutiondescription.column_types_present(dataset)
+        (types_present, total_cols) = solutiondescription.column_types_present(dataset)
 
         if 'TIMESERIES' in types_present:
             basic_sol = solutiondescription.SolutionDescription(problem)
@@ -75,13 +79,11 @@ def get_solutions(task_name, dataset, primitives, problem):
         for classname, p in primitives.items():
             if p.primitive_class.family == task_name:
                 python_path = p.primitive_class.python_path
-                if 'd3m.primitives.sri.' in python_path or 'd3m.primitives.jhu_primitives' in python_path or 'd3m.primitives.bbn' in python_path or 'lupi_svm' in python_path:
+                if 'd3m.primitives.sri.' in python_path or 'd3m.primitives.jhu_primitives' in python_path or 'lupi_svm' in python_path or 'bbn' in python_path:
                     continue
 
-                if rows > 1500 and 'find_projections' in python_path:
+                if (total_cols > 10 or rows > 1500) and 'find_projections' in python_path:
                     continue
-                #if python_path != 'd3m.primitives.bbn.sklearn_wrap.BBNMLPClassifier':
-                #    continue
                 pipe = copy.deepcopy(basic_sol)
                 pipe.id = str(uuid.uuid4())
                 pipe.add_step(p.primitive_class.python_path)
@@ -95,7 +97,7 @@ def get_solutions(task_name, dataset, primitives, problem):
         solutions.append(pipe)
     else:
         logging.info("No matching solutions")
-        
+       
     return solutions
 
 def search_phase():
@@ -134,6 +136,7 @@ def search_phase():
     else:
         metric= problem_pb2.MEAN_SQUARED_ERROR
 
+    # Score potential solutions
     results = [async_message_thread.apply_async(evaluate_solution_score, (inputs, sol, primitives, metric,)) for sol in solutions]
     timeout = timeout_in_min * 60
     halftimeout = None
@@ -158,6 +161,7 @@ def search_phase():
             logging.info("Solution terminated: %s", solutions[index].id) 
         index = index + 1
 
+    # Sort solutions by their scores and rank them
     import operator
     sorted_x = sorted(valid_solution_scores.items(), key=operator.itemgetter(1))
     if util.invert_metric(metric) is False:
@@ -166,9 +170,9 @@ def search_phase():
     index = 1
     for (sol, score) in sorted_x:
         valid_solutions[sol].rank = index
-        #print("Rank ", index)
-        #print("Score ", score)
-        #logging.info(valid_solutions[sol].primitives)
+        print("Rank ", index)
+        print("Score ", score)
+        logging.info(valid_solutions[sol].primitives)
         index = index + 1
 
     num = 20
@@ -177,6 +181,7 @@ def search_phase():
 
     util.initialize_for_search(outputDir + "/executables", outputDir + "/predictions", outputDir + "/pipelines")
 
+    # Fit solutions and dump out files
     sorted_x = sorted_x[:num]
     results = [async_message_thread.apply_async(fit_solution, (inputs, valid_solutions[sol], primitives, outputDir,))
      for (sol,score) in sorted_x]
@@ -190,6 +195,19 @@ def search_phase():
             logging.info(sys.exc_info()[0])
             logging.info("Solution terminated: %s", valid_solutions[sorted_x[index][0]].id)
         index = index + 1
+
+def get_indices(dataset):
+    """
+    Get dataset indices (d3mIndex)
+    """
+    num_data_elements = int(dataset.metadata.query([])['dimension']['length'])
+ 
+    for data_element_raw in range(num_data_elements): 
+        data_element = "%d" % (data_element_raw)
+        if 'https://metadata.datadrivendiscovery.org/types/Table' in dataset.metadata.query((data_element,))['semantic_types']:
+            table = dataset[data_element]
+ 
+    return pd.DataFrame(table['d3mIndex'])
 
 def test_phase():
     """
@@ -215,15 +233,17 @@ def test_phase():
     predictions = solution.produce(inputs=inputs)[0]
     if isinstance(predictions, np.ndarray):
         predictions = pd.DataFrame(data=predictions)
-    if solution.indices is not None:
-        predictions = pd.DataFrame({'d3mIndex': solution.indices['d3mIndex'], target:predictions.iloc[:,0]})
+    
+    indices = get_indices(dataset)
+    numcols = len(predictions.columns)
+    predictions = pd.DataFrame({'d3mIndex': indices['d3mIndex'], target:predictions.iloc[:,numcols-1]})
     print(predictions.shape)
     util.write_predictions(predictions, outputDir + "/predictions", solution, ['d3mIndex', target])
     
 
 def evaluate_solution_score(inputs, solution, primitives, metric):
     """
-    Validate each potential solution
+    Scores each potential solution
     Runs in a separate process
     """
     logging.info("Evaluating %s", solution.id)
@@ -235,7 +255,7 @@ def evaluate_solution_score(inputs, solution, primitives, metric):
 
 def fit_solution(inputs, solution, primitives, outputDir):
     """
-    Validate each potential solution
+    Fits each potential solution
     Runs in a separate process
     """
     logging.info("Fitting %s", solution.id)
@@ -504,11 +524,9 @@ class Core(core_pb2_grpc.CoreServicer):
             target = self._solutions[solution_id].problem.inputs[0].targets[0].column_name
 
             if output is not None:
-                if fitted_solution.indices is not None:
-                    indices = fitted_solution.indices
-                else:
-                    indices = output['d3mIndex'] 
-                predictions = pd.DataFrame({'d3mIndex': indices, target:output.iloc[:,0]})
+                indices = get_indices(inputs[0])
+                numcols = len(output.columns) 
+                predictions = pd.DataFrame({'d3mIndex': indices, target:output.iloc[:,numcols-1]})
                 uri = util.write_TA3_predictions(predictions, outputDir + "/predictions", fitted_solution, 'fit', ['d3mIndex', target]) 
                 uri = 'file://{uri}'.format(uri=os.path.abspath(uri)) 
                 result = value_pb2.Value(csv_uri=uri)
@@ -565,11 +583,9 @@ class Core(core_pb2_grpc.CoreServicer):
         target = solution.problem.inputs[0].targets[0].column_name
 
         if output is not None:
-            if solution.indices is not None:
-                indices = solution.indices
-            else:
-                indices = output['d3mIndex']
-            predictions = pd.DataFrame({'d3mIndex': indices, target:output.iloc[:,0]})
+            indices = get_indices(inputs[0])
+            numcols = len(output.columns)
+            predictions = pd.DataFrame({'d3mIndex': indices, target:output.iloc[:,numcols-1]})
             uri = util.write_TA3_predictions(predictions, outputDir + "/predictions", solution, 'produce', ['d3mIndex', target])
             uri = 'file://{uri}'.format(uri=os.path.abspath(uri))
             result = value_pb2.Value(csv_uri=uri)
