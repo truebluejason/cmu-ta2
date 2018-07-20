@@ -148,7 +148,9 @@ class SolutionDescription(object):
             return 0
 
     def create_pipeline_json(self, prim_dict, filename):
-        pipeline_description = Pipeline(pipeline_id=self.id, context=PipelineContext.EVALUATION)
+        name = "Pipeline for evaluation"
+        pipeline_id = self.id + "_" + str(self.rank)
+        pipeline_description = Pipeline(pipeline_id=pipeline_id, context=PipelineContext.EVALUATION, name=name)
         for ip in self.inputs:
             pipeline_description.add_input(name=ip['name'])
 
