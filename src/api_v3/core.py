@@ -84,6 +84,9 @@ def get_solutions(task_name, dataset, primitives, problem):
 
                 if (total_cols > 10 or rows > 1500) and 'find_projections' in python_path:
                     continue
+                if rows > 10000 and 'sklearn_wrap.SKSGD' in python_path:
+                    continue
+
                 pipe = copy.deepcopy(basic_sol)
                 pipe.id = str(uuid.uuid4())
                 pipe.add_step(p.primitive_class.python_path)
@@ -613,7 +616,7 @@ class Core(core_pb2_grpc.CoreServicer):
         solution = self._solutions[solution_id]
         solution.rank = rank
 
-        outputdir = os.environ['D3MOUTPUTDIR'] 
+        outputDir = os.environ['D3MOUTPUTDIR'] 
         util.write_solution(solution, outputDir + "/supporting_files")
         util.write_pipeline_json(solution, self.primitives, outputDir + "/pipelines")
         util.write_pipeline_executable(solution, outputDir + "/executables")

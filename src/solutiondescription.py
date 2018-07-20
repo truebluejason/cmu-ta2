@@ -130,6 +130,7 @@ class SolutionDescription(object):
         self.le = None
         self.taskname = None
         self.exclude_columns = None
+        self.trainindices = None
 
     def contains_placeholder(self):
         if self.steptypes is not None:
@@ -414,6 +415,26 @@ class SolutionDescription(object):
             if t in self.exclude_columns:
                 self.exclude_columns.remove(t)
 
+    def subset_rows(self, v):        
+        metadata = v.metadata
+        rows = len(v)
+        if rows > 150000:
+            if self.trainindices == None:
+                seq = [i for i in range(len(v))]
+                import random
+                random.shuffle(seq)
+
+                trainsize = 150000
+                self.trainindices = [seq[x] for x in range(trainsize)]
+           
+            X = pd.DataFrame(data=v.values, columns=v.columns.values.tolist())
+            newv = X.iloc[self.trainindices]
+            X = d3m_dataframe(newv)
+            X.metadata = v.metadata
+            return X
+        else:
+            return v     
+
     def fit(self, **arguments):
         """
         Train all steps in the solution.
@@ -431,6 +452,8 @@ class SolutionDescription(object):
                 
             if self.isDataFrameStep(n_step) == True:
                 self.exclude(primitives_outputs[n_step].metadata)
+                v = self.subset_rows(primitives_outputs[n_step])
+                primitives_outputs[n_step] = v
                  
         v = primitives_outputs[len(self.execution_order)-1]
         return self.invert_output(v)
@@ -505,6 +528,7 @@ class SolutionDescription(object):
                 training_arguments[param] = value
 
         python_path = primitive.metadata.query()['python_path']
+        
         if self.exclude_columns is not None and len(self.exclude_columns) > 0:
             if python_path == 'd3m.primitives.data.ColumnParser' or python_path == 'd3m.primitives.data.ExtractColumnsBySemanticTypes':
                 custom_hyperparams['exclude_columns'] = self.exclude_columns
@@ -751,6 +775,10 @@ class SolutionDescription(object):
             origin = data.split('.')[0]
             source = data.split('.')[1]
             self.primitives_arguments[i]['outputs'] = {'origin': origin, 'source': int(source), 'data': data}
+
+        if 'd3m.primitives.sklearn_wrap.SKRandomForest' in python_path:
+            self.hyperparams[i] = {}
+            self.hyperparams[i]['n_estimators'] = 100
             
         self.execution_order.append(i)
         self.add_outputs()
@@ -830,6 +858,8 @@ class SolutionDescription(object):
 
             if self.isDataFrameStep(n_step) is True:
                 self.exclude(primitives_outputs[n_step].metadata)
+                v = self.subset_rows(primitives_outputs[n_step])
+                primitives_outputs[n_step] = v
 
         (score, optimal_params) = primitives_outputs[len(self.execution_order)-1]
         self.hyperparams[len(self.execution_order)-1] = optimal_params
@@ -1008,14 +1038,19 @@ class PrimitiveDescription(object):
         Evaluates model on inputs X and outputs y
         Returns metric.
         """
-        if 'hyperparams' in self.primitive.metadata.query()['primitive_code'] and y is not None and 'find_projections' not in self.primitive.metadata.query()['python_path']:
+        python_path = self.primitive.metadata.query()['python_path']
+
+        if 'hyperparams' in self.primitive.metadata.query()['primitive_code'] and y is not None and 'find_projections' not in python_path:
             hyperparam_spec = self.primitive.metadata.query()['primitive_code']['hyperparams']
             optimal_params = self.find_optimal_hyperparams(train=X, output=y, hyperparam_spec=hyperparam_spec,
           metric=metric_type, custom_hyperparams=custom_hyperparams) 
         else:
             optimal_params = dict()
   
-        python_path = self.primitive.metadata.query()['python_path'] 
+        if custom_hyperparams is not None:
+            for name, value in custom_hyperparams.items():
+                optimal_params[name] = value
+
         if y is None or 'd3m.primitives.sri' in python_path or 'bbn' in python_path:
             return (0.0, optimal_params)
               
