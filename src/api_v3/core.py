@@ -42,9 +42,66 @@ def load_primitives():
             continue
         if p.python_path == 'd3m.primitives.sklearn_wrap.SKKNeighborsRegressor':
             continue
+        if p.python_path == 'd3m.primitives.dsbox.CorexSupervised':
+            continue
+        if p.python_path == 'd3m.primitives.sklearn_wrap.SKSVC':
+            continue
+
         primitives[p.classname] = solutiondescription.PrimitiveDescription(p.classname, p)
 
     return primitives
+
+def get_solutions(task_name, dataset, primitives, problem):
+    solutions = []
+
+    basic_sol = solutiondescription.SolutionDescription(problem)
+    basic_sol.initialize_solution(task_name)
+
+    rows = dataset.metadata.query(('0',))['dimension']['length']
+
+    print("Rows = ", rows)
+    if task_name == 'CLASSIFICATION' or task_name == 'REGRESSION':
+        (types_present, total_cols) = solutiondescription.column_types_present(dataset)
+
+        if 'TIMESERIES' in types_present:
+            basic_sol = solutiondescription.SolutionDescription(problem)
+            basic_sol.initialize_solution('TIMESERIES')
+        elif 'IMAGE' in types_present:
+            basic_sol = solutiondescription.SolutionDescription(problem)
+            basic_sol.initialize_solution('IMAGE')
+        elif 'TEXT' in types_present:
+            basic_sol = solutiondescription.SolutionDescription(problem)
+            basic_sol.initialize_solution('TEXT')
+        elif 'AUDIO' in types_present:
+            basic_sol = solutiondescription.SolutionDescription(problem)
+            basic_sol.initialize_solution('AUDIO')
+
+        for classname, p in primitives.items():
+            if p.primitive_class.family == task_name:
+                python_path = p.primitive_class.python_path
+                if 'd3m.primitives.sri.' in python_path or 'd3m.primitives.jhu_primitives' in python_path or 'lupi_svm' in python_path or 'bbn' in python_path:
+                    continue
+
+                if (total_cols > 10 or rows > 1500) and 'find_projections' in python_path:
+                    continue
+                if rows > 10000 and 'sklearn_wrap.SKSGD' in python_path:
+                    continue
+
+                pipe = copy.deepcopy(basic_sol)
+                pipe.id = str(uuid.uuid4())
+                pipe.add_step(p.primitive_class.python_path)
+                solutions.append(pipe)
+    elif task_name == 'COLLABORATIVEFILTERING' or task_name == 'VERTEXNOMINATION' or task_name == 'COMMUNITYDETECTION'  or task_name == 'GRAPHMATCHING' or task_name == 'LINKPREDICTION' or task_name == 'TIMESERIESFORECASTING':
+        if task_name == 'TIMESERIESFORECASTING':
+            basic_sol.add_step('d3m.primitives.sri.psl.RelationalTimeseries')
+        pipe = copy.deepcopy(basic_sol)
+        pipe.id = str(uuid.uuid4())
+        pipe.add_outputs()
+        solutions.append(pipe)
+    else:
+        logging.info("No matching solutions")
+       
+    return solutions
 
 def search_phase():
     """
@@ -62,9 +119,6 @@ def search_phase():
     config_file = inputDir + "/search_config.json"
     (dataset, task_name, target) = util.load_schema(config_file)
 
-    #cols = dataset.metadata.get_columns_with_semantic_type("http://schema.org/Text")
-    #print("Str: ", cols)
-
     resType = dataset.metadata.query(('0',))['semantic_types'][0]
     print(resType)
     timeout_in_min = (int)(timeout_env)
@@ -72,30 +126,7 @@ def search_phase():
     task_name = task_name.upper()
     logging.info(task_name)
 
-    solutions = []
-
-    basic_sol = solutiondescription.SolutionDescription(None)
-    basic_sol.initialize_solution(task_name)
-
-    if task_name == 'CLASSIFICATION' or task_name == 'REGRESSION':
-        for classname, p in primitives.items():
-            if p.primitive_class.family == task_name:
-                if 'd3m.primitives.sri.' in p.primitive_class.python_path:
-                    continue
-                pipe = copy.deepcopy(basic_sol)
-                pipe.id = str(uuid.uuid4())
-                pipe.add_step(p.primitive_class.python_path)
-                solutions.append(pipe)
-    elif task_name == 'COLLABORATIVEFILTERING' or task_name == 'VERTEXNOMINATION' or task_name == 'COMMUNITYDETECTION'  or task_name == 'GRAPHMATCHING' or task_name == 'LINKPREDICTION' or task_name == 'TIMESERIESFORECASTING':
-        if task_name == 'TIMESERIESFORECASTING':
-            basic_sol.add_step('d3m.primitives.sri.psl.RelationalTimeseries')
-        pipe = copy.deepcopy(basic_sol)
-        pipe.id = str(uuid.uuid4())
-        pipe.add_outputs()
-        solutions.append(pipe)
-    else:
-        logging.info("No matching solutions")
-        return solutions
+    solutions = get_solutions(task_name, dataset, primitives, None)
 
     async_message_thread = Pool((int)(num_cpus))
     valid_solutions = {}
@@ -107,6 +138,8 @@ def search_phase():
         metric= problem_pb2.ACCURACY
     else:
         metric= problem_pb2.MEAN_SQUARED_ERROR
+
+    # Score potential solutions
     results = [async_message_thread.apply_async(evaluate_solution_score, (inputs, sol, primitives, metric,)) for sol in solutions]
     timeout = timeout_in_min * 60
     halftimeout = None
@@ -131,6 +164,7 @@ def search_phase():
             logging.info("Solution terminated: %s", solutions[index].id) 
         index = index + 1
 
+    # Sort solutions by their scores and rank them
     import operator
     sorted_x = sorted(valid_solution_scores.items(), key=operator.itemgetter(1))
     if util.invert_metric(metric) is False:
@@ -139,9 +173,9 @@ def search_phase():
     index = 1
     for (sol, score) in sorted_x:
         valid_solutions[sol].rank = index
-        #print("Rank ", index)
-        #print("Score ", score)
-        #logging.info(valid_solutions[sol].primitives)
+        print("Rank ", index)
+        print("Score ", score)
+        logging.info(valid_solutions[sol].primitives)
         index = index + 1
 
     num = 20
@@ -150,6 +184,7 @@ def search_phase():
 
     util.initialize_for_search(outputDir + "/executables", outputDir + "/predictions", outputDir + "/pipelines")
 
+    # Fit solutions and dump out files
     sorted_x = sorted_x[:num]
     results = [async_message_thread.apply_async(fit_solution, (inputs, valid_solutions[sol], primitives, outputDir,))
      for (sol,score) in sorted_x]
@@ -163,6 +198,19 @@ def search_phase():
             logging.info(sys.exc_info()[0])
             logging.info("Solution terminated: %s", valid_solutions[sorted_x[index][0]].id)
         index = index + 1
+
+def get_indices(dataset):
+    """
+    Get dataset indices (d3mIndex)
+    """
+    num_data_elements = int(dataset.metadata.query([])['dimension']['length'])
+ 
+    for data_element_raw in range(num_data_elements): 
+        data_element = "%d" % (data_element_raw)
+        if 'https://metadata.datadrivendiscovery.org/types/Table' in dataset.metadata.query((data_element,))['semantic_types']:
+            table = dataset[data_element]
+ 
+    return pd.DataFrame(table['d3mIndex'])
 
 def test_phase():
     """
@@ -188,15 +236,17 @@ def test_phase():
     predictions = solution.produce(inputs=inputs)[0]
     if isinstance(predictions, np.ndarray):
         predictions = pd.DataFrame(data=predictions)
-    if solution.indices is not None:
-        predictions = pd.DataFrame({'d3mIndex': solution.indices['d3mIndex'], target:predictions.iloc[:,0]})
+    
+    indices = get_indices(dataset)
+    numcols = len(predictions.columns)
+    predictions = pd.DataFrame({'d3mIndex': indices['d3mIndex'], target:predictions.iloc[:,numcols-1]})
     print(predictions.shape)
     util.write_predictions(predictions, outputDir + "/predictions", solution, ['d3mIndex', target])
     
 
 def evaluate_solution_score(inputs, solution, primitives, metric):
     """
-    Validate each potential solution
+    Scores each potential solution
     Runs in a separate process
     """
     logging.info("Evaluating %s", solution.id)
@@ -208,7 +258,7 @@ def evaluate_solution_score(inputs, solution, primitives, metric):
 
 def fit_solution(inputs, solution, primitives, outputDir):
     """
-    Validate each potential solution
+    Fits each potential solution
     Runs in a separate process
     """
     logging.info("Fitting %s", solution.id)
@@ -266,7 +316,7 @@ class Core(core_pb2_grpc.CoreServicer):
             test_dataset = D3MDatasetLoader().load(dataset_uri)
             prodop = solution.produce(inputs=[test_dataset], solution_dict=self._solutions)
 
-    def search_solutions(self, request):
+    def search_solutions(self, request, dataset):
         primitives = self._primitives
         problem = request.problem.problem
         template = request.template
@@ -274,39 +324,17 @@ class Core(core_pb2_grpc.CoreServicer):
         logging.info(task_name)
 
         solutions = []
-        if task_name != 'CLASSIFICATION' and task_name != 'REGRESSION':
-            logging.info("No matching solutions")
-            return solutions
 
-        basic_sol = solutiondescription.SolutionDescription(request.problem)
-        if bool(template) and isinstance(template, pipeline_pb2.PipelineDescription) and len(template.steps) > 0:
+        if template != None and isinstance(template, pipeline_pb2.PipelineDescription) and len(template.steps) > 0:
             print("template:", template)
+            basic_sol = solutiondescription.SolutionDescription(problem)
             basic_sol.create_from_pipelinedescription(pipeline_description=template)
-        else:
-            template = None
+            if basic_sol.contains_placeholder() == False:  # Fully defined
+                solutions.append(basic_sol)
+                return solutions
 
-        if bool(template) == False or (basic_sol.num_steps() == 1 and basic_sol.contains_placeholder() == True):
-            basic_sol.initialize_solution(task_name)
-
-        if bool(template) == False or basic_sol.contains_placeholder() == True:
-            if task_name == 'CLASSIFICATION' or task_name == 'REGRESSION':
-                for classname, p in primitives.items():
-                    if p.primitive_class.family == task_name:
-                        if 'd3m.primitives.sri.' in p.primitive_class.python_path:
-                            continue
-                        pipe = copy.deepcopy(basic_sol)
-                        pipe.id = str(uuid.uuid4())
-                        pipe.add_step(p.primitive_class.python_path)
-                        solutions.append(pipe)
-            elif task_name == 'COLLABORATIVEFILTERING' or task_name == 'VERTEXNOMINATION' or task_name == 'COMMUNITYDETECTION'  or task_name == 'GRAPHMATCHING' or task_name == 'LINKPREDICTION':
-                pipe = copy.deepcopy(basic_sol)
-                pipe.id = str(uuid.uuid4())
-                pipe.add_outputs()
-                solutions.append(pipe)
-
-        # Fully defined
-        if bool(template) == True and basic_sol.contains_placeholder() == False:
-            solutions.append(basic_sol)
+        taskname = task_name.replace('_', '')
+        solutions = get_solutions(taskname, dataset, primitives, request.problem)
 
         return solutions
     
@@ -342,9 +370,8 @@ class Core(core_pb2_grpc.CoreServicer):
                      internal_score=0.0, scores=[])
 
         request_params = self._solution_score_map[search_id_str]
-        solutions = self.search_solutions(request_params)
-
         inputs = self._get_inputs(request_params.problem, request_params.inputs)
+        solutions = self.search_solutions(request_params, inputs[0])
 
         count = 0
         index = 0
@@ -500,7 +527,9 @@ class Core(core_pb2_grpc.CoreServicer):
             target = self._solutions[solution_id].problem.inputs[0].targets[0].column_name
 
             if output is not None:
-                predictions = pd.DataFrame({'d3mIndex': fitted_solution.indices['d3mIndex'], target:output.iloc[:,0]})
+                indices = get_indices(inputs[0])
+                numcols = len(output.columns) 
+                predictions = pd.DataFrame({'d3mIndex': indices, target:output.iloc[:,numcols-1]})
                 uri = util.write_TA3_predictions(predictions, outputDir + "/predictions", fitted_solution, 'fit', ['d3mIndex', target]) 
                 uri = 'file://{uri}'.format(uri=os.path.abspath(uri)) 
                 result = value_pb2.Value(csv_uri=uri)
@@ -557,7 +586,9 @@ class Core(core_pb2_grpc.CoreServicer):
         target = solution.problem.inputs[0].targets[0].column_name
 
         if output is not None:
-            predictions = pd.DataFrame({'d3mIndex': solution.indices['d3mIndex'], target:output.iloc[:,0]})
+            indices = get_indices(inputs[0])
+            numcols = len(output.columns)
+            predictions = pd.DataFrame({'d3mIndex': indices, target:output.iloc[:,numcols-1]})
             uri = util.write_TA3_predictions(predictions, outputDir + "/predictions", solution, 'produce', ['d3mIndex', target])
             uri = 'file://{uri}'.format(uri=os.path.abspath(uri))
             result = value_pb2.Value(csv_uri=uri)
@@ -585,7 +616,7 @@ class Core(core_pb2_grpc.CoreServicer):
         solution = self._solutions[solution_id]
         solution.rank = rank
 
-        outputdir = os.environ['D3MOUTPUTDIR'] 
+        outputDir = os.environ['D3MOUTPUTDIR'] 
         util.write_solution(solution, outputDir + "/supporting_files")
         util.write_pipeline_json(solution, self.primitives, outputDir + "/pipelines")
         util.write_pipeline_executable(solution, outputDir + "/executables")
