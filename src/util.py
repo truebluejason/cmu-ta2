@@ -107,16 +107,6 @@ def write_solution(solution, dirname):
     pickle.dump(solution, output)
     output.close()
 
-def write_TA3_predictions(predictions, dirname, solution, mode, columns):
-    directory = dirname + "/" + solution.id + "_" + mode
-    if not os.path.exists(directory):
-        os.makedirs(directory)
-
-    outputFilePath = directory + "/predictions.csv"
-    with open(outputFilePath, 'w') as outputFile:
-        predictions.to_csv(outputFile, header=True, index=False, columns=columns)
-    return outputFilePath
-
 def initialize_for_search(exe_dir, pred_dir, pipe_dir):
     if not os.path.exists(exe_dir):
         os.makedirs(exe_dir)

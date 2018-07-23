@@ -291,6 +291,8 @@ class Core(core_pb2_grpc.CoreServicer):
         self._search_solutions = {}
         self.async_message_thread = Pool(cpu_count()) #pool.ThreadPool(processes=1,)
         self._primitives = load_primitives()         
+        outputDir = os.environ['D3MOUTPUTDIR']
+        util.initialize_for_search(outputDir + "/executables", outputDir + "/predictions", outputDir + "/pipelines")
 
         if 0:
             pipeline_uri = '185_pipe_v3.json'
@@ -529,8 +531,8 @@ class Core(core_pb2_grpc.CoreServicer):
             if output is not None:
                 indices = get_indices(inputs[0])
                 numcols = len(output.columns) 
-                predictions = pd.DataFrame({'d3mIndex': indices, target:output.iloc[:,numcols-1]})
-                uri = util.write_TA3_predictions(predictions, outputDir + "/predictions", fitted_solution, 'fit', ['d3mIndex', target]) 
+                predictions = pd.DataFrame({'d3mIndex': indices['d3mIndex'], target:output.iloc[:,numcols-1]})
+                uri = util.write_predictions(predictions, outputDir + "/predictions", fitted_solution, ['d3mIndex', target]) 
                 uri = 'file://{uri}'.format(uri=os.path.abspath(uri)) 
                 result = value_pb2.Value(csv_uri=uri)
             else:
@@ -588,8 +590,8 @@ class Core(core_pb2_grpc.CoreServicer):
         if output is not None:
             indices = get_indices(inputs[0])
             numcols = len(output.columns)
-            predictions = pd.DataFrame({'d3mIndex': indices, target:output.iloc[:,numcols-1]})
-            uri = util.write_TA3_predictions(predictions, outputDir + "/predictions", solution, 'produce', ['d3mIndex', target])
+            predictions = pd.DataFrame({'d3mIndex': indices['d3mIndex'], target:output.iloc[:,numcols-1]})
+            uri = util.write_predictions(predictions, outputDir + "/predictions", solution, ['d3mIndex', target])
             uri = 'file://{uri}'.format(uri=os.path.abspath(uri))
             result = value_pb2.Value(csv_uri=uri)
         else:

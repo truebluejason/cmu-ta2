@@ -116,7 +116,7 @@ class SolutionDescription(object):
         self.description = None
         self.users = None
         self.inputs = []
-        self.rank = -1
+        self.rank = 1
         
         self.outputs = None
         self.execution_order = None
