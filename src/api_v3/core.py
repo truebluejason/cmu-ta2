@@ -55,7 +55,7 @@ def get_solutions(task_name, dataset, primitives, problem):
     solutions = []
 
     basic_sol = solutiondescription.SolutionDescription(problem)
-    basic_sol.initialize_solution(task_name)
+    basic_sol.initialize_solution(task_name, task_name)
 
     rows = dataset.metadata.query(('0',))['dimension']['length']
 
@@ -65,16 +65,16 @@ def get_solutions(task_name, dataset, primitives, problem):
 
         if 'TIMESERIES' in types_present:
             basic_sol = solutiondescription.SolutionDescription(problem)
-            basic_sol.initialize_solution('TIMESERIES')
+            basic_sol.initialize_solution('TIMESERIES', task_name)
         elif 'IMAGE' in types_present:
             basic_sol = solutiondescription.SolutionDescription(problem)
-            basic_sol.initialize_solution('IMAGE')
+            basic_sol.initialize_solution('IMAGE', task_name)
         elif 'TEXT' in types_present:
             basic_sol = solutiondescription.SolutionDescription(problem)
-            basic_sol.initialize_solution('TEXT')
+            basic_sol.initialize_solution('TEXT', task_name)
         elif 'AUDIO' in types_present:
             basic_sol = solutiondescription.SolutionDescription(problem)
-            basic_sol.initialize_solution('AUDIO')
+            basic_sol.initialize_solution('AUDIO', task_name)
 
         for classname, p in primitives.items():
             if p.primitive_class.family == task_name:
@@ -82,7 +82,7 @@ def get_solutions(task_name, dataset, primitives, problem):
                 if 'd3m.primitives.sri.' in python_path or 'd3m.primitives.jhu_primitives' in python_path or 'lupi_svm' in python_path or 'bbn' in python_path:
                     continue
 
-                if (total_cols > 10 or rows > 1500) and 'find_projections' in python_path:
+                if (total_cols > 20 or rows > 1500) and 'find_projections' in python_path:
                     continue
                 if rows > 10000 and 'sklearn_wrap.SKSGD' in python_path:
                     continue
@@ -173,9 +173,9 @@ def search_phase():
     index = 1
     for (sol, score) in sorted_x:
         valid_solutions[sol].rank = index
-        print("Rank ", index)
-        print("Score ", score)
-        logging.info(valid_solutions[sol].primitives)
+        #print("Rank ", index)
+        #print("Score ", score)
+        #logging.info(valid_solutions[sol].primitives)
         index = index + 1
 
     num = 20

@@ -535,6 +535,12 @@ class SolutionDescription(object):
             if python_path == 'd3m.primitives.data.ColumnParser' or python_path == 'd3m.primitives.data.ExtractColumnsBySemanticTypes':
                 custom_hyperparams['exclude_columns'] = self.exclude_columns
 
+        if 'find_projections' in python_path and 'Numeric' not in python_path:
+            rows = len(training_arguments['inputs'])
+            min_rows = (int)(rows * 0.5)
+            if min_rows < 100:
+                custom_hyperparams['support'] = min_rows
+
         model = primitive(hyperparams=primitive_hyperparams(
                     primitive_hyperparams.defaults(), **custom_hyperparams))
         model.set_training_data(**training_arguments)
@@ -562,7 +568,7 @@ class SolutionDescription(object):
         except (ValueError, OverflowError):
             return 0.0
 
-    def transform_data(self, primitive, v):
+    def transform_data(self, primitive, v, n_step):
         path = primitive.metadata.query()['python_path']
         if path == 'd3m.primitives.data.ExtractColumnsBySemanticTypes' or path == 'd3m.primitives.time_series.TargetsReader':
             if len(v.columns) > 1: # Attributes
@@ -579,8 +585,8 @@ class SolutionDescription(object):
                     newv = d3m_dataframe(X, generate_metadata=False)
                     newv.metadata = v.metadata
                     return newv      
-            else: # Targets
-                if self.taskname == 'CLASSIFICATION':
+            else: # Target
+                if self.taskname == 'CLASSIFICATION' and n_step == len(self.execution_order)-2:
                     self.le = preprocessing.LabelEncoder()
                     orig_metadata = v.metadata
                     v = pd.DataFrame(self.le.fit_transform(v.values.ravel()))
@@ -642,7 +648,7 @@ class SolutionDescription(object):
             if self.steptypes[n_step] is StepType.PRIMITIVE:
                 if n_step in self.produce_order:
                     v = self.pipeline[n_step].produce(**produce_arguments).value
-                    v = self.transform_data(primitive, v)
+                    v = self.transform_data(primitive, v, n_step)
                     steps_outputs[n_step] = v
                 else:
                     steps_outputs[n_step] = None
@@ -660,7 +666,7 @@ class SolutionDescription(object):
                 pipeline_output.append(arguments[output[0][output[1]]])
         return pipeline_output
 
-    def initialize_solution(self, taskname):
+    def initialize_solution(self, taskname, main_task):
         """
         Initialize a solution from scratch consisting of predefined steps
         Leave last step for filling in primitive
@@ -668,7 +674,7 @@ class SolutionDescription(object):
         python_paths = task_paths[taskname]
         num = len(python_paths)
 
-        self.taskname = taskname
+        self.taskname = main_task
         self.primitives_arguments = {}
         self.primitives = {}
         self.hyperparams = {}
@@ -838,7 +844,7 @@ class SolutionDescription(object):
                 return self.validate_step(self.primitives[n_step], primitive_arguments)    
             else:
                 v = self.fit_step(n_step, self.primitives[n_step], primitive_arguments)
-                v = self.transform_data(self.primitives[n_step], v)   
+                v = self.transform_data(self.primitives[n_step], v, n_step)   
                 return v
  
     def is_last_step(self, n):
@@ -919,6 +925,10 @@ class SolutionDescription(object):
         """
         Last step of a solution evaluated for validate_solution()
         """
+        python_path = primitive.metadata.query()['python_path']
+        if 'find_projections' in python_path:
+            return True
+
         family = primitive.metadata.query()['primitive_family']
 
         training_arguments_primitive = self._primitive_arguments(primitive, 'set_training_data')
@@ -1063,14 +1073,21 @@ class PrimitiveDescription(object):
         splits = 3 
         metric_sum = 0
 
+        if isinstance(X, pd.DataFrame):
+            Xnew = pd.DataFrame(data=X.values)
+        else:
+            Xnew = pd.DataFrame(data=X)
+
+        rows = len(Xnew)
+        if 'find_projections' in python_path and 'Numeric' not in python_path:
+            min_rows = (int)(rows * 0.33 * 0.5)
+            if min_rows < 100:
+                optimal_params['support'] = min_rows
+
         primitive_hyperparams = self.primitive.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
         prim_instance = self.primitive(hyperparams=primitive_hyperparams(primitive_hyperparams.defaults(), **optimal_params))
         score = 0.0
 
-        if isinstance(X, pd.DataFrame): 
-            Xnew = pd.DataFrame(data=X.values)
-        else:
-            Xnew = pd.DataFrame(data=X)
         for train_index, test_index in kf.split(X):
             t0 = time.time()
             X_train, X_test = Xnew.iloc[train_index], Xnew.iloc[test_index]
