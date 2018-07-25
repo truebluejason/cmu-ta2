@@ -405,7 +405,7 @@ class SolutionDescription(object):
         return False
 
     def exclude(self, metadata):
-        self.exclude_columns = metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/CategoricalData")
+        self.exclude_columns = []#metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/CategoricalData")
         total_cols = len(metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/Attribute"))
         cols = metadata.get_columns_with_semantic_type("http://schema.org/Text")
         if len(cols) < total_cols - len(self.exclude_columns):
@@ -1052,7 +1052,7 @@ class PrimitiveDescription(object):
         """
         python_path = self.primitive.metadata.query()['python_path']
 
-        if 'hyperparams' in self.primitive.metadata.query()['primitive_code'] and y is not None and 'find_projections' not in python_path:
+        if 'hyperparams' in self.primitive.metadata.query()['primitive_code'] and y is not None and 'find_projections' not in python_path and 'sklearn_wrap' not in python_path:
             hyperparam_spec = self.primitive.metadata.query()['primitive_code']['hyperparams']
             optimal_params = self.find_optimal_hyperparams(train=X, output=y, hyperparam_spec=hyperparam_spec,
           metric=metric_type, custom_hyperparams=custom_hyperparams) 
@@ -1068,9 +1068,9 @@ class PrimitiveDescription(object):
               
         from sklearn.model_selection import KFold
 
-        kf = KFold(n_splits=3, shuffle=True, random_state=9001)
+        kf = KFold(n_splits=5, shuffle=True, random_state=9001)
       
-        splits = 3 
+        splits = 5
         metric_sum = 0
 
         if isinstance(X, pd.DataFrame):
@@ -1080,7 +1080,7 @@ class PrimitiveDescription(object):
 
         rows = len(Xnew)
         if 'find_projections' in python_path and 'Numeric' not in python_path:
-            min_rows = (int)(rows * 0.33 * 0.5)
+            min_rows = (int)(rows * 0.8 * 0.5)
             if min_rows < 100:
                 optimal_params['support'] = min_rows
 
@@ -1089,9 +1089,7 @@ class PrimitiveDescription(object):
         score = 0.0
 
         for train_index, test_index in kf.split(X):
-            t0 = time.time()
             X_train, X_test = Xnew.iloc[train_index], Xnew.iloc[test_index]
-            t1 = time.time()
            
             y_train, y_test = y.iloc[train_index], y.iloc[test_index]
             y_train.metadata = y.metadata
@@ -1156,7 +1154,7 @@ class PrimitiveDescription(object):
         else:
             return metrics.accuracy_score(Ytest, predictions)
 
-    def optimize_primitive(self, Xtrain, Ytrain, Xtest, Ytest, inputs, primitive_hyperparams, optimal_params, hyperparam_types, metric_type):
+    def optimize_primitive(self, train, output, inputs, primitive_hyperparams, optimal_params, hyperparam_types, metric_type):
         """
         Function to evaluate each input point in the hyper parameter space.
         This is called for every input sample being evaluated by the bayesian optimization package.
@@ -1169,10 +1167,35 @@ class PrimitiveDescription(object):
                 value = (int)(inputs[index]+0.5)
             custom_hyperparams[name] = value
 
-        prim_instance = self.primitive(hyperparams=primitive_hyperparams(primitive_hyperparams.defaults(), **custom_hyperparams))
+        import random
 
+        # Run training on 90% and testing on 10% random split of the dataset.
+        seq = [i for i in range(len(train))]
+        random.shuffle(seq)
+
+        testsize = (int)(0.1 * len(train) + 0.5)
+        trainindices = [seq[x] for x in range(len(train)-testsize)]
+        testindices = [seq[x] for x in range(len(train)-testsize, len(train))]
+
+        if isinstance(train, pd.DataFrame):
+            Xnew = pd.DataFrame(data=train.values, columns=train.columns.values.tolist())
+        else:
+            Xnew = pd.DataFrame(data=train)
+        Xtrain = Xnew.iloc[trainindices]
+        Ytrain = output.iloc[trainindices]
+        Xtest = Xnew.iloc[testindices]
+        Ytest = output.iloc[testindices]
+
+        Xtrain = d3m_dataframe(Xtrain, generate_metadata=False)
+        Xtrain.metadata = train.metadata.clear(for_value=Xtrain, generate_metadata=True)
+        Xtest = d3m_dataframe(Xtest, generate_metadata=False)
+        Xtest.metadata = train.metadata.clear(for_value=Xtest, generate_metadata=True)
+        Ytrain.metadata = output.metadata
+
+        prim_instance = self.primitive(hyperparams=primitive_hyperparams(primitive_hyperparams.defaults(), **custom_hyperparams))
         prim_instance.set_training_data(inputs=Xtrain, outputs=Ytrain)
         prim_instance.fit()
+
         predictions = prim_instance.produce(inputs=Xtest).value
 
         if len(predictions.columns) > 1:
@@ -1220,34 +1243,8 @@ class PrimitiveDescription(object):
         if index == 0:
             return optimal_found_params
 
-        import random
-        random.seed(9001)
-
-        # Run training on 90% and testing on 10% random split of the dataset.
-        seq = [i for i in range(len(train))]
-        random.shuffle(seq)
-
-        testsize = (int)(0.1 * len(train) + 0.5)
-        trainindices = [seq[x] for x in range(len(train)-testsize)]
-        testindices = [seq[x] for x in range(len(train)-testsize, len(train))]
-
-        if isinstance(train, pd.DataFrame):
-            Xnew = pd.DataFrame(data=train.values, columns=train.columns.values.tolist())
-        else:
-            Xnew = pd.DataFrame(data=train)
-        Xtrain = Xnew.iloc[trainindices]
-        Ytrain = output.iloc[trainindices]
-        Xtest = Xnew.iloc[testindices]
-        Ytest = output.iloc[testindices]
-
-        Xtrain = d3m_dataframe(Xtrain, generate_metadata=False)
-        Xtrain.metadata = train.metadata.clear(for_value=Xtrain, generate_metadata=True)
-        Xtest = d3m_dataframe(Xtest, generate_metadata=False)
-        Xtest.metadata = train.metadata.clear(for_value=Xtest, generate_metadata=True)
-        Ytrain.metadata = output.metadata
-
         primitive_hyperparams = self.primitive.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
-        func = lambda inputs : self.optimize_primitive(Xtrain, Ytrain, Xtest, Ytest, inputs, primitive_hyperparams, optimal_params, hyperparam_types, metric_type)
+        func = lambda inputs : self.optimize_primitive(train, output, inputs, primitive_hyperparams, optimal_params, hyperparam_types, metric_type)
       
         try:
             (curr_opt_val, curr_opt_pt) = bo.gp_call.fmax(func, domain_bounds, 10)

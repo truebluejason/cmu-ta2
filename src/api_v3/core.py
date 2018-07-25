@@ -44,7 +44,7 @@ def load_primitives():
             continue
         if p.python_path == 'd3m.primitives.dsbox.CorexSupervised':
             continue
-        if p.python_path == 'd3m.primitives.sklearn_wrap.SKSVC':
+        if p.python_path == 'd3m.primitives.sklearn_wrap.SKDecisionTreeClassifier':
             continue
 
         primitives[p.classname] = solutiondescription.PrimitiveDescription(p.classname, p)
@@ -175,7 +175,7 @@ def search_phase():
         valid_solutions[sol].rank = index
         #print("Rank ", index)
         #print("Score ", score)
-        #logging.info(valid_solutions[sol].primitives)
+        #print(valid_solutions[sol].primitives)
         index = index + 1
 
     num = 20
