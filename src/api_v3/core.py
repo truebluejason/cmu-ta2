@@ -46,6 +46,8 @@ def load_primitives():
             continue
         if p.python_path == 'd3m.primitives.sklearn_wrap.SKDecisionTreeClassifier':
             continue
+        if p.python_path == 'd3m.primitives.realML.TensorMachinesBinaryClassification':
+            continue
 
         primitives[p.classname] = solutiondescription.PrimitiveDescription(p.classname, p)
 
@@ -620,7 +622,7 @@ class Core(core_pb2_grpc.CoreServicer):
 
         outputDir = os.environ['D3MOUTPUTDIR'] 
         util.write_solution(solution, outputDir + "/supporting_files")
-        util.write_pipeline_json(solution, self.primitives, outputDir + "/pipelines")
+        util.write_pipeline_json(solution, self._primitives, outputDir + "/pipelines")
         util.write_pipeline_executable(solution, outputDir + "/executables")
 
         return core_pb2.SolutionExportResponse()
