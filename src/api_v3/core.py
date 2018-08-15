@@ -618,7 +618,7 @@ class Core(core_pb2_grpc.CoreServicer):
         solution_id = request.fitted_solution_id
         rank = request.rank
         solution = self._solutions[solution_id]
-        solution.rank = rank
+        solution.rank = (int)rank
 
         outputDir = os.environ['D3MOUTPUTDIR'] 
         util.write_solution(solution, outputDir + "/supporting_files")
