@@ -233,7 +233,8 @@ def test_phase():
     inputs.append(dataset)
 
     import ntpath
-    pipeline_name = ntpath.basename(executable).split(".")[0]
+    pipeline_basename = ntpath.basename(executable)
+    pipeline_name = pipeline_basename[:-5]
     solution = util.get_pipeline(outputDir + "/supporting_files", pipeline_name)
     predictions = solution.produce(inputs=inputs)[0]
     if isinstance(predictions, np.ndarray):
@@ -618,7 +619,7 @@ class Core(core_pb2_grpc.CoreServicer):
         solution_id = request.fitted_solution_id
         rank = request.rank
         solution = self._solutions[solution_id]
-        solution.rank = (int)rank
+        solution.rank = rank
 
         outputDir = os.environ['D3MOUTPUTDIR'] 
         util.write_solution(solution, outputDir + "/supporting_files")
