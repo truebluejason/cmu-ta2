@@ -234,7 +234,7 @@ def test_phase():
 
     import ntpath
     pipeline_basename = ntpath.basename(executable)
-    pipeline_name = pipeline_basename[:-5]
+    pipeline_name = pipeline_basename[:-3]
     solution = util.get_pipeline(outputDir + "/supporting_files", pipeline_name)
     predictions = solution.produce(inputs=inputs)[0]
     if isinstance(predictions, np.ndarray):
