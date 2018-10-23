@@ -637,8 +637,8 @@ class Core(core_pb2_grpc.CoreServicer):
         logging.info("Message received: ListPrimitives")
 
         primitives = []
-        for p in self._primitives:
-            primitives.append(primitive_pb2.Primitive(id=p.id, version=p.version, python_path=p.python_path, name=p.name, digest=None))
+        for classname, p in self._primitives.items():
+            primitives.append(primitive_pb2.Primitive(id=p.id, version=p.primitive_class.version, python_path=p.primitive_class.python_path, name=p.primitive_class.name, digest=None))
         return core_pb2.ListPrimitivesResponse(primitives=primitives)
 
     def Hello(self, request, context):
