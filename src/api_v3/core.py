@@ -25,7 +25,9 @@ import uuid
 logging.basicConfig(level=logging.INFO)
 pd.set_option('display.max_rows', None)
 
-from d3m.container.dataset import D3MDatasetLoader, Dataset
+from d3m.container.dataset import D3MDatasetLoader, CSVLoader, Dataset
+from d3m.metadata import base as metadata_base
+from d3m import container
 
 def load_primitives():
     primitives = {}
@@ -149,6 +151,8 @@ def search_phase():
         timeout = None
     elif timeout > 60:
         timeout = timeout - 60
+    
+    if timeout is not None:    
         halftimeout = timeout/2
 
     index = 0
@@ -206,7 +210,6 @@ def get_indices(dataset):
     Get dataset indices (d3mIndex)
     """
     num_data_elements = int(dataset.metadata.query([])['dimension']['length'])
- 
     for data_element_raw in range(num_data_elements): 
         data_element = "%d" % (data_element_raw)
         if 'https://metadata.datadrivendiscovery.org/types/Table' in dataset.metadata.query((data_element,))['semantic_types']:
@@ -331,8 +334,7 @@ class Core(core_pb2_grpc.CoreServicer):
         solutions = []
 
         if template != None and isinstance(template, pipeline_pb2.PipelineDescription) and len(template.steps) > 0:
-            print("template:", template)
-            basic_sol = solutiondescription.SolutionDescription(problem)
+            basic_sol = solutiondescription.SolutionDescription(request.problem)
             basic_sol.create_from_pipelinedescription(pipeline_description=template)
             if basic_sol.contains_placeholder() == False:  # Fully defined
                 solutions.append(basic_sol)
@@ -352,15 +354,18 @@ class Core(core_pb2_grpc.CoreServicer):
 
     def _get_inputs(self, problem, rinputs):
         inputs = []
+ 
         for ip in rinputs:
             dataset = None
             if ip.HasField("dataset_uri") == True:
                 dataset = D3MDatasetLoader().load(ip.dataset_uri)
             elif ip.HasField("csv_uri") == True:
-                dataset = D3MDatasetLoader().load(ip.csv_uri)
+                data = pd.read_csv(ip.csv_uri, dtype=str, header=0, na_filter=False, encoding='utf8', low_memory=False,)
+                dataset = container.DataFrame(data)
 
-            targets = problem.inputs[0].targets
-            dataset = util.add_target_metadata(dataset, targets)
+            if len(problem.inputs) > 0:
+                targets = problem.inputs[0].targets
+                dataset = util.add_target_metadata(dataset, targets)
             inputs.append(dataset) 
 
         return inputs
@@ -375,37 +380,48 @@ class Core(core_pb2_grpc.CoreServicer):
                      internal_score=0.0, scores=[])
 
         request_params = self._solution_score_map[search_id_str]
+        count = 0
         inputs = self._get_inputs(request_params.problem, request_params.inputs)
         solutions = self.search_solutions(request_params, inputs[0])
-
-        count = 0
-        index = 0
         self._search_solutions[search_id_str] = []
-        msg = core_pb2.Progress(state=core_pb2.RUNNING, status="", start=start, end=solutiondescription.compute_timestamp())
 
-        results = [self.async_message_thread.apply_async(evaluate_solution, (inputs, sol, None,)) for sol in solutions]
-        timeout = request_params.time_bound * 60
-        if timeout <= 0:
-            timeout = None
-        elif timeout > 60:
-            timeout = timeout - 60
+        # Fully specified solution
+        if request_params.template != None and isinstance(request_params.template, pipeline_pb2.PipelineDescription):
+            msg = core_pb2.Progress(state=core_pb2.COMPLETED, status="", start=start, end=solutiondescription.compute_timestamp())
+            count = count + 1
+            id = solutions[0].id
+            self._solutions[id] = solutions[0]
+            self._search_solutions[search_id_str].append(id) 
+            yield core_pb2.GetSearchSolutionsResultsResponse(progress=msg, done_ticks=1, all_ticks=1,
+                          solution_id=id, internal_score=0.0, scores=[])            
+        else: # Evaluate potential solutions
+            index = 0
+            msg = core_pb2.Progress(state=core_pb2.RUNNING, status="", start=start, end=solutiondescription.compute_timestamp())
 
-        for r in results:
-            try:
-                val = r.get(timeout=timeout)
-                if val == 0:
-                    count = count + 1
-                    id = solutions[index].id
-                    self._solutions[id] = solutions[index]
-                    self._search_solutions[search_id_str].append(id)
-                    yield core_pb2.GetSearchSolutionsResultsResponse(progress=msg, done_ticks=count, all_ticks=len(solutions), solution_id=id,
+            results = [self.async_message_thread.apply_async(evaluate_solution, (inputs, sol, None,)) for sol in solutions]
+            timeout = request_params.time_bound * 60
+            if timeout <= 0:
+                timeout = None
+            elif timeout > 60:
+                timeout = timeout - 60
+
+            # Evaluate potential solutions asynchronously and get end-result
+            for r in results:
+                try:
+                    val = r.get(timeout=timeout)
+                    if val == 0:
+                        count = count + 1
+                        id = solutions[index].id
+                        self._solutions[id] = solutions[index]
+                        self._search_solutions[search_id_str].append(id)
+                        yield core_pb2.GetSearchSolutionsResultsResponse(progress=msg, done_ticks=count, all_ticks=len(solutions), solution_id=id,
                                         internal_score=0.0, scores=[])
-            except:
-                logging.info(solutions[index].primitives)
-                logging.info(sys.exc_info()[0])
-                logging.info("Solution terminated: %s", solutions[index].id)
+                except:
+                    logging.info(solutions[index].primitives)
+                    logging.info(sys.exc_info()[0])
+                    logging.info("Solution terminated: %s", solutions[index].id)
 
-            index = index + 1
+                index = index + 1
 
         self._solution_score_map.pop(search_id_str, None)
        
@@ -529,13 +545,17 @@ class Core(core_pb2_grpc.CoreServicer):
             if isinstance(output, np.ndarray):
                 output = pd.DataFrame(data=output)
 
-            target = self._solutions[solution_id].problem.inputs[0].targets[0].column_name
-
             if output is not None:
-                indices = get_indices(inputs[0])
-                numcols = len(output.columns) 
-                predictions = pd.DataFrame({'d3mIndex': indices['d3mIndex'], target:output.iloc[:,numcols-1]})
-                uri = util.write_predictions(predictions, outputDir + "/predictions", fitted_solution, ['d3mIndex', target]) 
+                target = None
+                if len(self._solutions[solution_id].problem.inputs) > 0:
+                    target = self._solutions[solution_id].problem.inputs[0].targets[0].column_name
+                    indices = get_indices(inputs[0])
+                    numcols = len(output.columns) 
+                    predictions = pd.DataFrame({'d3mIndex': indices['d3mIndex'], target:output.iloc[:,numcols-1]})
+                    uri = util.write_predictions(predictions, outputDir + "/predictions", fitted_solution, ['d3mIndex', target])
+                else:
+                    predictions = output
+                    uri = util.write_predictions(predictions, outputDir + "/predictions", fitted_solution, None) 
                 uri = 'file://{uri}'.format(uri=os.path.abspath(uri)) 
                 result = value_pb2.Value(csv_uri=uri)
             else:

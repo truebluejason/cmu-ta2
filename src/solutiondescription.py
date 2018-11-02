@@ -35,6 +35,9 @@ from d3m.primitive_interfaces.base import PrimitiveBaseMeta
 from d3m.container import DataFrame as d3m_dataframe
 import d3m.index
 
+from d3m.runtime import Runtime
+#from d3m.primitives.dsbox import ResNet50Hyperparams
+
 import networkx as nx
 import bo.gp_call
 import util
@@ -98,6 +101,40 @@ class ActionType(Enum):
     FIT = 1
     SCORE = 2
     VALIDATE = 3
+
+def get_values(arg):
+    value = None
+    if arg.HasField("double") == True:
+        value = arg.double
+    elif arg.HasField("int64") == True:
+        value = arg.int64
+    elif arg.HasField("bool") == True:
+        value = arg.bool
+    elif arg.HasField("string") == True:
+        value = arg.string
+    elif arg.HasField("bytes") == True:
+        value = arg.bytes
+    elif arg.HasField("list") == True:
+        value = get_list_items(arg.list.items)
+    elif arg.HasField("dict") == True:
+        value = get_dict_items(arg.dict.items)
+
+    return value
+
+def get_list_items(values : value_pb2.ValueList):
+    items = []
+ 
+    for i in values:
+        items.append(get_values(i))
+
+    return items
+
+def get_dict_items(values : value_pb2.ValueDict):
+    items = {}
+
+    for name, arg in values.items():
+        items[name] = get_values(arg)
+    return items
 
 class SolutionDescription(object):
     """
@@ -189,12 +226,22 @@ class SolutionDescription(object):
     def create_from_pipeline(self, pipeline_description: Pipeline) -> None:
         n_steps = len(pipeline_description.steps)
 
-        self.inputs = pipeline_description.inputs
+        self.inputs = []
+        for name in pipeline_description.inputs:
+             inputs.append(name)
         self.id = pipeline_description.id
-        self.source = pipeline_description.source
+        self.source = {}
+        self.source['name'] = pipeline_description.source.name
+        self.source['contact'] = pipeline_description.source.contact
+        self.source['pipelines'] = []
+        for id in pipeline_description.source.pipelines:
+            self.source['pipelines'].append(id)
+
         self.name = pipeline_description.name
         self.description = pipeline_description.description
-        self.users = pipeline_description.users
+        self.users = []
+        for user in pipeline_description.users:
+            self.users.append({"id": user.id, "reason": user.reason, "rationale": user.rationale})
 
         self.primitives_arguments = {}
         self.primitives = {}
@@ -287,12 +334,23 @@ class SolutionDescription(object):
         n_steps = len(pipeline_description.steps)
 
         print("Steps = ", n_steps)
-        self.inputs = pipeline_description.inputs
-        self.source = pipeline_description.source
-        self.created = pipeline_description.created
+       
+        self.inputs = []
+        for name in pipeline_description.inputs:
+             self.inputs.append(name)
+        self.id = pipeline_description.id
+        self.source = {}
+        self.source['name'] = pipeline_description.source.name
+        self.source['contact'] = pipeline_description.source.contact
+        self.source['pipelines'] = []
+        for id in pipeline_description.source.pipelines:
+            self.source['pipelines'].append(id)
+
         self.name = pipeline_description.name
         self.description = pipeline_description.description
-        self.users = pipeline_description.users
+        self.users = []
+        for user in pipeline_description.users:
+            self.users.append({"id": user.id, "reason": user.reason, "rationale": user.rationale})
 
         self.primitives_arguments = {}
         self.primitives = {}
@@ -314,7 +372,7 @@ class SolutionDescription(object):
             if pipeline_description.steps[i].HasField("primitive") == True:
                 s = pipeline_description.steps[i].primitive
                 python_path = s.primitive.python_path
-                prim = d3m.index.search(primitive_path_prefix=python_path)[python_path]
+                prim = d3m.index.get_primitive(python_path)
                 self.primitives[i] = prim
                 arguments = s.arguments
                 self.steptypes.append(StepType.PRIMITIVE)
@@ -327,7 +385,7 @@ class SolutionDescription(object):
                     origin = data.split('.')[0]
                     source = data.split('.')[1]
                     self.primitives_arguments[i][name] = {'origin': origin, 'source': int(source), 'data': data}
-
+                    
                     if origin == 'steps':
                         execution_graph.add_edge(str(source), str(i))
                     else:
@@ -337,7 +395,11 @@ class SolutionDescription(object):
                 if hyperparams is not None:
                     self.hyperparams[i] = {}
                     for name,argument in hyperparams.items():
-                        self.hyperparams[i][name] = argument['data'] 
+                        value = None
+                        if argument.HasField("value") == True:
+                            arg = argument.value.data.raw
+                            value = get_values(arg)
+                        self.hyperparams[i][name] = value
 
             # SubpipelinePipelineDescriptionStep
             elif pipeline_description.steps[i].HasField("pipeline") == True:
@@ -456,7 +518,7 @@ class SolutionDescription(object):
                 self.exclude(primitives_outputs[n_step].metadata)
                 v = self.subset_rows(primitives_outputs[n_step])
                 primitives_outputs[n_step] = v
-                 
+      
         v = primitives_outputs[len(self.execution_order)-1]
         return self.invert_output(v)
 
@@ -530,7 +592,7 @@ class SolutionDescription(object):
                 training_arguments[param] = value
 
         python_path = primitive.metadata.query()['python_path']
-        
+ 
         if self.exclude_columns is not None and len(self.exclude_columns) > 0:
             if python_path == 'd3m.primitives.data.ColumnParser' or python_path == 'd3m.primitives.data.ExtractColumnsBySemanticTypes':
                 custom_hyperparams['exclude_columns'] = self.exclude_columns
@@ -1247,7 +1309,7 @@ class PrimitiveDescription(object):
         func = lambda inputs : self.optimize_primitive(train, output, inputs, primitive_hyperparams, optimal_params, hyperparam_types, metric_type)
       
         try:
-            (curr_opt_val, curr_opt_pt) = bo.gp_call.fmax(func, domain_bounds, 10)
+            (curr_opt_val, curr_opt_pt) = bo.gp_call.fmax(func, domain_bounds, 50)
         except:
             print("optimize_hyperparams: ", sys.exc_info()[0])
             print(self.primitive)
