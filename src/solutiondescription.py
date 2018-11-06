@@ -35,7 +35,6 @@ from d3m.primitive_interfaces.base import PrimitiveBaseMeta
 from d3m.container import DataFrame as d3m_dataframe
 import d3m.index
 
-from d3m.runtime import Runtime
 #from d3m.primitives.dsbox import ResNet50Hyperparams
 
 import networkx as nx
