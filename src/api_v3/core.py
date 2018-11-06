@@ -25,7 +25,7 @@ import uuid
 logging.basicConfig(level=logging.INFO)
 pd.set_option('display.max_rows', None)
 
-from d3m.container.dataset import D3MDatasetLoader, CSVLoader, Dataset
+from d3m.container.dataset import D3MDatasetLoader, Dataset
 from d3m.metadata import base as metadata_base
 from d3m import container
 
@@ -608,13 +608,17 @@ class Core(core_pb2_grpc.CoreServicer):
         if isinstance(output, np.ndarray):
             output = pd.DataFrame(data=output)
 
-        target = solution.problem.inputs[0].targets[0].column_name
-
         if output is not None:
-            indices = get_indices(inputs[0])
-            numcols = len(output.columns)
-            predictions = pd.DataFrame({'d3mIndex': indices['d3mIndex'], target:output.iloc[:,numcols-1]})
-            uri = util.write_predictions(predictions, outputDir + "/predictions", solution, ['d3mIndex', target])
+            target = None
+            if len(solution.problem.inputs) > 0:
+                target = solution.problem.inputs[0].targets[0].column_name
+                indices = get_indices(inputs[0])
+                numcols = len(output.columns)
+                predictions = pd.DataFrame({'d3mIndex': indices['d3mIndex'], target:output.iloc[:,numcols-1]})
+                uri = util.write_predictions(predictions, outputDir + "/predictions", solution, ['d3mIndex', target])
+            else:
+                predictions = output
+                uri = util.write_predictions(predictions, outputDir + "/predictions", solution, None)
             uri = 'file://{uri}'.format(uri=os.path.abspath(uri))
             result = value_pb2.Value(csv_uri=uri)
         else:
