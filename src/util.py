@@ -115,14 +115,14 @@ def initialize_for_search(exe_dir, pred_dir, pipe_dir):
     if not os.path.exists(pipe_dir):
         os.makedirs(pipe_dir)
 
-def write_predictions(predictions, dirname, solution, columns):
+def write_predictions(predictions, dirname, solution):
     directory = dirname + "/" + solution.id + "_" + str(solution.rank)
     if not os.path.exists(directory):
         os.makedirs(directory)
 
     outputFilePath = directory + "/predictions.csv"
     with open(outputFilePath, 'w') as outputFile:
-        predictions.to_csv(outputFile, header=True, index=False, columns=columns)
+        predictions.to_csv(outputFile, header=True, index=False)
     return outputFilePath
    
 def write_pipeline_json(solution, primitives, dirname):

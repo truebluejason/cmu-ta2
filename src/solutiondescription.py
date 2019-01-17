@@ -35,8 +35,6 @@ from d3m.primitive_interfaces.base import PrimitiveBaseMeta
 from d3m.container import DataFrame as d3m_dataframe
 import d3m.index
 
-#from d3m.primitives.dsbox import ResNet50Hyperparams
-
 import networkx as nx
 import bo.gp_call
 import util
@@ -44,18 +42,24 @@ import util
 task_paths = {
 'TEXT': ['d3m.primitives.dsbox.Denormalize','d3m.primitives.datasets.DatasetToDataFrame','d3m.primitives.data.ColumnParser','d3m.primitives.data.ExtractColumnsBySemanticTypes', 'd3m.primitives.dsbox.CorexText', 'd3m.primitives.sklearn_wrap.SKImputer', 'd3m.primitives.data.ExtractColumnsBySemanticTypes'],
 'TIMESERIES': ['d3m.primitives.dsbox.Denormalize','d3m.primitives.datasets.DatasetToDataFrame','d3m.primitives.data.ColumnParser','d3m.primitives.data.ExtractColumnsBySemanticTypes', 'd3m.primitives.dsbox.TimeseriesToList', 'd3m.primitives.dsbox.RandomProjectionTimeSeriesFeaturization', 'd3m.primitives.data.ExtractColumnsBySemanticTypes'], 
-'IMAGE': ['d3m.primitives.dsbox.Denormalize','d3m.primitives.datasets.DatasetToDataFrame','d3m.primitives.data.ColumnParser','d3m.primitives.data.ExtractColumnsBySemanticTypes', 'd3m.primitives.dsbox.DataFrameToTensor', 'd3m.primitives.dsbox.ResNet50ImageFeature', 'd3m.primitives.data.ExtractColumnsBySemanticTypes'],
+'IMAGE': ['d3m.primitives.dsbox.Denormalize','d3m.primitives.datasets.DatasetToDataFrame','d3m.primitives.data.ColumnParser','d3m.primitives.data.ExtractColumnsBySemanticTypes', 'd3m.primitives.data.ImageReader','d3m.primitives.common_primitives.ImageTransferLearningTransformer', 'd3m.primitives.data.ExtractColumnsBySemanticTypes'],
 'CLASSIFICATION': ['d3m.primitives.dsbox.Denormalize','d3m.primitives.datasets.DatasetToDataFrame','d3m.primitives.data.ColumnParser','d3m.primitives.data.ExtractColumnsBySemanticTypes', 'd3m.primitives.sklearn_wrap.SKImputer', 'd3m.primitives.data.ExtractColumnsBySemanticTypes'], 
 'REGRESSION': ['d3m.primitives.dsbox.Denormalize','d3m.primitives.datasets.DatasetToDataFrame','d3m.primitives.data.ColumnParser', 'd3m.primitives.data.ExtractColumnsBySemanticTypes', 'd3m.primitives.sklearn_wrap.SKImputer', 'd3m.primitives.data.ExtractColumnsBySemanticTypes'],
+'CLUSTERING': ['d3m.primitives.datasets.DatasetToDataFrame','d3m.primitives.data.ColumnParser','d3m.primitives.data.ExtractColumnsBySemanticTypes','d3m.primitives.cmu.fastlvm.CoverTree','d3m.primitives.data.ConstructPredictions'],
 'GRAPHMATCHING': ['d3m.primitives.sri.psl.GraphMatchingLinkPrediction'],
 'COLLABORATIVEFILTERING': ['d3m.primitives.sri.psl.CollaborativeFilteringLinkPrediction'],
 'VERTEXNOMINATION': ['d3m.primitives.sri.graph.VertexNominationParser', 'd3m.primitives.sri.psl.VertexNomination'],
 'LINKPREDICTION': ['d3m.primitives.sri.graph.GraphMatchingParser','d3m.primitives.sri.graph.GraphTransformer', 'd3m.primitives.sri.psl.LinkPrediction'],
 'COMMUNITYDETECTION': ['d3m.primitives.sri.graph.CommunityDetectionParser', 'd3m.primitives.sri.psl.CommunityDetection'],
 'TIMESERIESFORECASTING': ['d3m.primitives.datasets.DatasetToDataFrame','d3m.primitives.data.ColumnParser', 'd3m.primitives.data.ExtractColumnsBySemanticTypes', 'd3m.primitives.data.ExtractColumnsBySemanticTypes'],
-'AUDIO': ['d3m.primitives.bbn.time_series.AudioReader', 'd3m.primitives.bbn.time_series.ChannelAverager', 'd3m.primitives.bbn.time_series.SignalDither', 'd3m.primitives.bbn.time_series.SignalFramer', 'd3m.primitives.bbn.time_series.SignalMFCC', 'd3m.primitives.bbn.time_series.IVectorExtractor', 'd3m.primitives.bbn.time_series.TargetsReader']}
+'AUDIO': ['d3m.primitives.bbn.time_series.AudioReader', 'd3m.primitives.bbn.time_series.ChannelAverager', 'd3m.primitives.bbn.time_series.SignalDither', 'd3m.primitives.bbn.time_series.SignalFramer', 'd3m.primitives.bbn.time_series.SignalMFCC', 'd3m.primitives.bbn.time_series.IVectorExtractor', 'd3m.primitives.bbn.time_series.TargetsReader'],
+'FALLBACK1': ['d3m.primitives.sri.baseline.MeanBaseline'],
+'FALLBACK2': ['d3m.primitives.sri.psl.GeneralRelationalDataset']}
 
 def column_types_present(dataset):
+    """
+    Retrieve special data types present: Text, Image, Timeseries, Audio
+    """
     primitive = d3m.index.get_primitive('d3m.primitives.dsbox.Denormalize')
     primitive_hyperparams = primitive.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
     model = primitive(hyperparams=primitive_hyperparams.defaults())
@@ -137,13 +141,12 @@ def get_dict_items(values : value_pb2.ValueDict):
 
 class SolutionDescription(object):
     """
-    A wrapper of a primitive instance and hyperparameters, ready to have inputs
-    fed into it.
+    A wrapper of a pipeline.
 
     The idea is that this can be evaluated, produce a model and performance metrics,
     and the hyperparameter tuning can consume that and choose what to do next.
     """
-    def __init__(self, problem):
+    def __init__(self, problem, static_dir):
         self.id = str(uuid.uuid4())
         self.source = None
         self.created = compute_timestamp()
@@ -167,6 +170,8 @@ class SolutionDescription(object):
         self.taskname = None
         self.exclude_columns = None
         self.trainindices = None
+        self.primitives_outputs = None
+        self.static_dir = static_dir
 
     def contains_placeholder(self):
         if self.steptypes is not None:
@@ -184,6 +189,9 @@ class SolutionDescription(object):
             return 0
 
     def create_pipeline_json(self, prim_dict, filename):
+        """
+        Generate pipeline.json
+        """
         name = "Pipeline for evaluation"
         pipeline_id = self.id + "_" + str(self.rank)
         pipeline_description = Pipeline(pipeline_id=pipeline_id, context=PipelineContext.EVALUATION, name=name)
@@ -203,9 +211,6 @@ class SolutionDescription(object):
 
             for name, value in self.primitives_arguments[i].items():
                 origin = value['origin']
-                #if origin == 'steps':
-                #    argument_type = ArgumentType.DATA
-                #else:
                 argument_type = ArgumentType.CONTAINER
                 step.add_argument(name=name, argument_type=argument_type, data_reference=value['data'])
             step.add_output(output_id=p.primitive_class.produce_methods[0])
@@ -466,37 +471,15 @@ class SolutionDescription(object):
         return False
 
     def exclude(self, metadata):
-        self.exclude_columns = []#metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/CategoricalData")
-        total_cols = len(metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/Attribute"))
-        cols = metadata.get_columns_with_semantic_type("http://schema.org/Text")
-        if len(cols) < total_cols - len(self.exclude_columns):
-            for col in cols:
-                self.exclude_columns.append(col)
+        self.exclude_columns = [] #metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/CategoricalData")
+        cols = metadata.get_columns_with_semantic_type("http://schema.org/DateTime")
+        for col in cols:
+            self.exclude_columns.append(col)
 
         targets = metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/Target")
         for t in targets:
             if t in self.exclude_columns:
                 self.exclude_columns.remove(t)
-
-    def subset_rows(self, v):        
-        metadata = v.metadata
-        rows = len(v)
-        if rows > 150000:
-            if self.trainindices == None:
-                seq = [i for i in range(len(v))]
-                import random
-                random.shuffle(seq)
-
-                trainsize = 150000
-                self.trainindices = [seq[x] for x in range(trainsize)]
-           
-            X = pd.DataFrame(data=v.values, columns=v.columns.values.tolist())
-            newv = X.iloc[self.trainindices]
-            X = d3m_dataframe(newv)
-            X.metadata = v.metadata
-            return X
-        else:
-            return v     
 
     def fit(self, **arguments):
         """
@@ -508,18 +491,23 @@ class SolutionDescription(object):
             Arguments required to train the solution
         """
         primitives_outputs = [None] * len(self.execution_order)
-        for i in range(0, len(self.execution_order)):
-            n_step = self.execution_order[i]
-            
-            primitives_outputs[n_step] = self.process_step(n_step, primitives_outputs, ActionType.FIT, arguments)
-                
-            if self.isDataFrameStep(n_step) == True:
-                self.exclude(primitives_outputs[n_step].metadata)
-                v = self.subset_rows(primitives_outputs[n_step])
-                primitives_outputs[n_step] = v
+   
+        last_step = self.get_last_step()   
+        if self.primitives_outputs is None: 
+            for i in range(0, len(self.execution_order)):
+                n_step = self.execution_order[i]
+                primitives_outputs[n_step] = self.process_step(n_step, primitives_outputs, ActionType.FIT, arguments)
+
+                if self.isDataFrameStep(n_step) == True:
+                    self.exclude(primitives_outputs[n_step].metadata)
+        else:
+            primitives_outputs[last_step] = self.process_step(last_step, self.primitives_outputs, ActionType.FIT, arguments)
+            primitives_outputs[1] = self.primitives_outputs[1]
+            if last_step == len(self.execution_order) - 2:
+                primitives_outputs[last_step+1] = self.process_step(last_step+1, primitives_outputs, ActionType.FIT, arguments)
       
         v = primitives_outputs[len(self.execution_order)-1]
-        return self.invert_output(v)
+        return v
 
     def _pipeline_step_fit(self, n_step: int, pipeline_id: str, primitive_arguments, solution_dict, primitive_dict, action):
         """
@@ -568,7 +556,9 @@ class SolutionDescription(object):
             if param in produce_params_primitive:
                 produce_params[param] = value
 
-        if model is not None:
+        python_path = primitive.metadata.query()['python_path']
+
+        if model is not None:  # Use pre-learnt model
             return model.produce(**produce_params).value
         
         primitive_hyperparams = primitive.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
@@ -590,8 +580,6 @@ class SolutionDescription(object):
             if param in training_arguments_primitive:
                 training_arguments[param] = value
 
-        python_path = primitive.metadata.query()['python_path']
- 
         if self.exclude_columns is not None and len(self.exclude_columns) > 0:
             if python_path == 'd3m.primitives.data.ColumnParser' or python_path == 'd3m.primitives.data.ExtractColumnsBySemanticTypes':
                 custom_hyperparams['exclude_columns'] = self.exclude_columns
@@ -602,8 +590,18 @@ class SolutionDescription(object):
             if min_rows < 100:
                 custom_hyperparams['support'] = min_rows
 
-        model = primitive(hyperparams=primitive_hyperparams(
+        if 'sklearn' in python_path:
+            custom_hyperparams['use_semantic_types'] = True
+
+        if python_path == 'd3m.primitives.common_primitives.ImageTransferLearningTransformer':
+            volumes = {}
+            volumes['resnet50'] = self.static_dir + '/resnet50_weights_tf_dim_ordering_tf_kernels.h5'
+            model = primitive(hyperparams=primitive_hyperparams(
+                    primitive_hyperparams.defaults(), **custom_hyperparams), volumes=volumes)
+        else:
+            model = primitive(hyperparams=primitive_hyperparams(
                     primitive_hyperparams.defaults(), **custom_hyperparams))
+
         model.set_training_data(**training_arguments)
         model.fit()
         self.pipeline[n_step] = model
@@ -614,7 +612,7 @@ class SolutionDescription(object):
         """
         Get the arguments of a primitive given a function.
 
-        Paramters
+        Parameters
         ---------
         primitive
             A primitive.
@@ -623,49 +621,6 @@ class SolutionDescription(object):
         """
         return set(primitive.metadata.query()['primitive_code']['instance_methods'][method]['arguments'])
 
-    def time_to_float(self, value):
-        try:
-            return dateutil.parser.parse(value).timestamp()
-        except (ValueError, OverflowError):
-            return 0.0
-
-    def transform_data(self, primitive, v, n_step):
-        path = primitive.metadata.query()['python_path']
-        if path == 'd3m.primitives.data.ExtractColumnsBySemanticTypes' or path == 'd3m.primitives.time_series.TargetsReader':
-            if len(v.columns) > 1: # Attributes
-                timecols = v.metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/Time")
-
-                if len(timecols):
-                    X = pd.DataFrame(data=v.values, columns=v.columns.values.tolist())
-                    for col in timecols:
-                        semantic_types = v.metadata.query((metadata_base.ALL_ELEMENTS, col))['semantic_types']
-                        if 'http://schema.org/Float' in semantic_types:
-                            continue
-                        colname = v.columns.values.tolist()[col]
-                        X[colname] = X[colname].apply(lambda dt: self.time_to_float(dt))
-                    newv = d3m_dataframe(X, generate_metadata=False)
-                    newv.metadata = v.metadata
-                    return newv      
-            else: # Target
-                if self.taskname == 'CLASSIFICATION' and n_step == len(self.execution_order)-2:
-                    self.le = preprocessing.LabelEncoder()
-                    orig_metadata = v.metadata
-                    v = pd.DataFrame(self.le.fit_transform(v.values.ravel()))
-                    v.metadata = orig_metadata
-                    return v
-        return v
-
-    def invert_output(self, v):
-        if self.le is not None:
-            if isinstance(v, pd.DataFrame):
-                cols = len(v.columns)
-                values = v.iloc[:,cols-1].tolist()
-            else:
-                values = v
-            inverted_op = self.le.inverse_transform(values)
-            return inverted_op
-        return v
- 
     def produce(self, **arguments):
         """
         Run produce on the solution.
@@ -709,7 +664,6 @@ class SolutionDescription(object):
             if self.steptypes[n_step] is StepType.PRIMITIVE:
                 if n_step in self.produce_order:
                     v = self.pipeline[n_step].produce(**produce_arguments).value
-                    v = self.transform_data(primitive, v, n_step)
                     steps_outputs[n_step] = v
                 else:
                     steps_outputs[n_step] = None
@@ -722,7 +676,7 @@ class SolutionDescription(object):
         pipeline_output = []
         for output in self.outputs:
             if output[0] == 'steps':
-                pipeline_output.append(self.invert_output(steps_outputs[output[1]]))
+                pipeline_output.append(steps_outputs[output[1]])
             else:
                 pipeline_output.append(arguments[output[0][output[1]]])
         return pipeline_output
@@ -783,10 +737,22 @@ class SolutionDescription(object):
 
                 if i == num-1:
                     self.hyperparams[i] = {}
-                    self.hyperparams[i]['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/Target']
+                    self.hyperparams[i]['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/TrueTarget']
+
             elif taskname == 'AUDIO':
                 if i == 0 or i == num-1:
                     data = 'inputs.0'
+                else:
+                    data = 'steps.' + str(i-1) + '.produce'
+            elif taskname == 'CLUSTERING':
+                if i == 0:
+                    data = 'inputs.0'
+                elif i == num-1:
+                    data = 'steps.0.produce'
+                    origin = data.split('.')[0]
+                    source = data.split('.')[1]
+                    self.primitives_arguments[i]['reference'] = {'origin': origin, 'source': int(source), 'data': data}
+                    data = 'steps.' + str(i-1) + '.produce'
                 else:
                     data = 'steps.' + str(i-1) + '.produce'
             else:
@@ -798,7 +764,7 @@ class SolutionDescription(object):
             origin = data.split('.')[0]
             source = data.split('.')[1]
             self.primitives_arguments[i]['inputs'] = {'origin': origin, 'source': int(source), 'data': data}
-            
+
             if i == 0:
                 execution_graph.add_edge(origin, str(i))
             else:
@@ -850,9 +816,34 @@ class SolutionDescription(object):
             self.hyperparams[i]['n_estimators'] = 100
             
         self.execution_order.append(i)
+
+        i = i + 1
+        self.primitives_arguments[i] = {}
+        self.hyperparams[i] = None
+        self.pipeline.append(None)
+        prim = d3m.index.get_primitive('d3m.primitives.data.ConstructPredictions')
+        self.primitives[i] = prim
+
+        data = 'steps.' + str(i-1) + str('.produce')
+        origin = data.split('.')[0]
+        source = data.split('.')[1]
+        self.primitives_arguments[i]['inputs'] = {'origin': origin, 'source': int(source), 'data': data}
+        
+        data = 'steps.' + str(1) + str('.produce')
+        origin = data.split('.')[0]
+        source = data.split('.')[1]
+        self.primitives_arguments[i]['reference'] = {'origin': origin, 'source': int(source), 'data': data}
+
+        self.execution_order.append(i)
+        self.steptypes.append(StepType.PRIMITIVE)
+
         self.add_outputs()
 
-    def add_outputs(self):
+    def add_outputs(self): 
+        """
+        Add outputs as last step for pipeline
+        Also compute produce order.
+        """
         n_steps = len(self.execution_order)
         
         self.outputs = []
@@ -877,6 +868,10 @@ class SolutionDescription(object):
                 current_step = step_source
 
     def process_step(self, n_step, primitives_outputs, action, arguments):
+        """
+        Process each step of a pipeline
+        This could be used while scoring, validating or fitting a pipeline
+        """
         # Subpipeline step
         if self.steptypes[n_step] is StepType.SUBPIPELINE:
             primitive_arguments = []
@@ -905,13 +900,20 @@ class SolutionDescription(object):
                 return self.validate_step(self.primitives[n_step], primitive_arguments)    
             else:
                 v = self.fit_step(n_step, self.primitives[n_step], primitive_arguments)
-                v = self.transform_data(self.primitives[n_step], v, n_step)   
                 return v
  
     def is_last_step(self, n):
-        if n == len(self.execution_order)-1:
+        last_step = self.get_last_step()
+        if n == last_step:
             return True
         return False
+
+    def get_last_step(self):
+        n_steps = len(self.primitives_arguments)
+        if 'ConstructPredictions' in self.primitives[n_steps-1].metadata.query()['python_path']:
+            return n_steps - 2
+        else:
+            return n_steps - 1
 
     def score_solution(self, **arguments):
         """
@@ -920,23 +922,26 @@ class SolutionDescription(object):
         score = 0.0
         primitives_outputs = [None] * len(self.execution_order)
 
-        for i in range(0, len(self.execution_order)): 
-            n_step = self.execution_order[i]
-       
-            primitives_outputs[n_step] = self.process_step(n_step, primitives_outputs, ActionType.SCORE, arguments)
+        last_step = self.get_last_step()
 
-            if self.isDataFrameStep(n_step) is True:
-                self.exclude(primitives_outputs[n_step].metadata)
-                v = self.subset_rows(primitives_outputs[n_step])
-                primitives_outputs[n_step] = v
+        if self.primitives_outputs is None:
+            for i in range(0, last_step+1): 
+                n_step = self.execution_order[i]
+                primitives_outputs[n_step] = self.process_step(n_step, primitives_outputs, ActionType.SCORE, arguments)
 
-        (score, optimal_params) = primitives_outputs[len(self.execution_order)-1]
-        self.hyperparams[len(self.execution_order)-1] = optimal_params
+                if self.isDataFrameStep(n_step) == True:
+                    self.exclude(primitives_outputs[n_step].metadata)
+        else:
+            primitives_outputs[last_step] = self.process_step(last_step, self.primitives_outputs, ActionType.SCORE, arguments)
+
+        (score, optimal_params) = primitives_outputs[last_step]
+        self.hyperparams[last_step] = optimal_params
 
         return (score, optimal_params)
 
     def set_hyperparams(self, hp):
-        self.hyperparams[len(self.execution_order)-1] = hp
+        n_step = self.get_last_step()
+        self.hyperparams[n_step] = hp
 
     def validate_solution(self,**arguments):
         """
@@ -945,14 +950,41 @@ class SolutionDescription(object):
  
         valid = False
         primitives_outputs = [None] * len(self.execution_order)
+        
+        last_step = self.get_last_step()
+
+        if self.primitives_outputs is None:
+            for i in range(0, last_step+1):
+                n_step = self.execution_order[i]
+                primitives_outputs[n_step] = self.process_step(n_step, primitives_outputs, ActionType.VALIDATE, arguments)
+
+                if self.isDataFrameStep(n_step) == True:
+                    self.exclude(primitives_outputs[n_step].metadata)
+        else:
+            primitives_outputs[last_step] = self.process_step(last_step, self.primitives_outputs, ActionType.VALIDATE, arguments)
+
+        valid = primitives_outputs[last_step]
+        return valid
+
+    def run_basic_solution(self, **arguments):
+        """
+        Run common parts of a pipeline before adding last step of classifier/regressor
+        This saves on data processing, featurizing steps being repeated across multiple pipelines.
+        """
+        self.primitives_outputs = [None] * len(self.execution_order)
 
         for i in range(0, len(self.execution_order)):
             n_step = self.execution_order[i]
-            primitives_outputs[n_step] = self.process_step(n_step, primitives_outputs, ActionType.VALIDATE, arguments)
+            self.primitives_outputs[n_step] = self.process_step(n_step, self.primitives_outputs, ActionType.FIT, arguments)
+            if self.isDataFrameStep(n_step) == True:
+                self.exclude(self.primitives_outputs[n_step].metadata)
 
-        valid = primitives_outputs[len(self.execution_order)-1]
-        return valid
- 
+        # Store inputs and outputs for feeding into classifier/regressor. Remove other intermediate step outputs, they are not needed anymore.
+        for i in range(0, len(self.execution_order)-2):
+            if i == 1:
+                continue
+            self.primitives_outputs[i] = [None]
+
     def score_step(self, primitive: PrimitiveBaseMeta, primitive_arguments, metric, primitive_desc, hyperparams):
         """
         Last step of a solution evaluated for score_solution()
@@ -1023,6 +1055,9 @@ class SolutionDescription(object):
         return True
  
     def describe_solution(self, prim_dict):
+        """
+        Required for TA2-TA3 API DescribeSolution().
+        """
         inputs = []
         for i in range(len(self.inputs)):
             inputs.append(pipeline_pb2.PipelineDescriptionInput(name=self.inputs[i]["name"]))
@@ -1045,9 +1080,6 @@ class SolutionDescription(object):
                 origin = argument_edge.split('.')[0]
                 source = argument_edge.split('.')[1]
                 
-                #if origin == 'steps':
-                #    sa = pipeline_pb2.PrimitiveStepArgument(data = pipeline_pb2.DataArgument(data=argument_edge))
-                #else:
                 sa = pipeline_pb2.PrimitiveStepArgument(container = pipeline_pb2.ContainerArgument(data=argument_edge))
                 arguments[argument] = sa
 
@@ -1119,12 +1151,12 @@ class PrimitiveDescription(object):
           metric=metric_type, custom_hyperparams=custom_hyperparams) 
         else:
             optimal_params = dict()
-  
+ 
         if custom_hyperparams is not None:
             for name, value in custom_hyperparams.items():
                 optimal_params[name] = value
 
-        if y is None or 'd3m.primitives.sri' in python_path or 'bbn' in python_path:
+        if y is None or 'd3m.primitives.sri' in python_path or 'bbn' in python_path or 'fastlvm' in python_path:
             return (0.0, optimal_params)
               
         from sklearn.model_selection import KFold
@@ -1149,11 +1181,11 @@ class PrimitiveDescription(object):
         prim_instance = self.primitive(hyperparams=primitive_hyperparams(primitive_hyperparams.defaults(), **optimal_params))
         score = 0.0
 
+        print(Xnew.shape)
         for train_index, test_index in kf.split(X):
             X_train, X_test = Xnew.iloc[train_index], Xnew.iloc[test_index]
            
             y_train, y_test = y.iloc[train_index], y.iloc[test_index]
-            y_train.metadata = y.metadata
             X_train.metadata = X.metadata
             X_test.metadata = X.metadata
 

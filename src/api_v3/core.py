@@ -50,15 +50,22 @@ def load_primitives():
             continue
         if p.python_path == 'd3m.primitives.realML.TensorMachinesBinaryClassification':
             continue
+        if 'sklearn_wrap.SKSGD' in p.python_path or 'sklearn_wrap.SKQuadraticDiscriminantAnalysis' in p.python_path:
+            continue
 
         primitives[p.classname] = solutiondescription.PrimitiveDescription(p.classname, p)
 
     return primitives
 
 def get_solutions(task_name, dataset, primitives, problem):
+    """
+    Get a list of available solutions(pipelines) for the specified task
+    Used by both TA2 in standalone phase and TA2-TA3
+    """
     solutions = []
 
-    basic_sol = solutiondescription.SolutionDescription(problem)
+    static_dir = os.environ['D3MSTATICDIR']
+    basic_sol = solutiondescription.SolutionDescription(problem, static_dir)
     basic_sol.initialize_solution(task_name, task_name)
 
     rows = dataset.metadata.query(('0',))['dimension']['length']
@@ -68,34 +75,34 @@ def get_solutions(task_name, dataset, primitives, problem):
         (types_present, total_cols) = solutiondescription.column_types_present(dataset)
 
         if 'TIMESERIES' in types_present:
-            basic_sol = solutiondescription.SolutionDescription(problem)
+            basic_sol = solutiondescription.SolutionDescription(problem, static_dir)
             basic_sol.initialize_solution('TIMESERIES', task_name)
         elif 'IMAGE' in types_present:
-            basic_sol = solutiondescription.SolutionDescription(problem)
+            basic_sol = solutiondescription.SolutionDescription(problem, static_dir)
             basic_sol.initialize_solution('IMAGE', task_name)
         elif 'TEXT' in types_present:
-            basic_sol = solutiondescription.SolutionDescription(problem)
+            basic_sol = solutiondescription.SolutionDescription(problem, static_dir)
             basic_sol.initialize_solution('TEXT', task_name)
         elif 'AUDIO' in types_present:
-            basic_sol = solutiondescription.SolutionDescription(problem)
+            basic_sol = solutiondescription.SolutionDescription(problem, static_dir)
             basic_sol.initialize_solution('AUDIO', task_name)
 
+        basic_sol.run_basic_solution(inputs=[dataset])
+        print("Total cols = ", total_cols)
         for classname, p in primitives.items():
             if p.primitive_class.family == task_name:
                 python_path = p.primitive_class.python_path
                 if 'd3m.primitives.sri.' in python_path or 'd3m.primitives.jhu_primitives' in python_path or 'lupi_svm' in python_path or 'bbn' in python_path:
                     continue
 
-                if (total_cols > 20 or rows > 1500) and 'find_projections' in python_path:
-                    continue
-                if rows > 10000 and 'sklearn_wrap.SKSGD' in python_path:
+                if (total_cols > 20 or rows > 10000) and 'find_projections' in python_path:
                     continue
 
                 pipe = copy.deepcopy(basic_sol)
                 pipe.id = str(uuid.uuid4())
                 pipe.add_step(p.primitive_class.python_path)
                 solutions.append(pipe)
-    elif task_name == 'COLLABORATIVEFILTERING' or task_name == 'VERTEXNOMINATION' or task_name == 'COMMUNITYDETECTION'  or task_name == 'GRAPHMATCHING' or task_name == 'LINKPREDICTION' or task_name == 'TIMESERIESFORECASTING':
+    elif task_name == 'COLLABORATIVEFILTERING' or task_name == 'VERTEXNOMINATION' or task_name == 'COMMUNITYDETECTION'  or task_name == 'GRAPHMATCHING' or task_name == 'LINKPREDICTION' or task_name == 'CLUSTERING' or task_name == 'TIMESERIESFORECASTING':
         if task_name == 'TIMESERIESFORECASTING':
             basic_sol.add_step('d3m.primitives.sri.psl.RelationalTimeseries')
         pipe = copy.deepcopy(basic_sol)
@@ -179,9 +186,9 @@ def search_phase():
     index = 1
     for (sol, score) in sorted_x:
         valid_solutions[sol].rank = index
-        #print("Rank ", index)
-        #print("Score ", score)
-        #print(valid_solutions[sol].primitives)
+        print("Rank ", index)
+        print("Score ", score)
+        print(valid_solutions[sol].primitives)
         index = index + 1
 
     num = 20
@@ -204,18 +211,6 @@ def search_phase():
             logging.info(sys.exc_info()[0])
             logging.info("Solution terminated: %s", valid_solutions[sorted_x[index][0]].id)
         index = index + 1
-
-def get_indices(dataset):
-    """
-    Get dataset indices (d3mIndex)
-    """
-    num_data_elements = int(dataset.metadata.query([])['dimension']['length'])
-    for data_element_raw in range(num_data_elements): 
-        data_element = "%d" % (data_element_raw)
-        if 'https://metadata.datadrivendiscovery.org/types/Table' in dataset.metadata.query((data_element,))['semantic_types']:
-            table = dataset[data_element]
- 
-    return pd.DataFrame(table['d3mIndex'])
 
 def test_phase():
     """
@@ -240,14 +235,8 @@ def test_phase():
     pipeline_name = pipeline_basename[:-3]
     solution = util.get_pipeline(outputDir + "/supporting_files", pipeline_name)
     predictions = solution.produce(inputs=inputs)[0]
-    if isinstance(predictions, np.ndarray):
-        predictions = pd.DataFrame(data=predictions)
-    
-    indices = get_indices(dataset)
-    numcols = len(predictions.columns)
-    predictions = pd.DataFrame({'d3mIndex': indices['d3mIndex'], target:predictions.iloc[:,numcols-1]})
-    print(predictions.shape)
-    util.write_predictions(predictions, outputDir + "/predictions", solution, ['d3mIndex', target])
+
+    util.write_predictions(predictions, outputDir + "/predictions", solution)
     
 
 def evaluate_solution_score(inputs, solution, primitives, metric):
@@ -325,6 +314,9 @@ class Core(core_pb2_grpc.CoreServicer):
             prodop = solution.produce(inputs=[test_dataset], solution_dict=self._solutions)
 
     def search_solutions(self, request, dataset):
+        """
+        Populate potential solutions for TA3
+        """
         primitives = self._primitives
         problem = request.problem.problem
         template = request.template
@@ -346,6 +338,9 @@ class Core(core_pb2_grpc.CoreServicer):
         return solutions
     
     def SearchSolutions(self, request, context):
+        """
+        TA2-3 API call
+        """
         logging.info("Message received: SearchSolutions")
         search_id_str = str(uuid.uuid4())
 
@@ -371,6 +366,9 @@ class Core(core_pb2_grpc.CoreServicer):
         return inputs
        
     def GetSearchSolutionsResults(self, request, context):
+        """
+        TA2-3 API call
+        """
         logging.info("Message received: GetSearchSolutionsRequest")
         search_id_str = request.search_id
         
@@ -430,6 +428,9 @@ class Core(core_pb2_grpc.CoreServicer):
                           solution_id="", internal_score=0.0, scores=[])
 
     def EndSearchSolutions(self, request, context):
+        """
+        TA2-3 API call
+        """
         logging.info("Message received: EndSearchSolutions")
         search_id_str = request.search_id
 
@@ -440,11 +441,17 @@ class Core(core_pb2_grpc.CoreServicer):
         return core_pb2.EndSearchSolutionsResponse()
 
     def StopSearchSolutions(self, request, context):
+        """
+        TA2-3 API call
+        """
         search_id_str = request.search_id
         logging.info("Message received: StopSearchSolutions")
         return core_pb2.StopSearchSolutionsResponse()
 
     def DescribeSolution(self, request, context):
+        """
+        TA2-3 API call
+        """
         logging.info("Message received: DescribeSolution")
         solution_id = request.solution_id
         solution = self._solutions[solution_id]
@@ -458,6 +465,9 @@ class Core(core_pb2_grpc.CoreServicer):
         return core_pb2.DescribeSolutionResponse(pipeline=desc, steps=param_map)
 
     def ScoreSolution(self, request, context):
+        """
+        TA2-3 API call
+        """
         logging.info("Message received: ScoreSolution")
 
         request_id = str(uuid.uuid4())
@@ -466,6 +476,9 @@ class Core(core_pb2_grpc.CoreServicer):
         return core_pb2.ScoreSolutionResponse(request_id = request_id)
 
     def GetScoreSolutionResults(self, request, context):
+        """
+        TA2-3 API call
+        """
         logging.info("Message received: GetScoreSolutionResults")
         request_id = request.request_id
         request_params = self._solution_score_map[request_id]
@@ -503,12 +516,18 @@ class Core(core_pb2_grpc.CoreServicer):
             yield core_pb2.GetScoreSolutionResultsResponse(progress=msg, scores=send_scores)
 
     def FitSolution(self, request, context):
+        """
+        TA2-3 API call
+        """
         logging.info("Message received: FitSolution")
         request_id = str(uuid.uuid4())
         self._solution_score_map[request_id] = request
         return core_pb2.FitSolutionResponse(request_id = request_id)
 
     def GetFitSolutionResults(self, request, context):
+        """
+        TA2-3 API call
+        """
         logging.info("Message received: GetFitSolutionResults")
         request_id = request.request_id
         request_params = self._solution_score_map[request_id]
@@ -546,16 +565,7 @@ class Core(core_pb2_grpc.CoreServicer):
                 output = pd.DataFrame(data=output)
 
             if output is not None:
-                target = None
-                if len(self._solutions[solution_id].problem.inputs) > 0:
-                    target = self._solutions[solution_id].problem.inputs[0].targets[0].column_name
-                    indices = get_indices(inputs[0])
-                    numcols = len(output.columns) 
-                    predictions = pd.DataFrame({'d3mIndex': indices['d3mIndex'], target:output.iloc[:,numcols-1]})
-                    uri = util.write_predictions(predictions, outputDir + "/predictions", fitted_solution, ['d3mIndex', target])
-                else:
-                    predictions = output
-                    uri = util.write_predictions(predictions, outputDir + "/predictions", fitted_solution, None) 
+                uri = util.write_predictions(output, outputDir + "/predictions", fitted_solution)
                 uri = 'file://{uri}'.format(uri=os.path.abspath(uri)) 
                 result = value_pb2.Value(csv_uri=uri)
             else:
@@ -579,6 +589,9 @@ class Core(core_pb2_grpc.CoreServicer):
             yield core_pb2.GetFitSolutionResultsResponse(progress=msg, steps=steps, exposed_outputs=exposed_outputs, fitted_solution_id=fitted_solution.id)
 
     def ProduceSolution(self, request, context):
+        """
+        TA2-3 API call
+        """
         logging.info("Message received: ProduceSolution")
         request_id = str(uuid.uuid4())
         self._solution_score_map[request_id] = request
@@ -586,6 +599,9 @@ class Core(core_pb2_grpc.CoreServicer):
         return core_pb2.ProduceSolutionResponse(request_id = request_id)
 
     def GetProduceSolutionResults(self, request, context):
+        """
+        TA2-3 API call
+        """
         logging.info("Message received: GetProduceSolutionResults")
         request_id = request.request_id
         request_params = self._solution_score_map[request_id]
@@ -609,16 +625,7 @@ class Core(core_pb2_grpc.CoreServicer):
             output = pd.DataFrame(data=output)
 
         if output is not None:
-            target = None
-            if len(solution.problem.inputs) > 0:
-                target = solution.problem.inputs[0].targets[0].column_name
-                indices = get_indices(inputs[0])
-                numcols = len(output.columns)
-                predictions = pd.DataFrame({'d3mIndex': indices['d3mIndex'], target:output.iloc[:,numcols-1]})
-                uri = util.write_predictions(predictions, outputDir + "/predictions", solution, ['d3mIndex', target])
-            else:
-                predictions = output
-                uri = util.write_predictions(predictions, outputDir + "/predictions", solution, None)
+            uri = util.write_predictions(output, outputDir + "/predictions", solution)
             uri = 'file://{uri}'.format(uri=os.path.abspath(uri))
             result = value_pb2.Value(csv_uri=uri)
         else:
@@ -639,6 +646,9 @@ class Core(core_pb2_grpc.CoreServicer):
         yield core_pb2.GetProduceSolutionResultsResponse(progress=msg, steps=steps, exposed_outputs=exposed_outputs)
 
     def SolutionExport(self, request, context):
+        """
+        TA2-3 API call
+        """
         logging.info("Message received: SolutionExport")
         solution_id = request.fitted_solution_id
         rank = request.rank
@@ -653,11 +663,17 @@ class Core(core_pb2_grpc.CoreServicer):
         return core_pb2.SolutionExportResponse()
 
     def UpdateProblem(self, request, context):
+        """
+        TA2-3 API call
+        """
         logging.info("Message received: UpdateProblem")
 
         return core_pb2.UpdateProblemResponse()
 
     def ListPrimitives(self, request, context):
+        """
+        TA2-3 API call
+        """
         logging.info("Message received: ListPrimitives")
 
         primitives = []
@@ -666,6 +682,9 @@ class Core(core_pb2_grpc.CoreServicer):
         return core_pb2.ListPrimitivesResponse(primitives=primitives)
 
     def Hello(self, request, context):
+        """
+        TA2-3 API call
+        """
         logging.info("Message received: Hello")
         version = core_pb2.DESCRIPTOR.GetOptions().Extensions[
                     core_pb2.protocol_version]
