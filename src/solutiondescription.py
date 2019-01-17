@@ -817,25 +817,27 @@ class SolutionDescription(object):
             
         self.execution_order.append(i)
 
-        i = i + 1
-        self.primitives_arguments[i] = {}
-        self.hyperparams[i] = None
-        self.pipeline.append(None)
-        prim = d3m.index.get_primitive('d3m.primitives.data.ConstructPredictions')
-        self.primitives[i] = prim
+        first_primitive = self.primitives[0].metadata.query()['python_path']
+        if first_primitive != 'd3m.primitives.bbn.time_series.AudioReader':
+            i = i + 1
+            self.primitives_arguments[i] = {}
+            self.hyperparams[i] = None
+            self.pipeline.append(None)
+            prim = d3m.index.get_primitive('d3m.primitives.data.ConstructPredictions')
+            self.primitives[i] = prim
 
-        data = 'steps.' + str(i-1) + str('.produce')
-        origin = data.split('.')[0]
-        source = data.split('.')[1]
-        self.primitives_arguments[i]['inputs'] = {'origin': origin, 'source': int(source), 'data': data}
+            data = 'steps.' + str(i-1) + str('.produce')
+            origin = data.split('.')[0]
+            source = data.split('.')[1]
+            self.primitives_arguments[i]['inputs'] = {'origin': origin, 'source': int(source), 'data': data}
         
-        data = 'steps.' + str(1) + str('.produce')
-        origin = data.split('.')[0]
-        source = data.split('.')[1]
-        self.primitives_arguments[i]['reference'] = {'origin': origin, 'source': int(source), 'data': data}
+            data = 'steps.' + str(1) + str('.produce')
+            origin = data.split('.')[0]
+            source = data.split('.')[1]
+            self.primitives_arguments[i]['reference'] = {'origin': origin, 'source': int(source), 'data': data}
 
-        self.execution_order.append(i)
-        self.steptypes.append(StepType.PRIMITIVE)
+            self.execution_order.append(i)
+            self.steptypes.append(StepType.PRIMITIVE)
 
         self.add_outputs()
 
@@ -1155,6 +1157,12 @@ class PrimitiveDescription(object):
         if custom_hyperparams is not None:
             for name, value in custom_hyperparams.items():
                 optimal_params[name] = value
+
+        if 'MeanBaseline' in python_path or 'GeneralRelationalDataset' in python_path:
+            if util.invert_metric(metric_type) is True:
+                return (100.0, optimal_params) 
+            else:          
+                return (-1.0, optimal_params)
 
         if y is None or 'd3m.primitives.sri' in python_path or 'bbn' in python_path or 'fastlvm' in python_path:
             return (0.0, optimal_params)

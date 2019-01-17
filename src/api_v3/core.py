@@ -87,10 +87,14 @@ def get_solutions(task_name, dataset, primitives, problem):
             basic_sol = solutiondescription.SolutionDescription(problem, static_dir)
             basic_sol.initialize_solution('AUDIO', task_name)
 
-        basic_sol.run_basic_solution(inputs=[dataset])
+        try:
+            basic_sol.run_basic_solution(inputs=[dataset])
+        except:
+            basic_sol = None
+
         print("Total cols = ", total_cols)
         for classname, p in primitives.items():
-            if p.primitive_class.family == task_name:
+            if p.primitive_class.family == task_name and basic_sol is not None:
                 python_path = p.primitive_class.python_path
                 if 'd3m.primitives.sri.' in python_path or 'd3m.primitives.jhu_primitives' in python_path or 'lupi_svm' in python_path or 'bbn' in python_path:
                     continue
@@ -111,6 +115,19 @@ def get_solutions(task_name, dataset, primitives, problem):
         solutions.append(pipe)
     else:
         logging.info("No matching solutions")
+
+    basic_sol = solutiondescription.SolutionDescription(problem, static_dir)
+    basic_sol.initialize_solution('FALLBACK2', 'FALLBACK2')
+    pipe = copy.deepcopy(basic_sol)
+    pipe.id = str(uuid.uuid4())
+    pipe.add_outputs()
+    solutions.append(pipe)
+    
+    basic_sol.initialize_solution('FALLBACK1', 'FALLBACK1')
+    pipe = copy.deepcopy(basic_sol)
+    pipe.id = str(uuid.uuid4())
+    pipe.add_outputs()
+    solutions.append(pipe)
        
     return solutions
 
@@ -145,10 +162,10 @@ def search_phase():
 
     inputs = []
     inputs.append(dataset) 
-    if task_name == 'CLASSIFICATION':
-        metric= problem_pb2.ACCURACY
-    else:
+    if task_name == 'REGRESSION':
         metric= problem_pb2.MEAN_SQUARED_ERROR
+    else:
+        metric= problem_pb2.ACCURACY
 
     # Score potential solutions
     results = [async_message_thread.apply_async(evaluate_solution_score, (inputs, sol, primitives, metric,)) for sol in solutions]
