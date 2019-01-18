@@ -64,7 +64,7 @@ def get_solutions(task_name, dataset, primitives, problem):
     """
     solutions = []
 
-    static_dir = os.environ['D3MSTATICDIR']
+    static_dir = None #os.environ['D3MSTATICDIR']
     basic_sol = solutiondescription.SolutionDescription(problem, static_dir)
     basic_sol.initialize_solution(task_name, task_name)
 
