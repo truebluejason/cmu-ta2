@@ -5,6 +5,9 @@ maintainer "Donghan Wang<donghanw@cs.cmu.edu>, Simon Heath <sheath@andrew.cmu.ed
 
 user root
 
+## gpg prerequisties
+RUN sudo apt-get install apt-transport-https dirmngr
+
 ## add git-lfs gpg
 #RUN sudo apt-get update && apt-get install -y && \
 #    apt-get install dirmngr && \
