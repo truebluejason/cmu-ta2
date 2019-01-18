@@ -8,7 +8,7 @@ user root
 # install git-lfs
 # https://github.com/git-lfs/git-lfs/wiki/Installation#docker-recipes
 RUN build_deps="curl" && \
-    apt-get update && \
+    sudo apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ${build_deps} ca-certificates && \
     curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | bash && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends git-lfs && \
