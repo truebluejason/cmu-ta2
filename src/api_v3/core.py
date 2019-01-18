@@ -129,7 +129,7 @@ def get_solutions(task_name, dataset, primitives, problem):
     pipe.add_outputs()
     solutions.append(pipe)
        
-    logging.info("Solutions are: ", solutions)
+    logging.info(solutions)
 
     return solutions
 
