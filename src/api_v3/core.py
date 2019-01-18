@@ -566,6 +566,7 @@ class Core(core_pb2_grpc.CoreServicer):
             msg = core_pb2.Progress(state=core_pb2.RUNNING, status="", start=start, end=solutiondescription.compute_timestamp())
             
             fitted_solution = copy.deepcopy(solution)
+            logging.info(fitted_solution.primitives)
             fitted_solution.id = str(uuid.uuid4()) 
             self._solutions[fitted_solution.id] = fitted_solution
 
