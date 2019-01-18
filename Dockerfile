@@ -1,5 +1,5 @@
 # JPL base image
-FROM http://registry.datadrivendiscovery.org/jpl/docker_images/complete:ubuntu-artful-python36-devel
+FROM registry.datadrivendiscovery.org/jpl/docker_images/complete:ubuntu-artful-python36-devel
 
 maintainer "Donghan Wang<donghanw@cs.cmu.edu>, Simon Heath <sheath@andrew.cmu.edu>"
 
