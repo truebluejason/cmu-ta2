@@ -1,5 +1,5 @@
 # JPL base image
-FROM registry.datadrivendiscovery.org/jpl/docker_images/complete:ubuntu-bionic-python36-devel-20190105-054204
+FROM http://registry.datadrivendiscovery.org/jpl/docker_images/complete:ubuntu-artful-python36-devel
 
 maintainer "Donghan Wang<donghanw@cs.cmu.edu>, Simon Heath <sheath@andrew.cmu.edu>"
 
