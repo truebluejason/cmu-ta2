@@ -8,7 +8,8 @@ user root
 # libcurl4-openssl-dev for pycurl
 # fortran for bayesian_optimization
 # python3-tk for d3m.index
-RUN sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 6B05F25D762E3157 && \
+RUN sudo apt-get install dirmngr && \
+    apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 6B05F25D762E3157 && \
     apt-get update && apt-get install -y \
     libcurl4-openssl-dev \
     gfortran \
