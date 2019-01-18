@@ -8,8 +8,10 @@ user root
 # libcurl4-openssl-dev for pycurl
 # fortran for bayesian_optimization
 # python3-tk for d3m.index
-RUN sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 6B05F25D762E3157 && \
-    apt-get update && apt-get install -y \
+RUN sudo apt-get update && \
+    curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash
+
+RUN sudo apt-get update && apt-get install -y \
     libcurl4-openssl-dev \
     gfortran \
     python3-tk
