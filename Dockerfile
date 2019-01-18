@@ -1,6 +1,5 @@
 # JPL base image
-FROM registry.datadrivendiscovery.org/jpl/docker_images/complete:ubuntu-artful-python36-v2018.7.10-20180801-215033
-
+FROM registry.datadrivendiscovery.org/jpl/docker_images/complete:ubuntu-bionic-python36-devel-20190105-054204
 
 maintainer "Donghan Wang<donghanw@cs.cmu.edu>, Simon Heath <sheath@andrew.cmu.edu>"
 
@@ -18,6 +17,8 @@ RUN apt-get update && apt-get install -y \
 RUN pip3 install --upgrade pip \
     && python3 -m pip install --process-dependency-links d3m \
     && python3 -m pip install --upgrade grpcio grpcio-tools
+
+RUN pip3 install -U pandas==0.22.0
 
 # Install bayesian_optimiaztion
 COPY bayesian_optimization /tmp/bayesian_optimization
