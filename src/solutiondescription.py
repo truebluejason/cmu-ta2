@@ -583,15 +583,24 @@ class SolutionDescription(object):
         if self.exclude_columns is not None and len(self.exclude_columns) > 0:
             if python_path == 'd3m.primitives.data.ColumnParser' or python_path == 'd3m.primitives.data.ExtractColumnsBySemanticTypes':
                 custom_hyperparams['exclude_columns'] = self.exclude_columns
+                if self.hyperparams[n_step] is None:
+                    self.hyperparams[n_step] = {}
+                self.hyperparams[n_step]['exclude_columns'] = self.exclude_columns
 
         if 'find_projections' in python_path and 'Numeric' not in python_path:
             rows = len(training_arguments['inputs'])
             min_rows = (int)(rows * 0.5)
             if min_rows < 100:
                 custom_hyperparams['support'] = min_rows
+                if self.hyperparams[n_step] is None:
+                    self.hyperparams[n_step] = {}
+                self.hyperparams[n_step]['support'] = min_rows
 
         if 'sklearn' in python_path:
             custom_hyperparams['use_semantic_types'] = True
+            if self.hyperparams[n_step] is None:
+                self.hyperparams[n_step] = {}
+            self.hyperparams[n_step]['use_semantic_types'] = True
 
         if python_path == 'd3m.primitives.common_primitives.ImageTransferLearningTransformer':
             volumes = {}
