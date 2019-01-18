@@ -6,7 +6,9 @@ maintainer "Donghan Wang<donghanw@cs.cmu.edu>, Simon Heath <sheath@andrew.cmu.ed
 user root
 
 # add git-lfs gpg
-RUN sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 762E3157
+RUN sudo apt-get update && apt-get install -y && \
+    apt-get install dirmngr && \
+    apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 762E3157
 
 # install git-lfs
 # https://github.com/git-lfs/git-lfs/wiki/Installation#docker-recipes
