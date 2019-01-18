@@ -9,8 +9,9 @@ user root
 # fortran for bayesian_optimization
 # python3-tk for d3m.index
 RUN sudo apt-get update && \
-    curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash && \
-    apt-get update && apt-get install -y \
+    curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash
+
+RUN sudo apt-get update && apt-get install -y \
     libcurl4-openssl-dev \
     gfortran \
     python3-tk
