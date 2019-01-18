@@ -1,5 +1,5 @@
 # JPL base image
-FROM registry.datadrivendiscovery.org/jpl/docker_images/complete:ubuntu-artful-python36-devel
+FROM registry.datadrivendiscovery.org/jpl/docker_images/complete:ubuntu-artful-python36-v2018.7.10-20180801-215033
 
 maintainer "Donghan Wang<donghanw@cs.cmu.edu>, Simon Heath <sheath@andrew.cmu.edu>"
 
@@ -8,7 +8,8 @@ user root
 # libcurl4-openssl-dev for pycurl
 # fortran for bayesian_optimization
 # python3-tk for d3m.index
-RUN apt-get update && apt-get install -y \
+RUN sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 6B05F25D762E3157 && \
+    apt-get update && apt-get install -y \
     libcurl4-openssl-dev \
     gfortran \
     python3-tk
