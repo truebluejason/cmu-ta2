@@ -5,24 +5,13 @@ maintainer "Donghan Wang<donghanw@cs.cmu.edu>, Simon Heath <sheath@andrew.cmu.ed
 
 user root
 
-## gpg prerequisties
-#RUN sudo apt-get install apt-transport-https dirmngr
-
-## add git-lfs gpg
-#RUN sudo apt-get update && apt-get install -y && \
-#    apt-get install dirmngr && \
-#    apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 762E3157
-#
-## install git-lfs
-## https://github.com/git-lfs/git-lfs/wiki/Installation#docker-recipes
-#RUN build_deps="curl" && \
-#    sudo apt-get update && \
-#    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ${build_deps} ca-certificates && \
-#    curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | bash && \
-#    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends git-lfs && \
-#    git lfs install && \
-#    DEBIAN_FRONTEND=noninteractive apt-get purge -y --auto-remove ${build_deps} && \
-#    rm -r /var/lib/apt/lists/*
+# Silently resolve the GPG error so the CI doesn't fail
+# The error is caused by
+# W: GPG error: https://packagecloud.io/github/git-lfs/ubuntu artful InRelease: The following signatures couldn't be verified because the public key is not available: NO_PUBKEY 6B05F25D762E3157
+RUN sudo 2>/dev/null 1>/dev/null apt-get update
+# add git-lfs gpg
+RUN sudo apt-get install dirmngr && \
+    apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 762E3157
 
 # libcurl4-openssl-dev for pycurl
 # fortran for bayesian_optimization
