@@ -5,13 +5,8 @@ maintainer "Donghan Wang<donghanw@cs.cmu.edu>, Simon Heath <sheath@andrew.cmu.ed
 
 user root
 
-# Silently resolve the GPG error so the CI doesn't fail
-# The error is caused by
-# W: GPG error: https://packagecloud.io/github/git-lfs/ubuntu artful InRelease: The following signatures couldn't be verified because the public key is not available: NO_PUBKEY 6B05F25D762E3157
-RUN sudo 2>/dev/null 1>/dev/null apt-get update
-# add git-lfs gpg
-RUN sudo apt-get install dirmngr && \
-    apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 762E3157
+# add git-lfs gpg and return exit code 0
+RUN apt-get update || (apt-get install dirmngr && apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 762E3157)
 
 # libcurl4-openssl-dev for pycurl
 # fortran for bayesian_optimization
