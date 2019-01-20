@@ -442,7 +442,8 @@ class Core(core_pb2_grpc.CoreServicer):
                 index = index + 1
 
         self._solution_score_map.pop(search_id_str, None)
-       
+      
+        logging.info("No. of sol = %d", count) 
         msg = core_pb2.Progress(state=core_pb2.COMPLETED, status="", start=start, end=solutiondescription.compute_timestamp()) 
         yield core_pb2.GetSearchSolutionsResultsResponse(progress=msg, done_ticks=count, all_ticks=count,
                           solution_id="", internal_score=0.0, scores=[])

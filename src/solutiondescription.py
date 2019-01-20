@@ -586,6 +586,8 @@ class SolutionDescription(object):
                 if self.hyperparams[n_step] is None:
                     self.hyperparams[n_step] = {}
                 self.hyperparams[n_step]['exclude_columns'] = self.exclude_columns
+                logging.info("Exclude = %s", self.exclude_columns)
+                logging.info(list(produce_params['inputs']))
 
         if 'find_projections' in python_path and 'Numeric' not in python_path:
             rows = len(training_arguments['inputs'])
