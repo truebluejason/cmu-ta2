@@ -5,12 +5,12 @@ maintainer "Donghan Wang<donghanw@cs.cmu.edu>, Simon Heath <sheath@andrew.cmu.ed
 
 user root
 
+# add git-lfs gpg and return exit code 0
+RUN apt-get update || (apt-get install dirmngr && apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 762E3157)
+
 # libcurl4-openssl-dev for pycurl
 # fortran for bayesian_optimization
 # python3-tk for d3m.index
-RUN sudo apt-get update && \
-    curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash
-
 RUN sudo apt-get update && apt-get install -y \
     libcurl4-openssl-dev \
     gfortran \
