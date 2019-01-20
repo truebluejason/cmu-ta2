@@ -473,6 +473,7 @@ class SolutionDescription(object):
     def exclude(self, metadata):
         self.exclude_columns = [] #metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/CategoricalData")
         cols = metadata.get_columns_with_semantic_type("http://schema.org/DateTime")
+        logging.info("Cols = %s", cols)
         for col in cols:
             self.exclude_columns.append(col)
 
