@@ -598,7 +598,7 @@ class SolutionDescription(object):
                     self.hyperparams[n_step] = {}
                 self.hyperparams[n_step]['support'] = min_rows
 
-        if 'sklearn' in python_path:
+        if 'sklearn' in python_path and 'Imputer' not in python_path:
             custom_hyperparams['use_semantic_types'] = True
             if self.hyperparams[n_step] is None:
                 self.hyperparams[n_step] = {}
