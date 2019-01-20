@@ -474,9 +474,13 @@ class SolutionDescription(object):
         self.exclude_columns = [] #metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/CategoricalData")
         cols = metadata.get_columns_with_semantic_type("http://schema.org/DateTime")
         logging.info("Cols = %s", cols)
+        timecols = metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/Time")
+        logging.info("Timecols = %s", timecols)
         for col in cols:
             self.exclude_columns.append(col)
 
+        for col in timecols:
+            self.exclude_columns.append(col)
         targets = metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/Target")
         for t in targets:
             if t in self.exclude_columns:

@@ -405,15 +405,15 @@ class Core(core_pb2_grpc.CoreServicer):
 
         logging.info("template: %s", request_params.template)
         # Fully specified solution
-        if request_params.template != None and isinstance(request_params.template, pipeline_pb2.PipelineDescription):
-            msg = core_pb2.Progress(state=core_pb2.COMPLETED, status="", start=start, end=solutiondescription.compute_timestamp())
-            count = count + 1
-            id = solutions[0].id
-            self._solutions[id] = solutions[0]
-            self._search_solutions[search_id_str].append(id) 
-            yield core_pb2.GetSearchSolutionsResultsResponse(progress=msg, done_ticks=1, all_ticks=1,
-                          solution_id=id, internal_score=0.0, scores=[])            
-        else: # Evaluate potential solutions
+        #if request_params.template != None and isinstance(request_params.template, pipeline_pb2.PipelineDescription):
+        #    msg = core_pb2.Progress(state=core_pb2.COMPLETED, status="", start=start, end=solutiondescription.compute_timestamp())
+        #    count = count + 1
+        #    id = solutions[0].id
+        #    self._solutions[id] = solutions[0]
+        #    self._search_solutions[search_id_str].append(id) 
+        #    yield core_pb2.GetSearchSolutionsResultsResponse(progress=msg, done_ticks=1, all_ticks=1,
+        #                  solution_id=id, internal_score=0.0, scores=[])            
+        if 1: #else: # Evaluate potential solutions
             index = 0
             msg = core_pb2.Progress(state=core_pb2.RUNNING, status="", start=start, end=solutiondescription.compute_timestamp())
 
