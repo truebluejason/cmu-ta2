@@ -473,14 +473,12 @@ class SolutionDescription(object):
     def exclude(self, metadata):
         self.exclude_columns = [] #metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/CategoricalData")
         cols = metadata.get_columns_with_semantic_type("http://schema.org/DateTime")
-        logging.info("Cols = %s", cols)
         timecols = metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/Time")
-        logging.info("Timecols = %s", timecols)
         for col in cols:
             self.exclude_columns.append(col)
-
         for col in timecols:
             self.exclude_columns.append(col)
+
         targets = metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/Target")
         for t in targets:
             if t in self.exclude_columns:
@@ -591,8 +589,6 @@ class SolutionDescription(object):
                 if self.hyperparams[n_step] is None:
                     self.hyperparams[n_step] = {}
                 self.hyperparams[n_step]['exclude_columns'] = self.exclude_columns
-                logging.info("Exclude = %s", self.exclude_columns)
-                logging.info(list(produce_params['inputs']))
 
         if 'find_projections' in python_path and 'Numeric' not in python_path:
             rows = len(training_arguments['inputs'])
@@ -603,7 +599,7 @@ class SolutionDescription(object):
                     self.hyperparams[n_step] = {}
                 self.hyperparams[n_step]['support'] = min_rows
 
-        if 'sklearn' in python_path and 'Imputer' not in python_path:
+        if 'sklearn' in python_path:
             custom_hyperparams['use_semantic_types'] = True
             if self.hyperparams[n_step] is None:
                 self.hyperparams[n_step] = {}

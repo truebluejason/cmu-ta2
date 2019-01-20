@@ -87,11 +87,10 @@ def get_solutions(task_name, dataset, primitives, problem):
             basic_sol = solutiondescription.SolutionDescription(problem, static_dir)
             basic_sol.initialize_solution('AUDIO', task_name)
 
-        #try:
-        if 1:
+        try:
             basic_sol.run_basic_solution(inputs=[dataset])
-        #except:
-            #basic_sol = None
+        except:
+            basic_sol = None
 
         print("Total cols = ", total_cols)
         for classname, p in primitives.items():
@@ -130,8 +129,6 @@ def get_solutions(task_name, dataset, primitives, problem):
     pipe.add_outputs()
     solutions.append(pipe)
        
-    logging.info(solutions)
-
     return solutions
 
 def search_phase():
@@ -403,7 +400,6 @@ class Core(core_pb2_grpc.CoreServicer):
         solutions = self.search_solutions(request_params, inputs[0])
         self._search_solutions[search_id_str] = []
 
-        logging.info("template: %s", request_params.template)
         # Fully specified solution
         #if request_params.template != None and isinstance(request_params.template, pipeline_pb2.PipelineDescription):
         #    msg = core_pb2.Progress(state=core_pb2.COMPLETED, status="", start=start, end=solutiondescription.compute_timestamp())
