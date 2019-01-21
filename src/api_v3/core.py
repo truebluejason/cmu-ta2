@@ -515,11 +515,14 @@ class Core(core_pb2_grpc.CoreServicer):
             yield core_pb2.GetScoreSolutionResultsResponse(progress=msg, scores=[])
         else:
             inputs = self._get_inputs(self._solutions[solution_id].problem, request_params.inputs)
-            try:
+            #try:
+            if 1:
                 (score, optimal_params) = self._solutions[solution_id].score_solution(inputs=inputs, metric=request_params.performance_metrics[0].metric,
                                 primitive_dict=self._primitives, solution_dict=self._solutions)
-            except:
-                score = 0.0
+            #except:
+            score = 0.0
+            logging.info(self._solutions[solution_id].primitives)
+            logging.info(sys.exc_info()[0])
 
             logging.info("Score = %f", score)
             send_scores.append(core_pb2.Score(metric=request_params.performance_metrics[0],
@@ -565,7 +568,6 @@ class Core(core_pb2_grpc.CoreServicer):
             msg = core_pb2.Progress(state=core_pb2.RUNNING, status="", start=start, end=solutiondescription.compute_timestamp())
             
             fitted_solution = copy.deepcopy(solution)
-            logging.info(fitted_solution.primitives)
             fitted_solution.id = str(uuid.uuid4()) 
             self._solutions[fitted_solution.id] = fitted_solution
 
