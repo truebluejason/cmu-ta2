@@ -422,7 +422,7 @@ class Core(core_pb2_grpc.CoreServicer):
 
             # Evaluate potential solutions asynchronously and get end-result
             for r in results:
-                try:
+                if 1: #try:
                     val = r.get(timeout=timeout)
                     if val == 0:
                         count = count + 1
@@ -431,10 +431,10 @@ class Core(core_pb2_grpc.CoreServicer):
                         self._search_solutions[search_id_str].append(id)
                         yield core_pb2.GetSearchSolutionsResultsResponse(progress=msg, done_ticks=count, all_ticks=len(solutions), solution_id=id,
                                         internal_score=0.0, scores=[])
-                except:
-                    logging.info(solutions[index].primitives)
-                    logging.info(sys.exc_info()[0])
-                    logging.info("Solution terminated: %s", solutions[index].id)
+                #except:
+                #    logging.info(solutions[index].primitives)
+                #    logging.info(sys.exc_info()[0])
+                #    logging.info("Solution terminated: %s", solutions[index].id)
 
                 index = index + 1
 
