@@ -17,7 +17,10 @@ RUN sudo apt-get update && apt-get install -y \
     python3-tk
 
 # install d3m and grpc, a D3M dependency
-RUN pip3 install --upgrade pip \
+#
+# We use pip==18.1 because pip 19+ removed --process-dependency-links
+#
+RUN pip3 install --upgrade pip==18.1 \
     && python3 -m pip install --process-dependency-links d3m \
     && python3 -m pip install --upgrade grpcio grpcio-tools
 
