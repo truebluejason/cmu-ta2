@@ -28,11 +28,13 @@ from sklearn import preprocessing
 import json
 import dateutil
 
-from d3m.metadata.pipeline import Pipeline, PrimitiveStep, SubpipelineStep, ArgumentType, PipelineContext
-from d3m.metadata.base import PrimitiveFamily
+from d3m.metadata.pipeline import Pipeline, PrimitiveStep, SubpipelineStep
+from d3m.metadata.pipeline_run import PipelineRun, RuntimeEnvironment
+from d3m.metadata.base import PrimitiveFamily, Context, ArgumentType
 from d3m.metadata import base as metadata_base
 from d3m.primitive_interfaces.base import PrimitiveBaseMeta
 from d3m.container import DataFrame as d3m_dataframe
+from d3m.runtime import Runtime
 import d3m.index
 
 import networkx as nx
@@ -40,18 +42,18 @@ import bo.gp_call
 import util
 
 task_paths = {
-'TEXT': ['d3m.primitives.datasets.Denormalize','d3m.primitives.datasets.DatasetToDataFrame','d3m.primitives.data.ColumnParser','d3m.primitives.data.ExtractColumnsBySemanticTypes', 'd3m.primitives.dsbox.CorexText', 'd3m.primitives.sklearn_wrap.SKImputer', 'd3m.primitives.data.ExtractColumnsBySemanticTypes'],
-'TIMESERIES': ['d3m.primitives.datasets.Denormalize','d3m.primitives.datasets.DatasetToDataFrame','d3m.primitives.data.ColumnParser','d3m.primitives.data.ExtractColumnsBySemanticTypes', 'd3m.primitives.dsbox.TimeseriesToList', 'd3m.primitives.dsbox.RandomProjectionTimeSeriesFeaturization', 'd3m.primitives.data.ExtractColumnsBySemanticTypes'], 
-'IMAGE': ['d3m.primitives.datasets.Denormalize','d3m.primitives.datasets.DatasetToDataFrame','d3m.primitives.data.ColumnParser','d3m.primitives.data.ExtractColumnsBySemanticTypes', 'd3m.primitives.data.ImageReader','d3m.primitives.common_primitives.ImageTransferLearningTransformer', 'd3m.primitives.data.ExtractColumnsBySemanticTypes'],
-'CLASSIFICATION': ['d3m.primitives.datasets.Denormalize','d3m.primitives.datasets.DatasetToDataFrame','d3m.primitives.data.ColumnParser','d3m.primitives.data.ExtractColumnsBySemanticTypes', 'd3m.primitives.sklearn_wrap.SKImputer', 'd3m.primitives.data.ExtractColumnsBySemanticTypes'], 
-'REGRESSION': ['d3m.primitives.datasets.Denormalize','d3m.primitives.datasets.DatasetToDataFrame','d3m.primitives.data.ColumnParser', 'd3m.primitives.data.ExtractColumnsBySemanticTypes', 'd3m.primitives.sklearn_wrap.SKImputer', 'd3m.primitives.data.ExtractColumnsBySemanticTypes'],
-'CLUSTERING': ['d3m.primitives.datasets.DatasetToDataFrame','d3m.primitives.data.ColumnParser','d3m.primitives.data.ExtractColumnsBySemanticTypes','d3m.primitives.cmu.fastlvm.CoverTree','d3m.primitives.data.ConstructPredictions'],
+'TEXT': ['d3m.primitives.data_transformation.denormalize.Common','d3m.primitives.data_transformation.dataset_to_dataframe.Common','d3m.primitives.data_transformation.column_parser.DataFrameCommon','d3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon', 'd3m.primitives.feature_construction.corex_text.CorexText', 'd3m.primitives.data_cleaning.imputer.SKlearn', 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'],
+'TIMESERIES': ['d3m.primitives.data_transformation.denormalize.Common','d3m.primitives.data_transformation.dataset_to_dataframe.Common','d3m.primitives.data_transformation.column_parser.DataFrameCommon','d3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon', 'd3m.primitives.dsbox.TimeseriesToList', 'd3m.primitives.dsbox.RandomProjectionTimeSeriesFeaturization', 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'], 
+'IMAGE': ['d3m.primitives.data_transformation.denormalize.Common','d3m.primitives.data_transformation.dataset_to_dataframe.Common','d3m.primitives.data_transformation.column_parser.DataFrameCommon','d3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon', 'd3m.primitives.data.ImageReader','d3m.primitives.common_primitives.ImageTransferLearningTransformer', 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'],
+'CLASSIFICATION': ['d3m.primitives.data_transformation.denormalize.Common','d3m.primitives.data_transformation.dataset_to_dataframe.Common','d3m.primitives.data_transformation.column_parser.DataFrameCommon','d3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon', 'd3m.primitives.data_cleaning.imputer.SKlearn', 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'], 
+'REGRESSION': ['d3m.primitives.data_transformation.denormalize.Common','d3m.primitives.data_transformation.dataset_to_dataframe.Common','d3m.primitives.data_transformation.column_parser.DataFrameCommon', 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon', 'd3m.primitives.data_cleaning.imputer.SKlearn', 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'],
+'CLUSTERING': ['d3m.primitives.data_transformation.dataset_to_dataframe.Common','d3m.primitives.data_transformation.column_parser.DataFrameCommon','d3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon','d3m.primitives.cmu.fastlvm.CoverTree','d3m.primitives.data_transformation.construct_predictions.DataFrameCommon'],
 'GRAPHMATCHING': ['d3m.primitives.sri.psl.GraphMatchingLinkPrediction'],
 'COLLABORATIVEFILTERING': ['d3m.primitives.sri.psl.CollaborativeFilteringLinkPrediction'],
 'VERTEXNOMINATION': ['d3m.primitives.sri.graph.VertexNominationParser', 'd3m.primitives.sri.psl.VertexNomination'],
 'LINKPREDICTION': ['d3m.primitives.sri.graph.GraphMatchingParser','d3m.primitives.sri.graph.GraphTransformer', 'd3m.primitives.sri.psl.LinkPrediction'],
 'COMMUNITYDETECTION': ['d3m.primitives.sri.graph.CommunityDetectionParser', 'd3m.primitives.sri.psl.CommunityDetection'],
-'TIMESERIESFORECASTING': ['d3m.primitives.datasets.DatasetToDataFrame','d3m.primitives.data.ColumnParser', 'd3m.primitives.data.ExtractColumnsBySemanticTypes', 'd3m.primitives.data.ExtractColumnsBySemanticTypes'],
+'TIMESERIESFORECASTING': ['d3m.primitives.data_transformation.dataset_to_dataframe.Common','d3m.primitives.data_transformation.column_parser.DataFrameCommon', 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon', 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'],
 'AUDIO': ['d3m.primitives.bbn.time_series.AudioReader', 'd3m.primitives.bbn.time_series.ChannelAverager', 'd3m.primitives.bbn.time_series.SignalDither', 'd3m.primitives.bbn.time_series.SignalFramer', 'd3m.primitives.bbn.time_series.SignalMFCC', 'd3m.primitives.bbn.time_series.IVectorExtractor', 'd3m.primitives.bbn.time_series.TargetsReader'],
 'FALLBACK1': ['d3m.primitives.sri.baseline.MeanBaseline'],
 'FALLBACK2': ['d3m.primitives.sri.psl.GeneralRelationalDataset']}
@@ -60,12 +62,12 @@ def column_types_present(dataset):
     """
     Retrieve special data types present: Text, Image, Timeseries, Audio
     """
-    primitive = d3m.index.get_primitive('d3m.primitives.datasets.Denormalize')
+    primitive = d3m.index.get_primitive('d3m.primitives.data_transformation.denormalize.Common')
     primitive_hyperparams = primitive.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
     model = primitive(hyperparams=primitive_hyperparams.defaults())
     ds = model.produce(inputs=dataset).value
 
-    primitive = d3m.index.get_primitive('d3m.primitives.datasets.DatasetToDataFrame')
+    primitive = d3m.index.get_primitive('d3m.primitives.data_transformation.dataset_to_dataframe.Common')
     primitive_hyperparams = primitive.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
     model = primitive(hyperparams=primitive_hyperparams.defaults())
     df = model.produce(inputs=ds).value
@@ -172,6 +174,7 @@ class SolutionDescription(object):
         self.trainindices = None
         self.primitives_outputs = None
         self.static_dir = static_dir
+        self.pipeline_description = None
 
     def contains_placeholder(self):
         if self.steptypes is not None:
@@ -188,13 +191,13 @@ class SolutionDescription(object):
         else:
             return 0
 
-    def create_pipeline_json(self, prim_dict, filename):
+    def create_pipeline_json(self, prim_dict):
         """
         Generate pipeline.json
         """
         name = "Pipeline for evaluation"
-        pipeline_id = self.id + "_" + str(self.rank)
-        pipeline_description = Pipeline(pipeline_id=pipeline_id, context=PipelineContext.EVALUATION, name=name)
+        pipeline_id = self.id #+ "_" + str(self.rank)
+        pipeline_description = Pipeline(pipeline_id=pipeline_id, context=Context.EVALUATION, name=name)
         for ip in self.inputs:
             pipeline_description.add_input(name=ip['name'])
 
@@ -222,10 +225,25 @@ class SolutionDescription(object):
         for op in self.outputs:
             pipeline_description.add_output(data_reference=op[2], name=op[3])
 
+        self.pipeline_description = pipeline_description
+   
+    def write_pipeline_json(self, prim_dict, dirName, rank=None):
+        filename = dirName + "/" + self.id + ".json"
+        if self.pipeline_description is None:
+            self.create_pipeline_json(prim_dict)
+ 
         with open(filename, "w") as out:
-            parsed = json.loads(pipeline_description.to_json())
-            parsed['pipeline_rank'] = str(self.rank)
-            json.dump(parsed, out, indent=4)     
+            parsed = json.loads(self.pipeline_description.to_json())
+            if rank is not None:
+                parsed['pipeline_rank'] = str(rank)
+            json.dump(parsed, out, indent=4)    
+
+    def write_pipeline_run(self, problem_description, dataset, filename_yaml): 
+        runtime = Runtime(pipeline=self.pipeline_description, problem_description=problem_description, context=Context.TESTING, is_standard_pipeline=True)
+        output = runtime.fit(inputs=dataset)
+        pipeline_run = output.pipeline_run
+        with open(filename_yaml, "w") as out:
+            pipeline_run.to_yaml(file=filename_yaml)
 
     def create_from_pipeline(self, pipeline_description: Pipeline) -> None:
         n_steps = len(pipeline_description.steps)
@@ -466,7 +484,7 @@ class SolutionDescription(object):
                         current_step = step_source
 
     def isDataFrameStep(self, n_step):
-        if self.steptypes[n_step] is StepType.PRIMITIVE and self.primitives[n_step].metadata.query()['python_path'] == 'd3m.primitives.datasets.DatasetToDataFrame':
+        if self.steptypes[n_step] is StepType.PRIMITIVE and self.primitives[n_step].metadata.query()['python_path'] == 'd3m.primitives.data_transformation.dataset_to_dataframe.Common':
             return True
         return False
 
@@ -584,13 +602,13 @@ class SolutionDescription(object):
                 training_arguments[param] = value
 
         if self.exclude_columns is not None and len(self.exclude_columns) > 0:
-            if python_path == 'd3m.primitives.data.ColumnParser' or python_path == 'd3m.primitives.data.ExtractColumnsBySemanticTypes':
+            if python_path == 'd3m.primitives.data_transformation.column_parser.DataFrameCommon' or python_path == 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon':
                 custom_hyperparams['exclude_columns'] = self.exclude_columns
                 if self.hyperparams[n_step] is None:
                     self.hyperparams[n_step] = {}
                 self.hyperparams[n_step]['exclude_columns'] = self.exclude_columns
 
-        if 'find_projections' in python_path and 'Numeric' not in python_path:
+        if 'Find_projections' in python_path and 'Numeric' not in python_path:
             rows = len(training_arguments['inputs'])
             min_rows = (int)(rows * 0.5)
             if min_rows < 100:
@@ -599,7 +617,7 @@ class SolutionDescription(object):
                     self.hyperparams[n_step] = {}
                 self.hyperparams[n_step]['support'] = min_rows
 
-        if 'sklearn' in python_path:
+        if 'SKlearn' in python_path:
             custom_hyperparams['use_semantic_types'] = True
             if self.hyperparams[n_step] is None:
                 self.hyperparams[n_step] = {}
@@ -823,7 +841,7 @@ class SolutionDescription(object):
             source = data.split('.')[1]
             self.primitives_arguments[i]['outputs'] = {'origin': origin, 'source': int(source), 'data': data}
 
-        if 'd3m.primitives.sklearn_wrap.SKRandomForest' in python_path:
+        if 'random_forest.SKlearn' in python_path:
             self.hyperparams[i] = {}
             self.hyperparams[i]['n_estimators'] = 100
             
@@ -835,7 +853,7 @@ class SolutionDescription(object):
             self.primitives_arguments[i] = {}
             self.hyperparams[i] = None
             self.pipeline.append(None)
-            prim = d3m.index.get_primitive('d3m.primitives.data.ConstructPredictions')
+            prim = d3m.index.get_primitive('d3m.primitives.data_transformation.construct_predictions.DataFrameCommon')
             self.primitives[i] = prim
 
             data = 'steps.' + str(i-1) + str('.produce')
@@ -924,7 +942,7 @@ class SolutionDescription(object):
 
     def get_last_step(self):
         n_steps = len(self.primitives_arguments)
-        if 'ConstructPredictions' in self.primitives[n_steps-1].metadata.query()['python_path']:
+        if 'construct_predictions' in self.primitives[n_steps-1].metadata.query()['python_path']:
             return n_steps - 2
         else:
             return n_steps - 1
@@ -1033,7 +1051,7 @@ class SolutionDescription(object):
         Last step of a solution evaluated for validate_solution()
         """
         python_path = primitive.metadata.query()['python_path']
-        if 'find_projections' in python_path:
+        if 'Find_projections' in python_path:
             return True
 
         family = primitive.metadata.query()['primitive_family']
@@ -1159,7 +1177,7 @@ class PrimitiveDescription(object):
         """
         python_path = self.primitive.metadata.query()['python_path']
 
-        if 'hyperparams' in self.primitive.metadata.query()['primitive_code'] and y is not None and 'find_projections' not in python_path and 'sklearn_wrap' not in python_path:
+        if 'hyperparams' in self.primitive.metadata.query()['primitive_code'] and y is not None and 'Find_projections' not in python_path and 'SKlearn' not in python_path:
             hyperparam_spec = self.primitive.metadata.query()['primitive_code']['hyperparams']
             optimal_params = self.find_optimal_hyperparams(train=X, output=y, hyperparam_spec=hyperparam_spec,
           metric=metric_type, custom_hyperparams=custom_hyperparams) 
@@ -1192,7 +1210,7 @@ class PrimitiveDescription(object):
             Xnew = pd.DataFrame(data=X)
 
         rows = len(Xnew)
-        if 'find_projections' in python_path and 'Numeric' not in python_path:
+        if 'Find_projections' in python_path and 'Numeric' not in python_path:
             min_rows = (int)(rows * 0.8 * 0.5)
             if min_rows < 100:
                 optimal_params['support'] = min_rows

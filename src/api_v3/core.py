@@ -32,25 +32,13 @@ from d3m import container
 def load_primitives():
     primitives = {}
     for p in primitive_lib.list_primitives():
-        if p.name == 'common_primitives.BayesianLogisticRegression':
-            continue
-        if p.python_path == 'd3m.primitives.common_primitives.ConvolutionalNeuralNet':
-            continue
-        if p.python_path == 'd3m.primitives.classifier.RandomForest':
-            continue
-        if p.python_path == 'd3m.primitives.common_primitives.FeedForwardNeuralNet':
-            continue
-        if p.python_path == 'd3m.primitives.common_primitives.Loss':
-            continue
-        if p.python_path == 'd3m.primitives.sklearn_wrap.SKKNeighborsRegressor':
+        if 'convolutional_neural_net' in p.python_path or 'feed_forward_neural_net' in p.python_path or 'regression.k_neighbors' in p.python_path or 'loss.TorchCommon' in p.python_path:
             continue
         if p.python_path == 'd3m.primitives.dsbox.CorexSupervised':
             continue
-        if p.python_path == 'd3m.primitives.sklearn_wrap.SKDecisionTreeClassifier':
-            continue
         if p.python_path == 'd3m.primitives.realML.TensorMachinesBinaryClassification':
             continue
-        if 'sklearn_wrap.SKSGD' in p.python_path or 'sklearn_wrap.SKQuadraticDiscriminantAnalysis' in p.python_path:
+        if 'quadratic_discriminant_analysis.SKlearn' in p.python_path or 'd3m.primitives.classification.random_forest.DataFrameCommon' in p.python_path or 'bayesian_logistic_regression.Common' in p.python_path:
             continue
 
         primitives[p.classname] = solutiondescription.PrimitiveDescription(p.classname, p)
@@ -68,9 +56,10 @@ def get_solutions(task_name, dataset, primitives, problem):
     basic_sol = solutiondescription.SolutionDescription(problem, static_dir)
     basic_sol.initialize_solution(task_name, task_name)
 
-    rows = dataset.metadata.query(('0',))['dimension']['length']
+    #print(dataset.metadata.query(('0',)))
+    #rows = dataset.metadata.query(('0',))['dimension']['length']
 
-    print("Rows = ", rows)
+    #print("Rows = ", rows)
     if task_name == 'CLASSIFICATION' or task_name == 'REGRESSION':
         (types_present, total_cols) = solutiondescription.column_types_present(dataset)
 
@@ -99,7 +88,7 @@ def get_solutions(task_name, dataset, primitives, problem):
                 if 'd3m.primitives.sri.' in python_path or 'd3m.primitives.jhu_primitives' in python_path or 'lupi_svm' in python_path or 'bbn' in python_path:
                     continue
 
-                if (total_cols > 20 or rows > 10000) and 'find_projections' in python_path:
+                if total_cols > 20 and 'Find_projections' in python_path:
                     continue
 
                 pipe = copy.deepcopy(basic_sol)
@@ -139,16 +128,15 @@ def search_phase():
     outputDir = os.environ['D3MOUTPUTDIR']
     timeout_env = os.environ['D3MTIMEOUT']
     num_cpus = os.environ['D3MCPU']
+    problemPath = os.environ['D3MPROBLEMPATH']
 
     logging.info("D3MINPUTDIR = %s", inputDir)
     logging.info("D3MOUTPUTDIR = %s", outputDir)
     logging.info("timeout = %s", timeout_env)
     logging.info("cpus = %s", num_cpus)
-    config_file = inputDir + "/search_config.json"
-    (dataset, task_name, target) = util.load_schema(config_file)
+    #config_file = inputDir + "/search_config.json"
+    (dataset, task_name, problem_desc) = util.load_data_problem(inputDir, problemPath) #util.load_schema(config_file)
 
-    resType = dataset.metadata.query(('0',))['semantic_types'][0]
-    print(resType)
     timeout_in_min = (int)(timeout_env)
     primitives = load_primitives()
     task_name = task_name.upper()
@@ -212,11 +200,11 @@ def search_phase():
     if len(sorted_x) < 20:
         num = len(sorted_x)
 
-    util.initialize_for_search(outputDir + "/executables", outputDir + "/predictions", outputDir + "/pipelines")
+    util.initialize_for_search(outputDir)
 
     # Fit solutions and dump out files
     sorted_x = sorted_x[:num]
-    results = [async_message_thread.apply_async(fit_solution, (inputs, valid_solutions[sol], primitives, outputDir,))
+    results = [async_message_thread.apply_async(fit_solution, (inputs, valid_solutions[sol], primitives, outputDir, problem_desc))
      for (sol,score) in sorted_x]
 
     index = 0
@@ -268,7 +256,7 @@ def evaluate_solution_score(inputs, solution, primitives, metric):
 
     return (score, optimal_params)
 
-def fit_solution(inputs, solution, primitives, outputDir):
+def fit_solution(inputs, solution, primitives, outputDir, problem_desc):
     """
     Fits each potential solution
     Runs in a separate process
@@ -276,9 +264,7 @@ def fit_solution(inputs, solution, primitives, outputDir):
     logging.info("Fitting %s", solution.id)
     solution.fit(inputs=inputs, solution_dict=None)
 
-    util.write_solution(solution, outputDir + "/supporting_files")
-    util.write_pipeline_json(solution, primitives, outputDir + "/pipelines")
-    util.write_pipeline_executable(solution, outputDir + "/executables")
+    util.write_pipeline_json(solution, primitives, outputDir + "/pipelines_ranked", rank=solution.rank)
     return True
  
 def evaluate_solution(inputs, solution, solution_dict):
@@ -286,6 +272,7 @@ def evaluate_solution(inputs, solution, solution_dict):
     Validate each potential solution
     Runs in a separate process
     """
+
     logging.info("Evaluating %s", solution.id)
 
     valid = solution.validate_solution(inputs=inputs, solution_dict=solution_dict)
@@ -304,31 +291,7 @@ class Core(core_pb2_grpc.CoreServicer):
         self.async_message_thread = Pool(cpu_count()) #pool.ThreadPool(processes=1,)
         self._primitives = load_primitives()         
         outputDir = os.environ['D3MOUTPUTDIR']
-        util.initialize_for_search(outputDir + "/executables", outputDir + "/predictions", outputDir + "/pipelines")
-
-        if 0:
-            pipeline_uri = '185_pipe_v3.json'
-            #pipeline_uri = '185_withsub.json'
-            sub_pipeline_uri = '185_sub.json'
-            dataset_uri = '185_baseball/185_baseball_dataset/datasetDoc.json'
-            problem_doc_uri = '185_baseball/185_baseball_problem/problemDoc.json'
-            test_dataset_uri = '185_baseball/TEST/dataset_TEST/datasetDoc.json'
-            solution = util.generate_pipeline(pipeline_uri=pipeline_uri, dataset_uri=dataset_uri, problem_doc_uri=problem_doc_uri)
-            #subsolution = util.generate_pipeline(pipeline_uri=sub_pipeline_uri, dataset_uri=dataset_uri, problem_doc_uri=problem_doc_uri)
-            #self._solutions[solution.id] = solution
-            #self._solutions[subsolution.id] = subsolution
-
-            if 'file:' not in dataset_uri:
-                dataset_uri = 'file://{dataset_uri}'.format(dataset_uri=os.path.abspath(dataset_uri))
-            dataset = D3MDatasetLoader().load(dataset_uri)
-            problem_doc = util.load_problem_doc(problem_doc_uri)
-            dataset = util.add_target_columns_metadata(dataset, problem_doc)
-            solution.fit(inputs=[dataset], solution_dict=self._solutions)
-
-            if 'file:' not in test_dataset_uri:
-                test_dataset_uri = 'file://{dataset_uri}'.format(dataset_uri=os.path.abspath(test_dataset_uri))
-            test_dataset = D3MDatasetLoader().load(dataset_uri)
-            prodop = solution.produce(inputs=[test_dataset], solution_dict=self._solutions)
+        util.initialize_for_search(outputDir)
 
     def search_solutions(self, request, dataset):
         """
@@ -420,6 +383,7 @@ class Core(core_pb2_grpc.CoreServicer):
             elif timeout > 60:
                 timeout = timeout - 60
 
+            outputDir = os.environ['D3MOUTPUTDIR']
             # Evaluate potential solutions asynchronously and get end-result
             for r in results:
                 try:
@@ -429,6 +393,7 @@ class Core(core_pb2_grpc.CoreServicer):
                         id = solutions[index].id
                         self._solutions[id] = solutions[index]
                         self._search_solutions[search_id_str].append(id)
+                        util.write_pipeline_json(solutions[index], self._primitives, outputDir + "/pipelines_seached")
                         yield core_pb2.GetSearchSolutionsResultsResponse(progress=msg, done_ticks=count, all_ticks=len(solutions), solution_id=id,
                                         internal_score=0.0, scores=[])
                 except:
@@ -523,6 +488,8 @@ class Core(core_pb2_grpc.CoreServicer):
                 logging.info(self._solutions[solution_id].primitives)
                 logging.info(sys.exc_info()[0])
 
+            outputDir = os.environ['D3MOUTPUTDIR']
+            util.write_pipeline_json(self._solutions[solution_id], self._primitives, outputDir + "/pipelines_scored")
             logging.info("Score = %f", score)
             send_scores.append(core_pb2.Score(metric=request_params.performance_metrics[0],
              fold=request_params.configuration.folds, targets=[], value=value_pb2.Value(raw=value_pb2.ValueRaw(double=score))))
@@ -567,7 +534,8 @@ class Core(core_pb2_grpc.CoreServicer):
             msg = core_pb2.Progress(state=core_pb2.RUNNING, status="", start=start, end=solutiondescription.compute_timestamp())
             
             fitted_solution = copy.deepcopy(solution)
-            fitted_solution.id = str(uuid.uuid4()) 
+            fitted_solution.id = str(uuid.uuid4())
+            fitted_solution.create_pipeline_json(self._primitives) 
             self._solutions[fitted_solution.id] = fitted_solution
 
             inputs = self._get_inputs(solution.problem, request_params.inputs)
@@ -676,9 +644,7 @@ class Core(core_pb2_grpc.CoreServicer):
         solution.rank = rank
 
         outputDir = os.environ['D3MOUTPUTDIR'] 
-        util.write_solution(solution, outputDir + "/supporting_files")
-        util.write_pipeline_json(solution, self._primitives, outputDir + "/pipelines")
-        util.write_pipeline_executable(solution, outputDir + "/executables")
+        util.write_pipeline_json(solution, self._primitives, outputDir + "/pipelines_ranked", rank=solution.rank)
 
         return core_pb2.SolutionExportResponse()
 
