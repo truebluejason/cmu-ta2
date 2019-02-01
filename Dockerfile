@@ -24,7 +24,7 @@ RUN pip3 install --upgrade pip==18.1 \
     && python3 -m pip install --process-dependency-links d3m \
     && python3 -m pip install --upgrade grpcio grpcio-tools
 
-RUN pip3 install -U pandas==0.22.0
+RUN pip3 install -U pandas==0.23.4
 
 # Install bayesian_optimiaztion
 COPY bayesian_optimization /tmp/bayesian_optimization
