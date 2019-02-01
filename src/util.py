@@ -54,6 +54,18 @@ def add_target_columns_metadata(dataset: 'Dataset', problem_doc: 'Metadata'):
 
     return dataset
 
+def add_target_metadata(dataset, targets):
+    for target in targets:
+        semantic_types = list(dataset.metadata.query((target.resource_id, metadata_base.ALL_ELEMENTS, target.column_index)).get('semantic_types', []))
+        if 'https://metadata.datadrivendiscovery.org/types/Target' not in semantic_types:
+            semantic_types.append('https://metadata.datadrivendiscovery.org/types/Target')
+            dataset.metadata = dataset.metadata.update((target.resource_id, metadata_base.ALL_ELEMENTS, target.column_index), {'semantic_types': semantic_types})
+        if 'https://metadata.datadrivendiscovery.org/types/TrueTarget' not in semantic_types:
+            semantic_types.append('https://metadata.datadrivendiscovery.org/types/TrueTarget')
+            dataset.metadata = dataset.metadata.update((target.resource_id, metadata_base.ALL_ELEMENTS, target.column_index), {'semantic_types': semantic_types})
+
+    return dataset
+
 def get_target_name(problem_doc_metadata: 'Metadata'):
     data = problem_doc_metadata.query(())['inputs']['data'][0]
     target = data['targets'][0]['colName']
@@ -115,7 +127,7 @@ def write_solution(solution, dirname):
     output.close()
 
 def initialize_for_search(outputDir):
-    dirNames = [outputDir+"/executables", outputDir+"/predictions", outputDir+"/pipelines_searched", outputDir+"/pipelines_scored", outputDir+"/pipelines_ranked", outputDir+"/pipeline_runs", outputDir+"subpipelines", outputDir+"/additional_inputs"]
+    dirNames = [outputDir+"/executables", outputDir+"/predictions", outputDir+"/pipelines_searched", outputDir+"/pipelines_scored", outputDir+"/pipelines_ranked", outputDir+"/pipeline_runs", outputDir+"/subpipelines", outputDir+"/additional_inputs"]
    
     for name in dirNames: 
         if not os.path.exists(name):
