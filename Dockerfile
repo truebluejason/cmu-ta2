@@ -17,10 +17,9 @@ RUN sudo apt-get update && apt-get install -y \
     python3-tk
 
 # Debugging
-RUN pip show pip
-RUN pip show pandas
-RUN pip show pandas
-RUN pip show d3m
+RUN python3 -m pip show pip
+RUN python3 -m pip show pandas
+RUN python3 -m pip show d3m
 
 ## install d3m and grpc, a D3M dependency
 ##
