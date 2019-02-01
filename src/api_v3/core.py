@@ -265,6 +265,7 @@ def fit_solution(inputs, solution, primitives, outputDir, problem_desc):
     solution.fit(inputs=inputs, solution_dict=None)
 
     util.write_pipeline_json(solution, primitives, outputDir + "/pipelines_ranked", rank=solution.rank)
+    #util.write_pipeline_yaml(solution, outputDir + "/pipeline_runs", inputs, problem_desc)
     return True
  
 def evaluate_solution(inputs, solution, solution_dict):
