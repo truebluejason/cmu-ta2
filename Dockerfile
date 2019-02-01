@@ -16,6 +16,12 @@ RUN sudo apt-get update && apt-get install -y \
     gfortran \
     python3-tk
 
+# Debugging
+RUN pip show pip
+RUN pip show pandas
+RUN pip show pandas
+RUN pip show d3m
+
 ## install d3m and grpc, a D3M dependency
 ##
 ## We use pip==18.1 because pip 19+ removed --process-dependency-links
