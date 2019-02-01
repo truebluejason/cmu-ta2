@@ -16,20 +16,20 @@ RUN sudo apt-get update && apt-get install -y \
     gfortran \
     python3-tk
 
-# Debugging
-RUN python3 -m pip show pip
-RUN python3 -m pip show pandas
-RUN python3 -m pip show d3m
-RUN python3 -m pip show grpcio
-RUN python3 -m pip show grpcio-tools
+## Debugging
+#RUN python3 -m pip show pip
+#RUN python3 -m pip show pandas
+#RUN python3 -m pip show d3m
+#RUN python3 -m pip show grpcio
+#RUN python3 -m pip show grpcio-tools
 
 ## install d3m and grpc, a D3M dependency
 ##
 ## We use pip==18.1 because pip 19+ removed --process-dependency-links
 ##
-#RUN pip3 install --upgrade pip==18.1 \
+RUN pip3 install --upgrade pip==18.1 \
 #    && python3 -m pip install --process-dependency-links d3m \
-#    && python3 -m pip install --upgrade grpcio grpcio-tools
+    && python3 -m pip install --upgrade grpcio grpcio-tools
 
 # Install bayesian_optimiaztion
 COPY bayesian_optimization /tmp/bayesian_optimization
