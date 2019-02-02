@@ -127,7 +127,7 @@ def search_phase():
     inputDir = os.environ['D3MINPUTDIR']
     outputDir = os.environ['D3MOUTPUTDIR']
     timeout_env = os.environ['D3MTIMEOUT']
-    num_cpus = os.environ['D3MCPU']
+    num_cpus = 8 #os.environ['D3MCPU']
     problemPath = os.environ['D3MPROBLEMPATH']
 
     logging.info("D3MINPUTDIR = %s", inputDir)
@@ -223,10 +223,10 @@ def test_phase():
     """
     inputDir = os.environ['D3MINPUTDIR']
     outputDir = os.environ['D3MOUTPUTDIR']
-    executable = os.environ['D3MTESTOPT']
+    #executable = os.environ['D3MTESTOPT']
 
-    config_file = inputDir + "/test_config.json"
-    (dataset, task_name, target) = util.load_schema(config_file)
+    #config_file = inputDir + "/test_config.json"
+    #(dataset, task_name, target) = util.load_schema(config_file)
 
     primitives = load_primitives()
     task_name = task_name.upper()
@@ -307,7 +307,7 @@ class Core(core_pb2_grpc.CoreServicer):
         solutions = []
 
         if template != None and isinstance(template, pipeline_pb2.PipelineDescription) and len(template.steps) > 0:
-            basic_sol = solutiondescription.SolutionDescription(request.problem)
+            basic_sol = solutiondescription.SolutionDescription(request.problem, None)
             basic_sol.create_from_pipelinedescription(pipeline_description=template)
             if basic_sol.contains_placeholder() == False:  # Fully defined
                 solutions.append(basic_sol)
