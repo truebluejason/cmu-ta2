@@ -601,28 +601,6 @@ class SolutionDescription(object):
             if param in training_arguments_primitive:
                 training_arguments[param] = value
 
-        if self.exclude_columns is not None and len(self.exclude_columns) > 0:
-            if python_path == 'd3m.primitives.data_transformation.column_parser.DataFrameCommon' or python_path == 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon':
-                custom_hyperparams['exclude_columns'] = self.exclude_columns
-                if self.hyperparams[n_step] is None:
-                    self.hyperparams[n_step] = {}
-                self.hyperparams[n_step]['exclude_columns'] = self.exclude_columns
-
-        if 'Find_projections' in python_path and 'Numeric' not in python_path:
-            rows = len(training_arguments['inputs'])
-            min_rows = (int)(rows * 0.5)
-            if min_rows < 100:
-                custom_hyperparams['support'] = min_rows
-                if self.hyperparams[n_step] is None:
-                    self.hyperparams[n_step] = {}
-                self.hyperparams[n_step]['support'] = min_rows
-
-        if 'SKlearn' in python_path:
-            custom_hyperparams['use_semantic_types'] = True
-            if self.hyperparams[n_step] is None:
-                self.hyperparams[n_step] = {}
-            self.hyperparams[n_step]['use_semantic_types'] = True
-
         if python_path == 'd3m.primitives.common_primitives.ImageTransferLearningTransformer':
             volumes = {}
             volumes['resnet50'] = self.static_dir + '/resnet50_weights_tf_dim_ordering_tf_kernels.h5'
@@ -742,6 +720,10 @@ class SolutionDescription(object):
             self.primitives[i] = prim          
             self.steptypes.append(StepType.PRIMITIVE)
 
+            if 'SKlearn' in python_paths[i]:
+                self.hyperparams[i] = {}
+                self.hyperparams[i]['use_semantic_types'] = True
+
             if taskname == 'TIMESERIESFORECASTING':
                 if i == 0:
                     data = 'inputs.0'
@@ -841,8 +823,11 @@ class SolutionDescription(object):
             source = data.split('.')[1]
             self.primitives_arguments[i]['outputs'] = {'origin': origin, 'source': int(source), 'data': data}
 
-        if 'random_forest.SKlearn' in python_path:
+        if 'SKlearn' in python_path:
             self.hyperparams[i] = {}
+            self.hyperparams[i]['use_semantic_types'] = True
+
+        if 'random_forest.SKlearn' in python_path:
             self.hyperparams[i]['n_estimators'] = 100
             
         self.execution_order.append(i)
@@ -974,6 +959,7 @@ class SolutionDescription(object):
     def set_hyperparams(self, hp):
         n_step = self.get_last_step()
         self.hyperparams[n_step] = hp
+        self.pipeline_description = None #Recreate it again
 
     def validate_solution(self,**arguments):
         """
@@ -1010,6 +996,13 @@ class SolutionDescription(object):
             self.primitives_outputs[n_step] = self.process_step(n_step, self.primitives_outputs, ActionType.FIT, arguments)
             if self.isDataFrameStep(n_step) == True:
                 self.exclude(self.primitives_outputs[n_step].metadata)
+            
+            if self.exclude_columns is not None and len(self.exclude_columns) > 0:
+                python_path = self.primitives[n_step].metadata.query()['python_path']
+                if python_path == 'd3m.primitives.data_transformation.column_parser.DataFrameCommon' or python_path == 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon':
+                    if self.hyperparams[n_step] is None:
+                        self.hyperparams[n_step] = {}
+                    self.hyperparams[n_step]['exclude_columns'] = self.exclude_columns
 
         # Store inputs and outputs for feeding into classifier/regressor. Remove other intermediate step outputs, they are not needed anymore.
         for i in range(0, len(self.execution_order)-2):
@@ -1192,7 +1185,7 @@ class PrimitiveDescription(object):
             if util.invert_metric(metric_type) is True:
                 return (100.0, optimal_params) 
             else:          
-                return (-1.0, optimal_params)
+                return (0.0, optimal_params)
 
         if y is None or 'd3m.primitives.sri' in python_path or 'bbn' in python_path or 'fastlvm' in python_path:
             return (0.0, optimal_params)

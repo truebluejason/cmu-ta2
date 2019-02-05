@@ -394,7 +394,7 @@ class Core(core_pb2_grpc.CoreServicer):
                         id = solutions[index].id
                         self._solutions[id] = solutions[index]
                         self._search_solutions[search_id_str].append(id)
-                        util.write_pipeline_json(solutions[index], self._primitives, outputDir + "/pipelines_seached")
+                        util.write_pipeline_json(solutions[index], self._primitives, outputDir + "/pipelines_searched")
                         yield core_pb2.GetSearchSolutionsResultsResponse(progress=msg, done_ticks=count, all_ticks=len(solutions), solution_id=id,
                                         internal_score=0.0, scores=[])
                 except:
@@ -484,6 +484,8 @@ class Core(core_pb2_grpc.CoreServicer):
             try:
                 (score, optimal_params) = self._solutions[solution_id].score_solution(inputs=inputs, metric=request_params.performance_metrics[0].metric,
                                 primitive_dict=self._primitives, solution_dict=self._solutions)
+                if optimal_params is not None and len(optimal_params) > 0:
+                    self._solutions[solution_id].set_hyperparams(optimal_params)
             except:
                 score = 0.0
                 logging.info(self._solutions[solution_id].primitives)
@@ -569,7 +571,7 @@ class Core(core_pb2_grpc.CoreServicer):
                 steps.append(core_pb2.StepProgress(progress=msg))
 
             exposed_outputs = {}
-            last_step_output = request_params.expose_outputs[len(request_params.expose_outputs)-1]
+            last_step_output = fitted_solution.outputs[0][2] #request_params.expose_outputs[len(request_params.expose_outputs)-1]
             exposed_outputs[last_step_output] = result
 
             # Clean up
@@ -629,7 +631,7 @@ class Core(core_pb2_grpc.CoreServicer):
             steps.append(core_pb2.StepProgress(progress=msg))
 
         exposed_outputs = {}
-        last_step_output = request_params.expose_outputs[len(request_params.expose_outputs)-1]
+        last_step_output = solution.outputs[0][2] #request_params.expose_outputs[len(request_params.expose_outputs)-1]
         exposed_outputs[last_step_output] = result
 
         yield core_pb2.GetProduceSolutionResultsResponse(progress=msg, steps=steps, exposed_outputs=exposed_outputs)
