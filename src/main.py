@@ -9,7 +9,7 @@ import grpc
 from api_v3 import core
 from multiprocessing import cpu_count
 
-TA2_API_HOST = 'localhost'
+TA2_API_HOST = '[::]'
 TA2_API_PORT = 45042
 
 def main(argv):
