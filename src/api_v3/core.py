@@ -30,19 +30,20 @@ from d3m.metadata import base as metadata_base
 from d3m import container
 
 def load_primitives():
+    from timeit import default_timer as timer
+
+    start = timer()
     primitives = {}
     for p in primitive_lib.list_primitives():
         if 'convolutional_neural_net' in p.python_path or 'feed_forward_neural_net' in p.python_path or 'regression.k_neighbors' in p.python_path or 'loss.TorchCommon' in p.python_path:
-            continue
-        if p.python_path == 'd3m.primitives.dsbox.CorexSupervised':
-            continue
-        if p.python_path == 'd3m.primitives.realML.TensorMachinesBinaryClassification':
             continue
         if 'quadratic_discriminant_analysis.SKlearn' in p.python_path or 'd3m.primitives.classification.random_forest.DataFrameCommon' in p.python_path or 'bayesian_logistic_regression.Common' in p.python_path:
             continue
 
         primitives[p.classname] = solutiondescription.PrimitiveDescription(p.classname, p)
 
+    end = timer()
+    logging.info("Time taken to load primitives: %s seconds", end - start)    
     return primitives
 
 def get_solutions(task_name, dataset, primitives, problem):
