@@ -13,6 +13,8 @@ def list_primitives():
     prims = d3m.index.search()
         
     for pc in prims:
+        if 'cornell' in pc or 'umich' in pc:
+            continue
         try:
             primitive_obj = d3m.index.get_primitive(pc)
         except:
