@@ -44,7 +44,7 @@ import util
 task_paths = {
 'TEXT': ['d3m.primitives.data_transformation.denormalize.Common','d3m.primitives.data_transformation.dataset_to_dataframe.Common','d3m.primitives.data_transformation.column_parser.DataFrameCommon','d3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon', 'd3m.primitives.feature_construction.corex_text.CorexText', 'd3m.primitives.data_cleaning.imputer.SKlearn', 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'],
 'TIMESERIES': ['d3m.primitives.data_transformation.denormalize.Common','d3m.primitives.data_transformation.dataset_to_dataframe.Common','d3m.primitives.data_transformation.column_parser.DataFrameCommon','d3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon', 'd3m.primitives.dsbox.TimeseriesToList', 'd3m.primitives.dsbox.RandomProjectionTimeSeriesFeaturization', 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'], 
-'IMAGE': ['d3m.primitives.data_transformation.denormalize.Common','d3m.primitives.data_transformation.dataset_to_dataframe.Common','d3m.primitives.data_transformation.column_parser.DataFrameCommon','d3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon', 'd3m.primitives.data.ImageReader','d3m.primitives.common_primitives.ImageTransferLearningTransformer', 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'],
+'IMAGE': ['d3m.primitives.data_transformation.denormalize.Common','d3m.primitives.data_transformation.dataset_to_dataframe.Common','d3m.primitives.data_transformation.column_parser.DataFrameCommon','d3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon', 'd3m.primitives.data_preprocessing.image_reader.DataFrameCommon', 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'],
 'CLASSIFICATION': ['d3m.primitives.data_transformation.denormalize.Common','d3m.primitives.data_transformation.dataset_to_dataframe.Common','d3m.primitives.data_transformation.column_parser.DataFrameCommon','d3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon', 'd3m.primitives.data_cleaning.imputer.SKlearn', 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'], 
 'REGRESSION': ['d3m.primitives.data_transformation.denormalize.Common','d3m.primitives.data_transformation.dataset_to_dataframe.Common','d3m.primitives.data_transformation.column_parser.DataFrameCommon', 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon', 'd3m.primitives.data_cleaning.imputer.SKlearn', 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'],
 'CLUSTERING': ['d3m.primitives.data_transformation.dataset_to_dataframe.Common','d3m.primitives.data_transformation.column_parser.DataFrameCommon','d3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon','d3m.primitives.cmu.fastlvm.CoverTree','d3m.primitives.data_transformation.construct_predictions.DataFrameCommon'],
@@ -497,7 +497,7 @@ class SolutionDescription(object):
         for col in timecols:
             self.exclude_columns.append(col)
 
-        targets = metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/Target")
+        targets = metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/SuggestedTarget")
         for t in targets:
             if t in self.exclude_columns:
                 self.exclude_columns.remove(t)
@@ -723,6 +723,7 @@ class SolutionDescription(object):
             if 'SKlearn' in python_paths[i]:
                 self.hyperparams[i] = {}
                 self.hyperparams[i]['use_semantic_types'] = True
+                self.hyperparams[i]['return_result'] = 'replace'
 
             if taskname == 'TIMESERIESFORECASTING':
                 if i == 0:
@@ -737,7 +738,7 @@ class SolutionDescription(object):
                     self.hyperparams[i]['semantic_types'] = ('https://metadata.datadrivendiscovery.org/types/Attribute', 'https://metadata.datadrivendiscovery.org/types/PrimaryKey')
                 elif i == 3:
                     self.hyperparams[i] = {}
-                    self.hyperparams[i]['semantic_types'] = ('https://metadata.datadrivendiscovery.org/types/Target', 'https://metadata.datadrivendiscovery.org/types/PrimaryKey')
+                    self.hyperparams[i]['semantic_types'] = ('https://metadata.datadrivendiscovery.org/types/SuggestedTarget', 'https://metadata.datadrivendiscovery.org/types/PrimaryKey')
 
             elif taskname == 'CLASSIFICATION' or taskname == 'REGRESSION' or taskname == 'TEXT' or taskname == 'IMAGE' or taskname == 'TIMESERIES':
                 if i == 0:
@@ -749,7 +750,7 @@ class SolutionDescription(object):
 
                 if i == num-1:
                     self.hyperparams[i] = {}
-                    self.hyperparams[i]['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/TrueTarget']
+                    self.hyperparams[i]['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/SuggestedTarget']
 
             elif taskname == 'AUDIO':
                 if i == 0 or i == num-1:
