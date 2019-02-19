@@ -358,8 +358,8 @@ class SolutionDescription(object):
         print("Steps = ", n_steps)
        
         self.inputs = []
-        for name in pipeline_description.inputs:
-             self.inputs.append(name)
+        for ip in pipeline_description.inputs:
+             self.inputs.append({"name": ip.name})
         self.id = pipeline_description.id
         self.source = {}
         self.source['name'] = pipeline_description.source.name

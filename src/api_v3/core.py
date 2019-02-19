@@ -366,15 +366,15 @@ class Core(core_pb2_grpc.CoreServicer):
         self._search_solutions[search_id_str] = []
 
         # Fully specified solution
-        #if request_params.template != None and isinstance(request_params.template, pipeline_pb2.PipelineDescription):
-        #    msg = core_pb2.Progress(state=core_pb2.COMPLETED, status="", start=start, end=solutiondescription.compute_timestamp())
-        #    count = count + 1
-        #    id = solutions[0].id
-        #    self._solutions[id] = solutions[0]
-        #    self._search_solutions[search_id_str].append(id) 
-        #    yield core_pb2.GetSearchSolutionsResultsResponse(progress=msg, done_ticks=1, all_ticks=1,
-        #                  solution_id=id, internal_score=0.0, scores=[])            
-        if 1: #else: # Evaluate potential solutions
+        if request_params.template != None and isinstance(request_params.template, pipeline_pb2.PipelineDescription) and len(request_params.template.steps) > 0:
+            msg = core_pb2.Progress(state=core_pb2.COMPLETED, status="", start=start, end=solutiondescription.compute_timestamp())
+            count = count + 1
+            id = solutions[0].id
+            self._solutions[id] = solutions[0]
+            self._search_solutions[search_id_str].append(id) 
+            yield core_pb2.GetSearchSolutionsResultsResponse(progress=msg, done_ticks=1, all_ticks=1,
+                          solution_id=id, internal_score=0.0, scores=[])            
+        else: # Evaluate potential solutions
             index = 0
             msg = core_pb2.Progress(state=core_pb2.RUNNING, status="", start=start, end=solutiondescription.compute_timestamp())
 
@@ -572,7 +572,11 @@ class Core(core_pb2_grpc.CoreServicer):
                 steps.append(core_pb2.StepProgress(progress=msg))
 
             exposed_outputs = {}
-            last_step_output = fitted_solution.outputs[0][2] #request_params.expose_outputs[len(request_params.expose_outputs)-1]
+            if request_params.expose_outputs is not None and len(request_params.expose_outputs) > 0:
+                last_step_output = request_params.expose_outputs[len(request_params.expose_outputs)-1]
+            else:
+                last_step_output = fitted_solution.outputs[0][2]
+
             exposed_outputs[last_step_output] = result
 
             # Clean up
@@ -632,7 +636,11 @@ class Core(core_pb2_grpc.CoreServicer):
             steps.append(core_pb2.StepProgress(progress=msg))
 
         exposed_outputs = {}
-        last_step_output = solution.outputs[0][2] #request_params.expose_outputs[len(request_params.expose_outputs)-1]
+        if request_params.expose_outputs is not None and len(request_params.expose_outputs) > 0:
+            last_step_output = request_params.expose_outputs[len(request_params.expose_outputs)-1]
+        else:
+            last_step_output = fitted_solution.outputs[0][2]
+
         exposed_outputs[last_step_output] = result
 
         yield core_pb2.GetProduceSolutionResultsResponse(progress=msg, steps=steps, exposed_outputs=exposed_outputs)
