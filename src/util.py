@@ -13,21 +13,6 @@ import pickle
 import solutiondescription
 import pandas as pd
 
-def generate_pipeline(pipeline_uri: str, dataset_uri: str, problem_doc_uri: str):
-    # Pipeline description
-    pipeline_description = None
-    if '.json' in pipeline_uri:
-        with open(pipeline_uri) as pipeline_file:
-            pipeline_description = Pipeline.from_json_content(string_or_file=pipeline_file)
-    else:
-        with open(pipeline_uri) as pipeline_file:
-            pipeline_description = Pipeline.from_yaml_content(string_or_file=pipeline_file)
-
-    # Pipeline
-    solution = solutiondescription.SolutionDescription(None)
-    solution.create_from_pipeline(pipeline_description)
-    return solution
-
 def load_problem_doc(problem_doc_uri: str):
     """     
     Load problem_doc from problem_doc_uri     
@@ -65,29 +50,6 @@ def add_target_metadata(dataset, targets):
             dataset.metadata = dataset.metadata.update((target.resource_id, metadata_base.ALL_ELEMENTS, target.column_index), {'semantic_types': semantic_types})
 
     return dataset
-
-def get_target_name(problem_doc_metadata: 'Metadata'):
-    data = problem_doc_metadata.query(())['inputs']['data'][0]
-    target = data['targets'][0]['colName']
-    return target
-
-def load_schema(filename):
-    print("Reading ",filename)
-    with open(filename) as file:
-        schema =  json.load(file)
-
-    dataset_schema = schema['dataset_schema']
-    problem_schema = schema['problem_schema']
-
-    dataset_uri = 'file://{dataset_uri}'.format(dataset_uri=dataset_schema)
-    dataset = D3MDatasetLoader().load(dataset_uri)
-    problem_doc = load_problem_doc(problem_schema)
-
-    dataset = add_target_columns_metadata(dataset, problem_doc)
-
-    taskname = problem_doc.query(())['about']['taskType']
-
-    return (dataset, taskname, problem_doc)
 
 def load_data_problem(inputdir, problempath):
     print("Reading ", inputdir)

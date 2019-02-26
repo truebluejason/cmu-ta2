@@ -39,7 +39,8 @@ def load_primitives():
             continue
         if 'quadratic_discriminant_analysis.SKlearn' in p.python_path or 'd3m.primitives.classification.random_forest.DataFrameCommon' in p.python_path or 'bayesian_logistic_regression.Common' in p.python_path:
             continue
-
+        if 'decision_tree' in p.python_path or 'bernoulli_naive_bayes' in p.python_path or 'gaussian_naive_bayes' in p.python_path or 'dummy' in p.python_path or 'tensor_machines' in p.python_path or 'fast_lad' in p.python_path:
+            continue
         primitives[p.classname] = solutiondescription.PrimitiveDescription(p.classname, p)
 
     end = timer()
@@ -53,16 +54,16 @@ def get_solutions(task_name, dataset, primitives, problem):
     """
     solutions = []
 
-    static_dir = None #os.environ['D3MSTATICDIR']
+    try:
+        static_dir = os.environ['D3MSTATICDIR']
+    except:
+        static_dir = None
+
     basic_sol = solutiondescription.SolutionDescription(problem, static_dir)
     basic_sol.initialize_solution(task_name, task_name)
 
-    #print(dataset.metadata.query(('0',)))
-    #rows = dataset.metadata.query(('0',))['dimension']['length']
-
-    #print("Rows = ", rows)
     if task_name == 'CLASSIFICATION' or task_name == 'REGRESSION':
-        (types_present, total_cols) = solutiondescription.column_types_present(dataset)
+        (types_present, total_cols, rows) = solutiondescription.column_types_present(dataset)
 
         if 'TIMESERIES' in types_present:
             basic_sol = solutiondescription.SolutionDescription(problem, static_dir)
@@ -88,8 +89,8 @@ def get_solutions(task_name, dataset, primitives, problem):
                 python_path = p.primitive_class.python_path
                 if 'd3m.primitives.sri.' in python_path or 'd3m.primitives.jhu_primitives' in python_path or 'lupi_svm' in python_path or 'bbn' in python_path:
                     continue
-
-                if total_cols > 20 and 'Find_projections' in python_path:
+                
+                if 'Find_projections' in python_path and (total_cols > 20 or rows > 10000):
                     continue
 
                 pipe = copy.deepcopy(basic_sol)
@@ -107,11 +108,6 @@ def get_solutions(task_name, dataset, primitives, problem):
         logging.info("No matching solutions")
 
     basic_sol = solutiondescription.SolutionDescription(problem, static_dir)
-    basic_sol.initialize_solution('FALLBACK2', 'FALLBACK2')
-    pipe = copy.deepcopy(basic_sol)
-    pipe.id = str(uuid.uuid4())
-    pipe.add_outputs()
-    solutions.append(pipe)
     
     basic_sol.initialize_solution('FALLBACK1', 'FALLBACK1')
     pipe = copy.deepcopy(basic_sol)
@@ -135,8 +131,7 @@ def search_phase():
     logging.info("D3MOUTPUTDIR = %s", outputDir)
     logging.info("timeout = %s", timeout_env)
     logging.info("cpus = %s", num_cpus)
-    #config_file = inputDir + "/search_config.json"
-    (dataset, task_name, problem_desc) = util.load_data_problem(inputDir, problemPath) #util.load_schema(config_file)
+    (dataset, task_name, problem_desc) = util.load_data_problem(inputDir, problemPath)
 
     timeout_in_min = (int)(timeout_env)
     primitives = load_primitives()
@@ -217,33 +212,6 @@ def search_phase():
             logging.info(sys.exc_info()[0])
             logging.info("Solution terminated: %s", valid_solutions[sorted_x[index][0]].id)
         index = index + 1
-
-def test_phase():
-    """
-    TA2 running in stand-alone test phase
-    """
-    inputDir = os.environ['D3MINPUTDIR']
-    outputDir = os.environ['D3MOUTPUTDIR']
-    #executable = os.environ['D3MTESTOPT']
-
-    #config_file = inputDir + "/test_config.json"
-    #(dataset, task_name, target) = util.load_schema(config_file)
-
-    primitives = load_primitives()
-    task_name = task_name.upper()
-    logging.info(task_name)
-
-    inputs = []
-    inputs.append(dataset)
-
-    import ntpath
-    pipeline_basename = ntpath.basename(executable)
-    pipeline_name = pipeline_basename[:-3]
-    solution = util.get_pipeline(outputDir + "/supporting_files", pipeline_name)
-    predictions = solution.produce(inputs=inputs)[0]
-
-    util.write_predictions(predictions, outputDir + "/predictions", solution)
-    
 
 def evaluate_solution_score(inputs, solution, primitives, metric):
     """

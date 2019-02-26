@@ -43,8 +43,8 @@ import util
 
 task_paths = {
 'TEXT': ['d3m.primitives.data_transformation.denormalize.Common','d3m.primitives.data_transformation.dataset_to_dataframe.Common','d3m.primitives.data_transformation.column_parser.DataFrameCommon','d3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon', 'd3m.primitives.feature_construction.corex_text.CorexText', 'd3m.primitives.data_cleaning.imputer.SKlearn', 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'],
-'TIMESERIES': ['d3m.primitives.data_transformation.denormalize.Common','d3m.primitives.data_transformation.dataset_to_dataframe.Common','d3m.primitives.data_transformation.column_parser.DataFrameCommon','d3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon', 'd3m.primitives.dsbox.TimeseriesToList', 'd3m.primitives.dsbox.RandomProjectionTimeSeriesFeaturization', 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'], 
-'IMAGE': ['d3m.primitives.data_transformation.denormalize.Common','d3m.primitives.data_transformation.dataset_to_dataframe.Common','d3m.primitives.data_transformation.column_parser.DataFrameCommon','d3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon', 'd3m.primitives.data_preprocessing.image_reader.DataFrameCommon', 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'],
+'TIMESERIES': ['d3m.primitives.data_transformation.denormalize.Common','d3m.primitives.data_transformation.dataset_to_dataframe.Common','d3m.primitives.data_transformation.column_parser.DataFrameCommon','d3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon', 'd3m.primitives.data_preprocessing.TimeseriesToList.DSBOX', 'd3m.primitives.feature_extraction.RandomProjectionTimeSeriesFeaturization.DSBOX', 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'], 
+'IMAGE': ['d3m.primitives.data_transformation.denormalize.Common','d3m.primitives.data_transformation.dataset_to_dataframe.Common','d3m.primitives.data_transformation.column_parser.DataFrameCommon','d3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon', 'd3m.primitives.data_preprocessing.DataFrameToTensor.DSBOX', 'd3m.primitives.feature_extraction.ResNet50ImageFeature.DSBOX', 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'],
 'CLASSIFICATION': ['d3m.primitives.data_transformation.denormalize.Common','d3m.primitives.data_transformation.dataset_to_dataframe.Common','d3m.primitives.data_transformation.column_parser.DataFrameCommon','d3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon', 'd3m.primitives.data_cleaning.imputer.SKlearn', 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'], 
 'REGRESSION': ['d3m.primitives.data_transformation.denormalize.Common','d3m.primitives.data_transformation.dataset_to_dataframe.Common','d3m.primitives.data_transformation.column_parser.DataFrameCommon', 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon', 'd3m.primitives.data_cleaning.imputer.SKlearn', 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'],
 'CLUSTERING': ['d3m.primitives.data_transformation.dataset_to_dataframe.Common','d3m.primitives.data_transformation.column_parser.DataFrameCommon','d3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon','d3m.primitives.cmu.fastlvm.CoverTree','d3m.primitives.data_transformation.construct_predictions.DataFrameCommon'],
@@ -90,7 +90,7 @@ def column_types_present(dataset):
 
     total_cols = len(metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/Attribute"))
     print("Data types present: ", types)
-    return (types, total_cols)
+    return (types, total_cols, len(df))
 
 def compute_timestamp():
     now = time.time()
@@ -228,6 +228,9 @@ class SolutionDescription(object):
         self.pipeline_description = pipeline_description
    
     def write_pipeline_json(self, prim_dict, dirName, rank=None):
+        """
+        Output pipeline to JSON file
+        """
         filename = dirName + "/" + self.id + ".json"
         if self.pipeline_description is None:
             self.create_pipeline_json(prim_dict)
@@ -244,110 +247,6 @@ class SolutionDescription(object):
         pipeline_run = output.pipeline_run
         with open(filename_yaml, "w") as out:
             pipeline_run.to_yaml(file=filename_yaml)
-
-    def create_from_pipeline(self, pipeline_description: Pipeline) -> None:
-        n_steps = len(pipeline_description.steps)
-
-        self.inputs = []
-        for name in pipeline_description.inputs:
-             inputs.append(name)
-        self.id = pipeline_description.id
-        self.source = {}
-        self.source['name'] = pipeline_description.source.name
-        self.source['contact'] = pipeline_description.source.contact
-        self.source['pipelines'] = []
-        for id in pipeline_description.source.pipelines:
-            self.source['pipelines'].append(id)
-
-        self.name = pipeline_description.name
-        self.description = pipeline_description.description
-        self.users = []
-        for user in pipeline_description.users:
-            self.users.append({"id": user.id, "reason": user.reason, "rationale": user.rationale})
-
-        self.primitives_arguments = {}
-        self.primitives = {}
-        self.hyperparams = {}
-        self.steptypes = []
-        for i in range(0, n_steps):
-            self.primitives_arguments[i] = {}
-            self.hyperparams[i] = None
-
-        self.execution_order = None
-
-        self.pipeline = [None] * n_steps
-
-        # Constructing DAG to determine the execution order
-        execution_graph = nx.DiGraph()
-        for i in range(0, n_steps):
-            if isinstance(pipeline_description.steps[i], PrimitiveStep):
-                self.steptypes.append(StepType.PRIMITIVE)
-                self.primitives[i] = pipeline_description.steps[i].primitive
-                for argument, data in pipeline_description.steps[i].arguments.items():
-                    argument_edge = data['data']
-                    origin = argument_edge.split('.')[0]
-                    source = argument_edge.split('.')[1]
-
-                    self.primitives_arguments[i][argument] = {'origin': origin, 'source': int(source), 'data': argument_edge}
-
-                    if origin == 'steps':
-                        execution_graph.add_edge(str(source), str(i))
-                    else:
-                        execution_graph.add_edge(origin, str(i))
-
-                hyperparams = pipeline_description.steps[i].hyperparams
-                if hyperparams is not None:
-                    self.hyperparams[i] = {}
-                    for name,argument in hyperparams.items():
-                        self.hyperparams[i][name] = argument['data']
-            elif isinstance(pipeline_description.steps[i], SubpipelineStep):  
-                self.steptypes.append(StepType.SUBPIPELINE)
-                self.primitives[i] = pipeline_description.steps[i].pipeline_id
-                self.primitives_arguments[i] = []
-                for j in range(len(pipeline_description.steps[i].inputs)):
-                    argument_edge = pipeline_description.steps[i].inputs[j]
-                    origin = argument_edge.split('.')[0]
-                    source = argument_edge.split('.')[1]
-                    self.primitives_arguments[i].append({'origin': origin, 'source': int(source), 'data': argument_edge})
-                    
-                    if origin == 'steps':
-                        execution_graph.add_edge(str(source), str(i))
-                    else:
-                        execution_graph.add_edge(origin, str(i))
-            else:
-                print("NOT IMPLEMENTED!!!")
-
-        execution_order = list(nx.topological_sort(execution_graph))
-
-        # Removing non-step inputs from the order
-        execution_order = list(filter(lambda x: x.isdigit(), execution_order))
-        self.execution_order = [int(x) for x in execution_order]
-
-        # Creating set of steps to be call in produce
-        self.outputs = []
-        self.produce_order = set()
-        for output in pipeline_description.outputs:
-            origin = output['data'].split('.')[0]
-            source = output['data'].split('.')[1]
-            self.outputs.append((origin, int(source), output['data'], output['name']))
-
-            if origin != 'steps':
-                continue
-            else:
-                current_step = int(source)
-                self.produce_order.add(current_step)
-                for i in range(0, len(execution_order)):
-                    if self.steptypes[current_step] == StepType.PRIMITIVE:
-                        step_origin = self.primitives_arguments[current_step]['inputs']['origin']
-                        step_source = self.primitives_arguments[current_step]['inputs']['source']
-                    else:
-                        step_origin = self.primitives_arguments[current_step][0]['origin']
-                        step_source = self.primitives_arguments[current_step][0]['source']
-                    if step_origin != 'steps':
-                        break
-                    else:
-                        self.produce_order.add(step_source)
-                        current_step = step_source
 
     def create_from_pipelinedescription(self, pipeline_description: pipeline_pb2.PipelineDescription) -> None:
         """
@@ -601,9 +500,8 @@ class SolutionDescription(object):
             if param in training_arguments_primitive:
                 training_arguments[param] = value
 
-        if python_path == 'd3m.primitives.common_primitives.ImageTransferLearningTransformer':
-            volumes = {}
-            volumes['resnet50'] = self.static_dir + '/resnet50_weights_tf_dim_ordering_tf_kernels.h5'
+        if 'ImageFeature.DSBOX' in python_path:
+            volumes = self.static_dir + '/resnet50_weights_tf_dim_ordering_tf_kernels.h5'
             model = primitive(hyperparams=primitive_hyperparams(
                     primitive_hyperparams.defaults(), **custom_hyperparams), volumes=volumes)
         else:
@@ -697,7 +595,7 @@ class SolutionDescription(object):
         python_paths = task_paths[taskname]
         num = len(python_paths)
 
-        self.taskname = main_task
+        self.taskname = taskname
         self.primitives_arguments = {}
         self.primitives = {}
         self.hyperparams = {}
@@ -768,6 +666,9 @@ class SolutionDescription(object):
                     data = 'steps.' + str(i-1) + '.produce'
                 else:
                     data = 'steps.' + str(i-1) + '.produce'
+                    if i == num-2:
+                        self.hyperparams[i] = {}
+                        self.hyperparams[i]['k'] = 1
             else:
                 if i == 0:
                     data = 'inputs.0'
@@ -826,7 +727,8 @@ class SolutionDescription(object):
 
         if 'SKlearn' in python_path:
             self.hyperparams[i] = {}
-            self.hyperparams[i]['use_semantic_types'] = True
+            if self.taskname is not 'IMAGE': 
+                self.hyperparams[i]['use_semantic_types'] = True
 
         if 'random_forest.SKlearn' in python_path:
             self.hyperparams[i]['n_estimators'] = 100
@@ -913,7 +815,7 @@ class SolutionDescription(object):
             if action is ActionType.SCORE and self.is_last_step(n_step) == True:
                 primitive = self.primitives[n_step]
                 primitive_desc = arguments['primitive_dict'][primitive]
-                return self.score_step(primitive, primitive_arguments, arguments['metric'], primitive_desc, self.hyperparams[n_step])
+                return self.score_step(primitive, primitive_arguments, arguments['metric'], primitive_desc, self.hyperparams[n_step], n_step)
             elif action is ActionType.VALIDATE and self.is_last_step(n_step) == True:
                 return self.validate_step(self.primitives[n_step], primitive_arguments)    
             else:
@@ -1011,7 +913,7 @@ class SolutionDescription(object):
                 continue
             self.primitives_outputs[i] = [None]
 
-    def score_step(self, primitive: PrimitiveBaseMeta, primitive_arguments, metric, primitive_desc, hyperparams):
+    def score_step(self, primitive: PrimitiveBaseMeta, primitive_arguments, metric, primitive_desc, hyperparams, step_index):
         """
         Last step of a solution evaluated for score_solution()
         Does hyperparameters tuning
@@ -1037,7 +939,7 @@ class SolutionDescription(object):
 
         if len(training_arguments) == 0:
             training_arguments['inputs'] = primitive_arguments['inputs']
-        (score, optimal_params) = primitive_desc.score_primitive(training_arguments['inputs'], outputs, metric, custom_hyperparams)
+        (score, optimal_params) = primitive_desc.score_primitive(training_arguments['inputs'], outputs, metric, custom_hyperparams, step_index)
         return (score, optimal_params) 
 
     def validate_step(self, primitive: PrimitiveBaseMeta, primitive_arguments):
@@ -1163,7 +1065,7 @@ class PrimitiveDescription(object):
         self.primitive = primitive
         self.primitive_class = primitive_class
 
-    def score_primitive(self, X, y, metric_type, custom_hyperparams):
+    def score_primitive(self, X, y, metric_type, custom_hyperparams, step_index=0):
         """
         Learns optimal hyperparameters for the primitive
         Evaluates model on inputs X and outputs y
@@ -1188,8 +1090,8 @@ class PrimitiveDescription(object):
             else:          
                 return (0.0, optimal_params)
 
-        if y is None or 'd3m.primitives.sri' in python_path or 'bbn' in python_path or 'fastlvm' in python_path:
-            return (0.0, optimal_params)
+        if y is None or 'd3m.primitives.sri' in python_path or 'bbn' in python_path:
+            return (0.1, optimal_params)
               
         from sklearn.model_selection import KFold
 
@@ -1210,10 +1112,15 @@ class PrimitiveDescription(object):
                 optimal_params['support'] = min_rows
 
         primitive_hyperparams = self.primitive.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
-        prim_instance = self.primitive(hyperparams=primitive_hyperparams(primitive_hyperparams.defaults(), **optimal_params))
+        if 'SKlearn' in python_path:
+            print("Step_index = ", step_index)
+            prim_instance = self.primitive(hyperparams=primitive_hyperparams(primitive_hyperparams.defaults(), **optimal_params), random_seed=step_index)
+        else:
+            prim_instance = self.primitive(hyperparams=primitive_hyperparams(primitive_hyperparams.defaults(), **optimal_params))
         score = 0.0
 
         print(Xnew.shape)
+        metric_scores = []
         for train_index, test_index in kf.split(X):
             X_train, X_test = Xnew.iloc[train_index], Xnew.iloc[test_index]
            
@@ -1228,10 +1135,12 @@ class PrimitiveDescription(object):
             if len(predictions.columns) > 1:
                 predictions = predictions.iloc[:,len(predictions.columns)-1]         
             metric = self.evaluate_metric(predictions, y_test, metric_type)     
+            metric_scores.append(metric)
             metric_sum += metric
 
         score = metric_sum/splits
-
+        print("Primitive: ", self.primitive)
+        print("Metrics: ", metric_scores)
         return (score, optimal_params)
  
     def evaluate_metric(self, predictions, Ytest, metric):

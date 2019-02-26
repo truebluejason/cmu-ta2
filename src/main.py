@@ -18,8 +18,6 @@ def main(argv):
 
     if mode == "search":
         core.search_phase()
-    elif mode == "test":
-        core.test_phase()
     else:
         threadpool = futures.ThreadPoolExecutor(max_workers=cpu_count())
         server = grpc.server(threadpool)
