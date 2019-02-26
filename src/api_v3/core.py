@@ -41,6 +41,9 @@ def load_primitives():
             continue
         if 'decision_tree' in p.python_path or 'bernoulli_naive_bayes' in p.python_path or 'gaussian_naive_bayes' in p.python_path or 'dummy' in p.python_path or 'tensor_machines' in p.python_path or 'fast_lad' in p.python_path:
             continue
+        if 'rfm_precondition' in p.python_path or 'BayesianInfRPI' in p.python_path:
+            continue
+
         primitives[p.classname] = solutiondescription.PrimitiveDescription(p.classname, p)
 
     end = timer()
@@ -107,8 +110,15 @@ def get_solutions(task_name, dataset, primitives, problem):
     else:
         logging.info("No matching solutions")
 
+    if task_name == 'GRAPHMATCHING':
+        basic_sol = solutiondescription.SolutionDescription(problem, static_dir)
+        basic_sol.initialize_solution('GRAPHMATCHING2', 'GRAPHMATCHING2')
+        pipe = copy.deepcopy(basic_sol)
+        pipe.id = str(uuid.uuid4())
+        pipe.add_outputs()
+        solutions.append(pipe)
+ 
     basic_sol = solutiondescription.SolutionDescription(problem, static_dir)
-    
     basic_sol.initialize_solution('FALLBACK1', 'FALLBACK1')
     pipe = copy.deepcopy(basic_sol)
     pipe.id = str(uuid.uuid4())
