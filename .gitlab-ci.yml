@@ -22,6 +22,7 @@ build_image:
     - git rev-parse --verify HEAD # show bayesian_optimization hash for the commit that is using here
     - cd -
     - git status # should show that your submodule changed
+    - wget https://github.com/fchollet/deep-learning-models/releases/download/v0.2/resnet50_weights_tf_dim_ordering_tf_kernels.h5
 
   script:
     - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY

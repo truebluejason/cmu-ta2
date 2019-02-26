@@ -1,7 +1,5 @@
 # JPL base image
-#FROM registry.datadrivendiscovery.org/jpl/docker_images/complete:ubuntu-artful-python36-v2019.1.21
-FROM registry.datadrivendiscovery.org/jpl/docker_images/complete:ubuntu-artful-python36-v2019.2.12
-#FROM registry.datadrivendiscovery.org/jpl/docker_images/complete:ubuntu-artful-python36-devel
+FROM registry.datadrivendiscovery.org/jpl/docker_images/complete:ubuntu-artful-python36-v2019.2.18
 
 maintainer "Donghan Wang<donghanw@cs.cmu.edu>, Simon Heath <sheath@andrew.cmu.edu>"
 
@@ -18,13 +16,6 @@ RUN sudo apt-get update && apt-get install -y \
     gfortran \
     python3-tk
 
-## Debugging
-#RUN python3 -m pip show pip
-#RUN python3 -m pip show pandas
-#RUN python3 -m pip show d3m
-#RUN python3 -m pip show grpcio
-#RUN python3 -m pip show grpcio-tools
-
 ## install d3m and grpc, a D3M dependency
 ##
 ## We use pip==18.1 because pip 19+ removed --process-dependency-links
@@ -33,6 +24,10 @@ RUN pip3 install --upgrade pip==18.1 \
 #    && python3 -m pip install --process-dependency-links d3m \
     && python3 -m pip install --upgrade grpcio grpcio-tools
 
+# Create static dir for Image weights file
+RUN mkdir /static
+COPY resnet50_weights_tf_dim_ordering_tf_kernels.h5 /static
+ 
 # Install bayesian_optimiaztion
 COPY bayesian_optimization /tmp/bayesian_optimization
 RUN cd /tmp/bayesian_optimization/bo/utils/direct_fortran; \
