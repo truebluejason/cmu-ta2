@@ -10,15 +10,11 @@ import problem_pb2 as problem_pb2
 import pipeline_pb2 as pipeline_pb2
 import logging
 import primitive_lib
-import os, sys
-import os.path
+import os, sys, copy
 import pandas as pd
 import numpy as np
-import pickle, copy
-from urllib import request as url_request
-from urllib import parse as url_parse
 
-import solutiondescription, util
+import solutiondescription, util, solution_templates
 from multiprocessing import Pool, cpu_count
 import uuid
 
@@ -29,224 +25,6 @@ from d3m.container.dataset import D3MDatasetLoader, Dataset
 from d3m.metadata import base as metadata_base
 from d3m import container
 
-def load_primitives():
-    from timeit import default_timer as timer
-
-    start = timer()
-    primitives = {}
-    for p in primitive_lib.list_primitives():
-        if 'convolutional_neural_net' in p.python_path or 'feed_forward_neural_net' in p.python_path or 'regression.k_neighbors' in p.python_path or 'loss.TorchCommon' in p.python_path:
-            continue
-        if 'quadratic_discriminant_analysis.SKlearn' in p.python_path or 'd3m.primitives.classification.random_forest.DataFrameCommon' in p.python_path or 'bayesian_logistic_regression.Common' in p.python_path:
-            continue
-        if 'decision_tree' in p.python_path or 'bernoulli_naive_bayes' in p.python_path or 'gaussian_naive_bayes' in p.python_path or 'dummy' in p.python_path or 'tensor_machines' in p.python_path or 'fast_lad' in p.python_path:
-            continue
-        if 'rfm_precondition' in p.python_path or 'BayesianInfRPI' in p.python_path:
-            continue
-
-        primitives[p.classname] = solutiondescription.PrimitiveDescription(p.classname, p)
-
-    end = timer()
-    logging.info("Time taken to load primitives: %s seconds", end - start)    
-    return primitives
-
-def get_solutions(task_name, dataset, primitives, problem):
-    """
-    Get a list of available solutions(pipelines) for the specified task
-    Used by both TA2 in standalone phase and TA2-TA3
-    """
-    solutions = []
-
-    try:
-        static_dir = os.environ['D3MSTATICDIR']
-    except:
-        static_dir = None
-
-    basic_sol = solutiondescription.SolutionDescription(problem, static_dir)
-    basic_sol.initialize_solution(task_name, task_name)
-
-    if task_name == 'CLASSIFICATION' or task_name == 'REGRESSION':
-        (types_present, total_cols, rows) = solutiondescription.column_types_present(dataset)
-
-        if 'TIMESERIES' in types_present:
-            basic_sol = solutiondescription.SolutionDescription(problem, static_dir)
-            basic_sol.initialize_solution('TIMESERIES', task_name)
-        elif 'IMAGE' in types_present:
-            basic_sol = solutiondescription.SolutionDescription(problem, static_dir)
-            basic_sol.initialize_solution('IMAGE', task_name)
-        elif 'TEXT' in types_present:
-            basic_sol = solutiondescription.SolutionDescription(problem, static_dir)
-            basic_sol.initialize_solution('TEXT', task_name)
-        elif 'AUDIO' in types_present:
-            basic_sol = solutiondescription.SolutionDescription(problem, static_dir)
-            basic_sol.initialize_solution('AUDIO', task_name)
-
-        try:
-            basic_sol.run_basic_solution(inputs=[dataset])
-        except:
-            basic_sol = None
-
-        print("Total cols = ", total_cols)
-        for classname, p in primitives.items():
-            if p.primitive_class.family == task_name and basic_sol is not None:
-                python_path = p.primitive_class.python_path
-                if 'd3m.primitives.sri.' in python_path or 'd3m.primitives.jhu_primitives' in python_path or 'lupi_svm' in python_path or 'bbn' in python_path:
-                    continue
-                
-                if 'Find_projections' in python_path and (total_cols > 20 or rows > 10000):
-                    continue
-
-                pipe = copy.deepcopy(basic_sol)
-                pipe.id = str(uuid.uuid4())
-                pipe.add_step(p.primitive_class.python_path)
-                solutions.append(pipe)
-    elif task_name == 'COLLABORATIVEFILTERING' or task_name == 'VERTEXNOMINATION' or task_name == 'COMMUNITYDETECTION'  or task_name == 'GRAPHMATCHING' or task_name == 'LINKPREDICTION' or task_name == 'CLUSTERING' or task_name == 'TIMESERIESFORECASTING':
-        if task_name == 'TIMESERIESFORECASTING':
-            basic_sol.add_step('d3m.primitives.sri.psl.RelationalTimeseries')
-        pipe = copy.deepcopy(basic_sol)
-        pipe.id = str(uuid.uuid4())
-        pipe.add_outputs()
-        solutions.append(pipe)
-    else:
-        logging.info("No matching solutions")
-
-    if task_name == 'GRAPHMATCHING':
-        basic_sol = solutiondescription.SolutionDescription(problem, static_dir)
-        basic_sol.initialize_solution('GRAPHMATCHING2', 'GRAPHMATCHING2')
-        pipe = copy.deepcopy(basic_sol)
-        pipe.id = str(uuid.uuid4())
-        pipe.add_outputs()
-        solutions.append(pipe)
- 
-    basic_sol = solutiondescription.SolutionDescription(problem, static_dir)
-    basic_sol.initialize_solution('FALLBACK1', 'FALLBACK1')
-    pipe = copy.deepcopy(basic_sol)
-    pipe.id = str(uuid.uuid4())
-    pipe.add_outputs()
-    solutions.append(pipe)
-       
-    return solutions
-
-def search_phase():
-    """
-    TA2 running in stand-alone search phase
-    """
-    inputDir = os.environ['D3MINPUTDIR']
-    outputDir = os.environ['D3MOUTPUTDIR']
-    timeout_env = os.environ['D3MTIMEOUT']
-    num_cpus = 8 #os.environ['D3MCPU']
-    problemPath = os.environ['D3MPROBLEMPATH']
-
-    logging.info("D3MINPUTDIR = %s", inputDir)
-    logging.info("D3MOUTPUTDIR = %s", outputDir)
-    logging.info("timeout = %s", timeout_env)
-    logging.info("cpus = %s", num_cpus)
-    (dataset, task_name, problem_desc) = util.load_data_problem(inputDir, problemPath)
-
-    timeout_in_min = (int)(timeout_env)
-    primitives = load_primitives()
-    task_name = task_name.upper()
-    logging.info(task_name)
-
-    solutions = get_solutions(task_name, dataset, primitives, None)
-
-    async_message_thread = Pool((int)(num_cpus))
-    valid_solutions = {}
-    valid_solution_scores = {}
-
-    inputs = []
-    inputs.append(dataset) 
-    if task_name == 'REGRESSION':
-        metric= problem_pb2.MEAN_SQUARED_ERROR
-    else:
-        metric= problem_pb2.ACCURACY
-
-    # Score potential solutions
-    results = [async_message_thread.apply_async(evaluate_solution_score, (inputs, sol, primitives, metric,)) for sol in solutions]
-    timeout = timeout_in_min * 60
-    halftimeout = None
-    if timeout <= 0:
-        timeout = None
-    elif timeout > 60:
-        timeout = timeout - 60
-    
-    if timeout is not None:    
-        halftimeout = timeout/2
-
-    index = 0
-    for r in results:
-        try:
-            (score, optimal_params) = r.get(timeout=halftimeout)
-            id = solutions[index].id
-            valid_solutions[id] = solutions[index]
-            valid_solution_scores[id] = score
-            if optimal_params is not None and len(optimal_params) > 0:
-                valid_solutions[id].set_hyperparams(optimal_params)
-        except:
-            logging.info(solutions[index].primitives)
-            logging.info(sys.exc_info()[0])
-            logging.info("Solution terminated: %s", solutions[index].id) 
-        index = index + 1
-
-    # Sort solutions by their scores and rank them
-    import operator
-    sorted_x = sorted(valid_solution_scores.items(), key=operator.itemgetter(1))
-    if util.invert_metric(metric) is False:
-        sorted_x.reverse()
-
-    index = 1
-    for (sol, score) in sorted_x:
-        valid_solutions[sol].rank = index
-        print("Rank ", index)
-        print("Score ", score)
-        print(valid_solutions[sol].primitives)
-        index = index + 1
-
-    num = 20
-    if len(sorted_x) < 20:
-        num = len(sorted_x)
-
-    util.initialize_for_search(outputDir)
-
-    # Fit solutions and dump out files
-    sorted_x = sorted_x[:num]
-    results = [async_message_thread.apply_async(fit_solution, (inputs, valid_solutions[sol], primitives, outputDir, problem_desc))
-     for (sol,score) in sorted_x]
-
-    index = 0
-    for r in results:
-        try:
-            valid=r.get(timeout=halftimeout)
-        except:
-            logging.info(valid_solutions[sorted_x[index][0]].primitives)
-            logging.info(sys.exc_info()[0])
-            logging.info("Solution terminated: %s", valid_solutions[sorted_x[index][0]].id)
-        index = index + 1
-
-def evaluate_solution_score(inputs, solution, primitives, metric):
-    """
-    Scores each potential solution
-    Runs in a separate process
-    """
-    logging.info("Evaluating %s", solution.id)
-
-    (score, optimal_params) = solution.score_solution(inputs=inputs, metric=metric,
-                                primitive_dict=primitives, solution_dict=None)
-
-    return (score, optimal_params)
-
-def fit_solution(inputs, solution, primitives, outputDir, problem_desc):
-    """
-    Fits each potential solution
-    Runs in a separate process
-    """
-    logging.info("Fitting %s", solution.id)
-    solution.fit(inputs=inputs, solution_dict=None)
-
-    util.write_pipeline_json(solution, primitives, outputDir + "/pipelines_ranked", rank=solution.rank)
-    #util.write_pipeline_yaml(solution, outputDir + "/pipeline_runs", inputs, problem_desc)
-    return True
- 
 def evaluate_solution(inputs, solution, solution_dict):
     """
     Validate each potential solution
@@ -269,7 +47,7 @@ class Core(core_pb2_grpc.CoreServicer):
         self._solution_score_map = {}
         self._search_solutions = {}
         self.async_message_thread = Pool(cpu_count()) #pool.ThreadPool(processes=1,)
-        self._primitives = load_primitives()         
+        self._primitives = primitive_lib.load_primitives()         
         outputDir = os.environ['D3MOUTPUTDIR']
         util.initialize_for_search(outputDir)
 
@@ -293,7 +71,7 @@ class Core(core_pb2_grpc.CoreServicer):
                 return solutions
 
         taskname = task_name.replace('_', '')
-        solutions = get_solutions(taskname, dataset, primitives, request.problem)
+        solutions = solution_templates.get_solutions(taskname, dataset, primitives, request.problem)
 
         return solutions
     

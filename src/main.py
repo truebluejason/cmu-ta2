@@ -6,6 +6,7 @@ import time
 import sys
 
 import grpc
+import search
 from api_v3 import core
 from multiprocessing import cpu_count
 
@@ -17,7 +18,7 @@ def main(argv):
     logging.info("Running in mode %s", mode)
 
     if mode == "search":
-        core.search_phase()
+        search.search_phase()
     else:
         threadpool = futures.ThreadPoolExecutor(max_workers=cpu_count())
         server = grpc.server(threadpool)
