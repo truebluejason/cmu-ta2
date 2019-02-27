@@ -6,10 +6,7 @@ Our job is to take requests for analysis from the TA3, turn it into an analysis 
 
 TA1 is by python function classes and method calls, basically, defined by a JSON schema.  We have the `primitive-interfaces` repo which defines the interfaces.  Then we have the `primitives_repo` repo which contains the schemas.  Then the schemas have the install source and method for the primitive, generally through pip.
 
-The TA3 requests take the form of a grpc protobuf call.  https://grpc.io/docs/quickstart/python.html has basics.  Matthias's TA3 includes a little server to translate JSON<->gRPC so his stuff can just speak JSON for now.  
-
-Easy primitives for testing would be the JPL repo, which just wraps sklearn.  
-
+The TA3 requests take the form of a grpc protobuf call.  https://grpc.io/docs/quickstart/python.html has basics.
 
 Goals: Pipeline and API, primitives, TA3 interface, Bayes optimization.
 
@@ -41,19 +38,6 @@ pip install docker grpcio-tools grpcio d3m
  * https://gitlab.datadrivendiscovery.org/jpl/primitives_repo.git
  * https://gitlab.datadrivendiscovery.org/nyu/ta3ta2-api
   * https://gitlab.com/datadrivendiscovery/ta3ta2-api -- newer than above???  There's a v2017.12.20 branch, sigh
- * https://gitlab.datadrivendiscovery.org/nyu/ta2ta3-stubs
- * New proposed TA2-TA3 interface: https://gitlab.com/datadrivendiscovery/ta3ta2-api/blob/preprocessing_api2/
-
-
-## TA2 impl's
-
- * https://gitlab.datadrivendiscovery.org/MIT-FeatureLabs/TA2-TA3-Example
- * https://gitlab.datadrivendiscovery.org/uncharted/ta2-server
-
-## TA3 impl's
-
- * https://gitlab.datadrivendiscovery.org/mgrabmair/cmu-ta3-webclient
-
 
 # A bit more guts
 
@@ -84,7 +68,7 @@ We start our TA2:
 
 ```
 cd /home/sheath/projects/D3M/cmu-ta2
-./src/main.py
+./src/main.py ta2ta3
 ```
 
 Now we can hit "start session" in the thing and, lo and behold, it actually talks to our TA2!  Magic.
@@ -155,7 +139,7 @@ docker pull registry.datadrivendiscovery.org/sheath/cmu-ta2:latest
 The following commands map 
 Run the docker image, mapping your machine’s port 45042 to the container’s published port 45042 using ```-p```
 
-You can run TA2 image in one of three modes: ```search```, ```test```, and ```ta2ta3```.
+You can run TA2 image in one of three modes: ```search``` and ```ta2ta3```.
 This is controlled by the environment variable ```D3MRUN```.
 If you don't specify ```D3MRUN``` while ```docker run...```, it runs in ```ta2ta3``` mode.
 

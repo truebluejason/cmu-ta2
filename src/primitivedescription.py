@@ -4,6 +4,7 @@ from sklearn import metrics
 from sklearn import preprocessing
 import bo.gp_call
 import problem_pb2
+import util
 
 class PrimitiveDescription(object):
     """
