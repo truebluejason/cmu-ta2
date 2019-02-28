@@ -1,7 +1,7 @@
 # JPL base image
-FROM registry.datadrivendiscovery.org/jpl/docker_images/complete:ubuntu-artful-python36-v2019.2.18
+FROM registry.datadrivendiscovery.org/jpl/docker_images/complete:ubuntu-artful-python36-v2019.2.18-20190228-054439
 
-maintainer "Donghan Wang<donghanw@cs.cmu.edu>, Simon Heath <sheath@andrew.cmu.edu>"
+maintainer "Donghan Wang<donghanw@cs.cmu.edu>"
 
 user root
 
