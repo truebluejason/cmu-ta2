@@ -44,7 +44,7 @@ class PrimitiveDescription(object):
         if y is None or 'd3m.primitives.sri' in python_path or 'bbn' in python_path:
             return (0.1, optimal_params)
 
-        from sklearn.model_selection import KFold
+        from sklearn.model_selection import KFold as KFold
 
         kf = KFold(n_splits=5, shuffle=True, random_state=9001)
 

@@ -38,7 +38,7 @@ def search_phase():
     if task_name == 'REGRESSION':
         metric= problem_pb2.MEAN_SQUARED_ERROR
     else:
-        metric= problem_pb2.ACCURACY
+        metric= problem_pb2.F1_MACRO
 
     # Score potential solutions
     results = [async_message_thread.apply_async(evaluate_solution_score, (inputs, sol, primitives, metric,)) for sol in solutions]

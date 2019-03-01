@@ -406,7 +406,7 @@ class Core(core_pb2_grpc.CoreServicer):
         TA2-3 API call
         """
         logging.info("Message received: SolutionExport")
-        solution_id = request.fitted_solution_id
+        solution_id = request.solution_id
         rank = request.rank
         solution = self._solutions[solution_id]
         solution.rank = rank
