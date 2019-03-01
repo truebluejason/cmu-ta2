@@ -1,22 +1,76 @@
-import os, copy, uuid
+import os, copy, uuid, sys
 import solutiondescription
+import logging
+
+logging.basicConfig(level=logging.INFO)
 
 task_paths = {
-'TEXT': ['d3m.primitives.data_transformation.denormalize.Common','d3m.primitives.data_transformation.dataset_to_dataframe.Common','d3m.primitives.data_transformation.column_parser.DataFrameCommon','d3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon', 'd3m.primitives.feature_construction.corex_text.CorexText', 'd3m.primitives.data_cleaning.imputer.SKlearn', 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'],
-'TIMESERIES': ['d3m.primitives.data_transformation.denormalize.Common','d3m.primitives.data_transformation.dataset_to_dataframe.Common','d3m.primitives.data_transformation.column_parser.DataFrameCommon','d3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon', 'd3m.primitives.data_preprocessing.TimeseriesToList.DSBOX', 'd3m.primitives.feature_extraction.RandomProjectionTimeSeriesFeaturization.DSBOX', 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'],
-'IMAGE': ['d3m.primitives.data_transformation.denormalize.Common','d3m.primitives.data_transformation.dataset_to_dataframe.Common','d3m.primitives.data_transformation.column_parser.DataFrameCommon','d3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon', 'd3m.primitives.data_preprocessing.DataFrameToTensor.DSBOX', 'd3m.primitives.feature_extraction.ResNet50ImageFeature.DSBOX', 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'],
-'CLASSIFICATION': ['d3m.primitives.data_transformation.denormalize.Common','d3m.primitives.data_transformation.dataset_to_dataframe.Common','d3m.primitives.data_transformation.column_parser.DataFrameCommon','d3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon', 'd3m.primitives.data_cleaning.imputer.SKlearn', 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'],
-'REGRESSION': ['d3m.primitives.data_transformation.denormalize.Common','d3m.primitives.data_transformation.dataset_to_dataframe.Common','d3m.primitives.data_transformation.column_parser.DataFrameCommon', 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon', 'd3m.primitives.data_cleaning.imputer.SKlearn', 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'],
-'CLUSTERING': ['d3m.primitives.data_transformation.dataset_to_dataframe.Common','d3m.primitives.data_transformation.column_parser.DataFrameCommon','d3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon','d3m.primitives.cmu.fastlvm.CoverTree','d3m.primitives.data_transformation.construct_predictions.DataFrameCommon'],
+'TEXT': ['d3m.primitives.data_transformation.denormalize.Common',
+         'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
+         'd3m.primitives.data_transformation.column_parser.DataFrameCommon',
+         'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
+         'd3m.primitives.feature_construction.corex_text.CorexText',
+         'd3m.primitives.data_cleaning.imputer.SKlearn',
+         'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'],
+
+'TIMESERIES': ['d3m.primitives.data_transformation.denormalize.Common',
+               'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
+               'd3m.primitives.data_transformation.column_parser.DataFrameCommon',
+               'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
+               'd3m.primitives.data_preprocessing.TimeseriesToList.DSBOX',
+               'd3m.primitives.feature_extraction.RandomProjectionTimeSeriesFeaturization.DSBOX',
+               'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'],
+
+'IMAGE': ['d3m.primitives.data_transformation.denormalize.Common',
+          'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
+          'd3m.primitives.data_transformation.column_parser.DataFrameCommon',
+          'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
+          'd3m.primitives.data_preprocessing.DataFrameToTensor.DSBOX',
+          'd3m.primitives.feature_extraction.ResNet50ImageFeature.DSBOX',
+          'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'],
+
+'CLASSIFICATION': ['d3m.primitives.data_transformation.denormalize.Common',
+                   'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
+                   'd3m.primitives.data_transformation.column_parser.DataFrameCommon',
+                   'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
+                   'd3m.primitives.data_cleaning.imputer.SKlearn', 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'],
+
+'REGRESSION': ['d3m.primitives.data_transformation.denormalize.Common',
+               'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
+               'd3m.primitives.data_transformation.column_parser.DataFrameCommon',
+               'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
+               'd3m.primitives.data_cleaning.imputer.SKlearn',
+               'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'],
+
+'CLUSTERING': ['d3m.primitives.data_transformation.dataset_to_dataframe.Common',
+               'd3m.primitives.data_transformation.column_parser.DataFrameCommon',
+               'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
+               'd3m.primitives.cmu.fastlvm.CoverTree',
+               'd3m.primitives.data_transformation.construct_predictions.DataFrameCommon'],
+
 'GRAPHMATCHING': ['d3m.primitives.sri.psl.GraphMatchingLinkPrediction'],
+
 'GRAPHMATCHING2': ['d3m.primitives.graph_matching.seeded_graph_matching.JHU'],
+
 'COLLABORATIVEFILTERING': ['d3m.primitives.sri.psl.CollaborativeFilteringLinkPrediction'],
-'VERTEXNOMINATION': ['d3m.primitives.sri.graph.VertexNominationParser', 'd3m.primitives.sri.psl.VertexNomination'],
-'LINKPREDICTION': ['d3m.primitives.sri.graph.GraphMatchingParser','d3m.primitives.sri.graph.GraphTransformer', 'd3m.primitives.sri.psl.LinkPrediction'],
-'COMMUNITYDETECTION': ['d3m.primitives.sri.graph.CommunityDetectionParser', 'd3m.primitives.sri.psl.CommunityDetection'],
-'TIMESERIESFORECASTING': ['d3m.primitives.data_transformation.dataset_to_dataframe.Common','d3m.primitives.data_transformation.column_parser.DataFrameCommon', 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon', 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'],
+
+'VERTEXNOMINATION': ['d3m.primitives.sri.graph.VertexNominationParser',
+                     'd3m.primitives.sri.psl.VertexNomination'],
+
+'LINKPREDICTION': ['d3m.primitives.sri.graph.GraphMatchingParser',
+                   'd3m.primitives.sri.graph.GraphTransformer',
+                   'd3m.primitives.sri.psl.LinkPrediction'],
+
+'COMMUNITYDETECTION': ['d3m.primitives.sri.graph.CommunityDetectionParser',
+                       'd3m.primitives.sri.psl.CommunityDetection'],
+
+'TIMESERIESFORECASTING': ['d3m.primitives.data_transformation.dataset_to_dataframe.Common',
+                          'd3m.primitives.data_transformation.column_parser.DataFrameCommon',
+                          'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon', 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'],
 'AUDIO': ['d3m.primitives.bbn.time_series.AudioReader', 'd3m.primitives.bbn.time_series.ChannelAverager', 'd3m.primitives.bbn.time_series.SignalDither', 'd3m.primitives.bbn.time_series.SignalFramer', 'd3m.primitives.bbn.time_series.SignalMFCC', 'd3m.primitives.bbn.time_series.IVectorExtractor', 'd3m.primitives.bbn.time_series.TargetsReader'],
+
 'FALLBACK1': ['d3m.primitives.sri.baseline.MeanBaseline'],
+
 'FALLBACK2': ['d3m.primitives.sri.psl.GeneralRelationalDataset']}
 
 def get_solutions(task_name, dataset, primitives, problem):
@@ -53,6 +107,7 @@ def get_solutions(task_name, dataset, primitives, problem):
         try:
             basic_sol.run_basic_solution(inputs=[dataset])
         except:
+            logging.info(sys.exc_info()[0])
             basic_sol = None
 
         print("Total cols = ", total_cols)
