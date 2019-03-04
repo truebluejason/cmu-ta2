@@ -20,7 +20,7 @@ from enum import Enum
 from time import sleep
 from google.protobuf.timestamp_pb2 import Timestamp
 
-import json
+import json, numpy
 import dateutil
 
 from d3m.metadata.pipeline import Pipeline, PrimitiveStep, SubpipelineStep
@@ -363,17 +363,27 @@ class SolutionDescription(object):
             return True
         return False
 
-    def exclude(self, metadata):
+    def exclude(self, df):
         """
         Exclude columns which cannot/need not be processed.
         """
-        self.exclude_columns = [] #metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/CategoricalData")
-        cols = metadata.get_columns_with_semantic_type("http://schema.org/DateTime")
-        timecols = metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/Time")
-        for col in cols:
-            self.exclude_columns.append(col)
-        for col in timecols:
-            self.exclude_columns.append(col)
+        self.exclude_columns = set()
+        #metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/CategoricalData")
+        metadata = df.metadata
+        rows = len(df)
+        attributes = metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/Attribute")
+
+        # Retain max 100 attributes
+        max_num_atts = 100
+        if len(attributes) > max_num_atts:
+            for i in range(len(attributes)-max_num_atts):
+                col = (int)(numpy.random.choice(attributes, replace=False))
+                self.exclude_columns.add(col)
+
+        if rows > 1000000: # > 1M rows
+            cols = metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/FloatVector") # Found to be very expensive in ColumnParser!
+            for col in cols:
+                self.exclude_columns.add(col)
 
         targets = metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/SuggestedTarget")
         for t in targets:
@@ -398,7 +408,7 @@ class SolutionDescription(object):
                 primitives_outputs[n_step] = self.process_step(n_step, primitives_outputs, ActionType.FIT, arguments)
 
                 if self.isDataFrameStep(n_step) == True:
-                    self.exclude(primitives_outputs[n_step].metadata)
+                    self.exclude(primitives_outputs[n_step])
         else:
             primitives_outputs[last_step] = self.process_step(last_step, self.primitives_outputs, ActionType.FIT, arguments)
             primitives_outputs[1] = self.primitives_outputs[1]
@@ -835,7 +845,7 @@ class SolutionDescription(object):
                 primitives_outputs[n_step] = self.process_step(n_step, primitives_outputs, ActionType.SCORE, arguments)
 
                 if self.isDataFrameStep(n_step) == True:
-                    self.exclude(primitives_outputs[n_step].metadata)
+                    self.exclude(primitives_outputs[n_step])
         else:
             primitives_outputs[last_step] = self.process_step(last_step, self.primitives_outputs, ActionType.SCORE, arguments)
 
@@ -868,7 +878,7 @@ class SolutionDescription(object):
                 primitives_outputs[n_step] = self.process_step(n_step, primitives_outputs, ActionType.VALIDATE, arguments)
 
                 if self.isDataFrameStep(n_step) == True:
-                    self.exclude(primitives_outputs[n_step].metadata)
+                    self.exclude(primitives_outputs[n_step])
         else:
             primitives_outputs[last_step] = self.process_step(last_step, self.primitives_outputs, ActionType.VALIDATE, arguments)
 
@@ -886,14 +896,14 @@ class SolutionDescription(object):
             n_step = self.execution_order[i]
             self.primitives_outputs[n_step] = self.process_step(n_step, self.primitives_outputs, ActionType.FIT, arguments)
             if self.isDataFrameStep(n_step) == True:
-                self.exclude(self.primitives_outputs[n_step].metadata)
+                self.exclude(self.primitives_outputs[n_step])
             
             if self.exclude_columns is not None and len(self.exclude_columns) > 0:
                 python_path = self.primitives[n_step].metadata.query()['python_path']
                 if python_path == 'd3m.primitives.data_transformation.column_parser.DataFrameCommon' or python_path == 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon':
                     if self.hyperparams[n_step] is None:
                         self.hyperparams[n_step] = {}
-                    self.hyperparams[n_step]['exclude_columns'] = self.exclude_columns
+                    self.hyperparams[n_step]['exclude_columns'] = list(self.exclude_columns)
 
         # Store inputs and outputs for feeding into classifier/regressor. Remove other intermediate step outputs, they are not needed anymore.
         for i in range(0, len(self.execution_order)-2):
@@ -954,6 +964,7 @@ class SolutionDescription(object):
         if family is not PrimitiveFamily.DATA_TRANSFORMATION and 'd3m.primitives.sri.' not in primitive.metadata.query()['python_path']:
             ip = training_arguments['inputs']
             from sklearn.model_selection import KFold
+        
             # Train on just 20% of the data to validate
             kf = KFold(n_splits=5, shuffle=True, random_state=9001)
             newtrain_args = {}
