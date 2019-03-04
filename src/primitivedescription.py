@@ -1,5 +1,5 @@
 import pandas as pd
-import math
+import math, sys
 from sklearn import metrics
 from sklearn import preprocessing
 import bo.gp_call
@@ -44,20 +44,8 @@ class PrimitiveDescription(object):
         if y is None or 'd3m.primitives.sri' in python_path or 'bbn' in python_path:
             return (0.1, optimal_params)
 
-        from sklearn.model_selection import KFold as KFold
-
-        kf = KFold(n_splits=5, shuffle=True, random_state=9001)
-
-        splits = 5
-        metric_sum = 0
-
-        if isinstance(X, pd.DataFrame):
-            Xnew = pd.DataFrame(data=X.values)
-        else:
-            Xnew = pd.DataFrame(data=X)
-
-        rows = len(Xnew)
         if 'Find_projections' in python_path and 'Numeric' not in python_path:
+            rows = len(X)
             min_rows = (int)(rows * 0.8 * 0.5)
             if min_rows < 100:
                 optimal_params['support'] = min_rows
@@ -67,28 +55,7 @@ class PrimitiveDescription(object):
         score = 0.0
 
         # Run k-fold CV and compute mean metric score
-        print(Xnew.shape)
-        metric_scores = []
-        for train_index, test_index in kf.split(X):
-            X_train, X_test = Xnew.iloc[train_index], Xnew.iloc[test_index]
-
-            y_train, y_test = y.iloc[train_index], y.iloc[test_index]
-            X_train.metadata = X.metadata
-            X_test.metadata = X.metadata
-
-            prim_instance.set_training_data(inputs=X_train, outputs=y_train)
-
-            prim_instance.fit()
-            predictions = prim_instance.produce(inputs=X_test).value
-            if len(predictions.columns) > 1:
-                predictions = predictions.iloc[:,len(predictions.columns)-1]
-            metric = self.evaluate_metric(predictions, y_test, metric_type)
-            metric_scores.append(metric)
-            metric_sum += metric
-
-        score = metric_sum/splits
-        print("Primitive: ", self.primitive)
-        print("Metrics: ", metric_scores)
+        score = self.k_fold_CV(prim_instance, X, y, metric_type, 5)
         return (score, optimal_params)
 
     def evaluate_metric(self, predictions, Ytest, metric):
@@ -149,51 +116,61 @@ class PrimitiveDescription(object):
                 value = (int)(inputs[index]+0.5)
             custom_hyperparams[name] = value
 
-        import random
-
-        # Run training on 90% and testing on 10% random split of the dataset.
-        seq = [i for i in range(len(train))]
-        random.shuffle(seq)
-
-        testsize = (int)(0.1 * len(train) + 0.5)
-        trainindices = [seq[x] for x in range(len(train)-testsize)]
-        testindices = [seq[x] for x in range(len(train)-testsize, len(train))]
-
-        if isinstance(train, pd.DataFrame):
-            Xnew = pd.DataFrame(data=train.values, columns=train.columns.values.tolist())
-        else:
-            Xnew = pd.DataFrame(data=train)
-        Xtrain = Xnew.iloc[trainindices]
-        Ytrain = output.iloc[trainindices]
-        Xtest = Xnew.iloc[testindices]
-        Ytest = output.iloc[testindices]
-
-        Xtrain = d3m_dataframe(Xtrain, generate_metadata=False)
-        Xtrain.metadata = train.metadata.clear(for_value=Xtrain, generate_metadata=True)
-        Xtest = d3m_dataframe(Xtest, generate_metadata=False)
-        Xtest.metadata = train.metadata.clear(for_value=Xtest, generate_metadata=True)
-        Ytrain.metadata = output.metadata
-
         prim_instance = self.primitive(hyperparams=primitive_hyperparams(primitive_hyperparams.defaults(), **custom_hyperparams))
-        prim_instance.set_training_data(inputs=Xtrain, outputs=Ytrain)
-        prim_instance.fit()
 
-        predictions = prim_instance.produce(inputs=Xtest).value
-
-        if len(predictions.columns) > 1:
-            predictions = predictions.iloc[:,len(predictions.columns)-1]
-        metric = self.evaluate_metric(predictions, Ytest, metric_type)
-
+        metric = self.k_fold_CV(prim_instance, train, output, metric_type, 2)
         if util.invert_metric(metric_type) is True:
             metric = metric * (-1)
         print('Metric: %f' %(metric))
         return metric
 
+    def k_fold_CV(self, prim_instance, X, y, metric_type, splits):
+        """
+        Run k-fold CV.
+        k = splits
+        prim_instance has already been initialized with hyperparameters.
+        """
+        from sklearn.model_selection import KFold as KFold
+
+        kf = KFold(n_splits=splits, shuffle=True, random_state=9001)
+
+        metric_sum = 0
+
+        if isinstance(X, pd.DataFrame):
+            Xnew = pd.DataFrame(data=X.values)
+        else:
+            Xnew = pd.DataFrame(data=X)
+
+        score = 0.0
+
+        # Run k-fold CV and compute mean metric score
+        print(Xnew.shape)
+        metric_scores = []
+        for train_index, test_index in kf.split(X):
+            X_train, X_test = Xnew.iloc[train_index], Xnew.iloc[test_index]
+
+            y_train, y_test = y.iloc[train_index], y.iloc[test_index]
+            X_train.metadata = X.metadata
+            X_test.metadata = X.metadata
+
+            prim_instance.set_training_data(inputs=X_train, outputs=y_train)
+
+            prim_instance.fit()
+            predictions = prim_instance.produce(inputs=X_test).value
+            if len(predictions.columns) > 1:
+                predictions = predictions.iloc[:,len(predictions.columns)-1]
+            metric = self.evaluate_metric(predictions, y_test, metric_type)
+            metric_scores.append(metric)
+            metric_sum += metric
+
+        score = metric_sum/splits
+        return score
+
     def optimize_hyperparams(self, train, output, lower_bounds, upper_bounds, hyperparam_types, hyperparam_semantic_types,
      metric_type, custom_hyperparams):
         """
         Optimize primitive's hyper parameters using Bayesian Optimization package 'bo'.
-        Optimization is done for the parameters with specified range(lower - upper).
+        Optimization is done for the numerical parameters with specified range(lower - upper).
         """
         domain_bounds = []
         optimal_params = {}

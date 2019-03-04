@@ -719,9 +719,9 @@ class SolutionDescription(object):
             self.hyperparams[i] = {}
             if self.taskname is not 'IMAGE' and self.taskname is not 'TIMESERIES': 
                 self.hyperparams[i]['use_semantic_types'] = True
-
-        if 'random_forest.SKlearn' in python_path:
-            self.hyperparams[i]['n_estimators'] = 100
+            hyperparam_spec = prim.metadata.query()['primitive_code']['hyperparams']
+            if 'n_estimators' in hyperparam_spec:
+                self.hyperparams[i]['n_estimators'] = 100
             
         self.execution_order.append(i)
 
