@@ -114,11 +114,11 @@ def get_solutions(task_name, dataset, primitives, problem):
             basic_sol = solutiondescription.SolutionDescription(problem, static_dir)
             basic_sol.initialize_solution('AUDIO')
 
-        try:
+        if 1: #try:
             basic_sol.run_basic_solution(inputs=[dataset])
-        except:
-            logging.info(sys.exc_info()[0])
-            basic_sol = None
+        #except:
+        #    logging.info(sys.exc_info()[0])
+        #    basic_sol = None
 
         print("Total cols = ", total_cols)
 
