@@ -99,28 +99,34 @@ def get_solutions(task_name, dataset, primitives, problem):
     basic_sol.initialize_solution(task_name)
 
     if task_name == 'CLASSIFICATION' or task_name == 'REGRESSION':
-        (types_present, total_cols, rows) = solutiondescription.column_types_present(dataset)
+        try:
+            (types_present, total_cols, rows) = solutiondescription.column_types_present(dataset)
+        except:
+            logging.info(sys.exc_info()[0])
+            basic_sol = None
+            types_present = None
 
-        if 'TIMESERIES' in types_present:
-            basic_sol = solutiondescription.SolutionDescription(problem, static_dir)
-            basic_sol.initialize_solution('TIMESERIES')
-        elif 'IMAGE' in types_present:
-            basic_sol = solutiondescription.SolutionDescription(problem, static_dir)
-            basic_sol.initialize_solution('IMAGE')
-        elif 'TEXT' in types_present:
-            basic_sol = solutiondescription.SolutionDescription(problem, static_dir)
-            basic_sol.initialize_solution('TEXT')
-        elif 'AUDIO' in types_present:
-            basic_sol = solutiondescription.SolutionDescription(problem, static_dir)
-            basic_sol.initialize_solution('AUDIO')
+        if types_present is not None:
+            if 'TIMESERIES' in types_present:
+                basic_sol = solutiondescription.SolutionDescription(problem, static_dir)
+                basic_sol.initialize_solution('TIMESERIES')
+            elif 'IMAGE' in types_present:
+                basic_sol = solutiondescription.SolutionDescription(problem, static_dir)
+                basic_sol.initialize_solution('IMAGE')
+            elif 'TEXT' in types_present:
+                basic_sol = solutiondescription.SolutionDescription(problem, static_dir)
+                basic_sol.initialize_solution('TEXT')
+            elif 'AUDIO' in types_present:
+                basic_sol = solutiondescription.SolutionDescription(problem, static_dir)
+                basic_sol.initialize_solution('AUDIO')
 
-        if 1: #try:
-            basic_sol.run_basic_solution(inputs=[dataset])
-        #except:
-        #    logging.info(sys.exc_info()[0])
-        #    basic_sol = None
+            try:
+                basic_sol.run_basic_solution(inputs=[dataset])
+            except:
+                logging.info(sys.exc_info()[0])
+                basic_sol = None
 
-        print("Total cols = ", total_cols)
+            print("Total cols = ", total_cols)
 
         # Iterate through primitives which match task type for populative pool of solutions
         for classname, p in primitives.items():
@@ -136,7 +142,6 @@ def get_solutions(task_name, dataset, primitives, problem):
                 pipe.id = str(uuid.uuid4())
                 pipe.add_step(p.primitive_class.python_path)
                 solutions.append(pipe)
-                break
     elif task_name == 'COLLABORATIVEFILTERING' or \
          task_name == 'VERTEXNOMINATION' or \
          task_name == 'COMMUNITYDETECTION' or \
