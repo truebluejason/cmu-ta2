@@ -640,7 +640,7 @@ class SolutionDescription(object):
                     self.hyperparams[i]['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/SuggestedTarget']
 
             elif taskname == 'AUDIO':
-                if i == 0 or i == num-1:
+                if i == 0 or i == 2 or i == num-1:
                     data = 'inputs.0'
                 else:
                     data = 'steps.' + str(i-1) + '.produce'
