@@ -725,27 +725,25 @@ class SolutionDescription(object):
             
         self.execution_order.append(i)
 
-        first_primitive = self.primitives[0].metadata.query()['python_path']
-        if first_primitive != 'd3m.primitives.bbn.time_series.AudioReader':
-            i = i + 1
-            self.primitives_arguments[i] = {}
-            self.hyperparams[i] = None
-            self.pipeline.append(None)
-            prim = d3m.index.get_primitive('d3m.primitives.data_transformation.construct_predictions.DataFrameCommon')
-            self.primitives[i] = prim
+        i = i + 1
+        self.primitives_arguments[i] = {}
+        self.hyperparams[i] = None
+        self.pipeline.append(None)
+        prim = d3m.index.get_primitive('d3m.primitives.data_transformation.construct_predictions.DataFrameCommon')
+        self.primitives[i] = prim
 
-            data = 'steps.' + str(i-1) + str('.produce')
-            origin = data.split('.')[0]
-            source = data.split('.')[1]
-            self.primitives_arguments[i]['inputs'] = {'origin': origin, 'source': int(source), 'data': data}
+        data = 'steps.' + str(i-1) + str('.produce')
+        origin = data.split('.')[0]
+        source = data.split('.')[1]
+        self.primitives_arguments[i]['inputs'] = {'origin': origin, 'source': int(source), 'data': data}
         
-            data = 'steps.' + str(1) + str('.produce')
-            origin = data.split('.')[0]
-            source = data.split('.')[1]
-            self.primitives_arguments[i]['reference'] = {'origin': origin, 'source': int(source), 'data': data}
+        data = 'steps.' + str(1) + str('.produce')
+        origin = data.split('.')[0]
+        source = data.split('.')[1]
+        self.primitives_arguments[i]['reference'] = {'origin': origin, 'source': int(source), 'data': data}
 
-            self.execution_order.append(i)
-            self.steptypes.append(StepType.PRIMITIVE)
+        self.execution_order.append(i)
+        self.steptypes.append(StepType.PRIMITIVE)
 
         self.add_outputs()
 

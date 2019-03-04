@@ -66,8 +66,18 @@ task_paths = {
 
 'TIMESERIESFORECASTING': ['d3m.primitives.data_transformation.dataset_to_dataframe.Common',
                           'd3m.primitives.data_transformation.column_parser.DataFrameCommon',
-                          'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon', 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'],
-'AUDIO': ['d3m.primitives.bbn.time_series.AudioReader', 'd3m.primitives.bbn.time_series.ChannelAverager', 'd3m.primitives.bbn.time_series.SignalDither', 'd3m.primitives.bbn.time_series.SignalFramer', 'd3m.primitives.bbn.time_series.SignalMFCC', 'd3m.primitives.bbn.time_series.IVectorExtractor', 'd3m.primitives.bbn.time_series.TargetsReader'],
+                          'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
+                          'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'],
+
+'AUDIO': ['d3m.primitives.data_transformation.denormalize.Common',
+          'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
+          'd3m.primitives.bbn.time_series.AudioReader',
+          'd3m.primitives.bbn.time_series.ChannelAverager',
+          'd3m.primitives.bbn.time_series.SignalDither',
+          'd3m.primitives.bbn.time_series.SignalFramer',
+          'd3m.primitives.bbn.time_series.SignalMFCC',
+          'd3m.primitives.bbn.time_series.IVectorExtractor',
+          'd3m.primitives.bbn.time_series.TargetsReader'],
 
 'FALLBACK1': ['d3m.primitives.sri.baseline.MeanBaseline'],
 
@@ -119,13 +129,14 @@ def get_solutions(task_name, dataset, primitives, problem):
                 if 'd3m.primitives.sri.' in python_path or 'JHU' in python_path or 'lupi_svm' in python_path or 'bbn' in python_path:
                     continue
 
-                if 'Find_projections' in python_path and (total_cols > 20 or rows > 10000):
+                if 'Find_projections' in python_path: # and (total_cols > 20 or rows > 10000):
                     continue
 
                 pipe = copy.deepcopy(basic_sol)
                 pipe.id = str(uuid.uuid4())
                 pipe.add_step(p.primitive_class.python_path)
                 solutions.append(pipe)
+                break
     elif task_name == 'COLLABORATIVEFILTERING' or \
          task_name == 'VERTEXNOMINATION' or \
          task_name == 'COMMUNITYDETECTION' or \
