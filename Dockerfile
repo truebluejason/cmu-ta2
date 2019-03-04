@@ -28,6 +28,8 @@ RUN pip3 install --upgrade pip==18.1 \
 RUN mkdir /static
 COPY resnet50_weights_tf_dim_ordering_tf_kernels.h5 /static
  
+RUN pip3 install -U pandas==0.22.0
+
 # Install bayesian_optimiaztion
 COPY bayesian_optimization /tmp/bayesian_optimization
 RUN cd /tmp/bayesian_optimization/bo/utils/direct_fortran; \
