@@ -135,7 +135,7 @@ def get_solutions(task_name, dataset, primitives, problem):
                 if 'd3m.primitives.sri.' in python_path or 'JHU' in python_path or 'lupi_svm' in python_path or 'bbn' in python_path:
                     continue
 
-                if 'Find_projections' in python_path: # and (total_cols > 20 or rows > 10000):
+                if 'Find_projections' in python_path and (total_cols > 20 or rows > 10000):
                     continue
 
                 pipe = copy.deepcopy(basic_sol)
