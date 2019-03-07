@@ -26,8 +26,7 @@ class PrimitiveDescription(object):
         # Tune hyperparams for classification/regression primitives currently using Bayesian optimization
         if 'hyperparams' in self.primitive.metadata.query()['primitive_code'] and y is not None and 'Find_projections' not in python_path and 'SKlearn' not in python_path:
             hyperparam_spec = self.primitive.metadata.query()['primitive_code']['hyperparams']
-            optimal_params = self.find_optimal_hyperparams(train=X, output=y, hyperparam_spec=hyperparam_spec,
-          metric=metric_type, custom_hyperparams=custom_hyperparams)
+            optimal_params = dict() #self.find_optimal_hyperparams(train=X, output=y, hyperparam_spec=hyperparam_spec,metric=metric_type, custom_hyperparams=custom_hyperparams)
         else:
             optimal_params = dict()
 
