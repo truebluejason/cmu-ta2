@@ -229,6 +229,7 @@ class Core(core_pb2_grpc.CoreServicer):
         msg = core_pb2.Progress(state=core_pb2.RUNNING, status="", start=start, end=solutiondescription.compute_timestamp())
         
         send_scores = []
+        from timeit import default_timer as timer
 
         if solution_id not in self._solutions:
             logging.info("GetScoreSolutionResults: Solution %s not found!", solution_id)  
@@ -239,9 +240,12 @@ class Core(core_pb2_grpc.CoreServicer):
         else:
             inputs = self._get_inputs(self._solutions[solution_id].problem, request_params.inputs)
             try:
+                logging.info(self._solutions[solution_id].primitives)
+                s = timer()                
                 (score, optimal_params) = self._solutions[solution_id].score_solution(inputs=inputs, metric=request_params.performance_metrics[0].metric,
                                 primitive_dict=self._primitives, solution_dict=self._solutions)
-                logging.info(self._solutions[solution_id].primitives)
+                e = timer()
+                logging.info("Time taken = %s sec", e-s) 
                 if optimal_params is not None and len(optimal_params) > 0:
                     self._solutions[solution_id].set_hyperparams(optimal_params)
             except:
