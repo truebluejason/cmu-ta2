@@ -41,7 +41,10 @@ class PrimitiveDescription(object):
                 return (0.0, optimal_params)
 
         if y is None or 'd3m.primitives.sri' in python_path or 'bbn' in python_path:
-            return (0.1, optimal_params)
+            if util.invert_metric(metric_type) is True:
+                return (0.0, optimal_params)
+            else:
+                return (1.0, optimal_params)
 
         if 'Find_projections' in python_path and 'Numeric' not in python_path:
             rows = len(X)

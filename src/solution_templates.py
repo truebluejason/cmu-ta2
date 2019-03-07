@@ -33,7 +33,8 @@ task_paths = {
                    'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
                    'd3m.primitives.data_transformation.column_parser.DataFrameCommon',
                    'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
-                   'd3m.primitives.data_cleaning.imputer.SKlearn', 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'],
+                   'd3m.primitives.data_cleaning.imputer.SKlearn',
+                   'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'],
 
 'REGRESSION': ['d3m.primitives.data_transformation.denormalize.Common',
                'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
@@ -142,12 +143,23 @@ def get_solutions(task_name, dataset, primitives, problem):
                 pipe.id = str(uuid.uuid4())
                 pipe.add_step(p.primitive_class.python_path)
                 solutions.append(pipe)
-    elif task_name == 'COLLABORATIVEFILTERING' or \
-         task_name == 'VERTEXNOMINATION' or \
+    elif task_name == 'VERTEXNOMINATION' or \
          task_name == 'COMMUNITYDETECTION' or \
          task_name == 'GRAPHMATCHING' or \
          task_name == 'LINKPREDICTION' or \
-         task_name == 'CLUSTERING' or \
+         task_name == 'CLUSTERING':
+        pipe = copy.deepcopy(basic_sol)
+        pipe.id = str(uuid.uuid4())
+        pipe.add_outputs()
+        solutions.append(pipe)
+        
+        # Add a classification pipeline too
+        pipe = solutiondescription.SolutionDescription(problem, static_dir)
+        pipe.initialize_solution('CLASSIFICATION')
+        pipe.id = str(uuid.uuid4())
+        pipe.add_step('d3m.primitives.classification.random_forest.SKlearn')
+        solutions.append(pipe)
+    elif task_name == 'COLLABORATIVEFILTERING' or \
          task_name == 'TIMESERIESFORECASTING':
         if task_name == 'TIMESERIESFORECASTING':
             basic_sol.add_step('d3m.primitives.sri.psl.RelationalTimeseries')
@@ -155,16 +167,15 @@ def get_solutions(task_name, dataset, primitives, problem):
         pipe.id = str(uuid.uuid4())
         pipe.add_outputs()
         solutions.append(pipe)
+
+        # Add a regression pipeline too
+        pipe = solutiondescription.SolutionDescription(problem, static_dir)
+        pipe.initialize_solution('REGRESSION')
+        pipe.id = str(uuid.uuid4())
+        pipe.add_step('d3m.primitives.regression.random_forest.SKlearn')
+        solutions.append(pipe)
     else:
         logging.info("No matching solutions")
-
-    if task_name == 'GRAPHMATCHING': # Add alternative solution for graph matching problem.
-        basic_sol = solutiondescription.SolutionDescription(problem, static_dir)
-        basic_sol.initialize_solution('GRAPHMATCHING2')
-        pipe = copy.deepcopy(basic_sol)
-        pipe.id = str(uuid.uuid4())
-        pipe.add_outputs()
-        solutions.append(pipe)
 
     basic_sol = solutiondescription.SolutionDescription(problem, static_dir)
     basic_sol.initialize_solution('FALLBACK1')
