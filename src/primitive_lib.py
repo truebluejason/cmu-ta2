@@ -76,7 +76,7 @@ def load_primitives():
             continue
         if 'decision_tree' in p.python_path or 'bernoulli_naive_bayes' in p.python_path or 'gaussian_naive_bayes' in p.python_path or 'dummy' in p.python_path or 'tensor_machines' in p.python_path or 'fast_lad' in p.python_path:
             continue
-        if 'rfm_precondition' in p.python_path or 'BayesianInfRPI' in p.python_path:
+        if 'rfm_precondition' in p.python_path or 'BayesianInfRPI' in p.python_path or 'xgboost' in p.python_path:
             continue
 
         primitives[p.classname] = primitivedescription.PrimitiveDescription(p.classname, p)
