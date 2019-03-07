@@ -241,6 +241,7 @@ class Core(core_pb2_grpc.CoreServicer):
             try:
                 (score, optimal_params) = self._solutions[solution_id].score_solution(inputs=inputs, metric=request_params.performance_metrics[0].metric,
                                 primitive_dict=self._primitives, solution_dict=self._solutions)
+                logging.info(self._solutions[solution_id].primitives)
                 if optimal_params is not None and len(optimal_params) > 0:
                     self._solutions[solution_id].set_hyperparams(optimal_params)
             except:
