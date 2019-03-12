@@ -35,7 +35,7 @@ def search_phase():
 
     inputs = []
     inputs.append(dataset)
-    if task_name == 'REGRESSION':
+    if task_name == 'REGRESSION' or task_name == 'TIMESERIESFORECASTING':
         metric= problem_pb2.MEAN_SQUARED_ERROR
     else:
         metric= problem_pb2.F1_MACRO
