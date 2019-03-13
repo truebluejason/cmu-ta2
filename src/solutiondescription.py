@@ -14,7 +14,7 @@ import pandas as pd
 
 from  api_v3 import core
 
-import uuid, sys
+import uuid, sys, copy, math
 import time
 from enum import Enum
 from time import sleep
@@ -36,9 +36,30 @@ import networkx as nx
 import util
 import solution_templates
 
+def get_cols_to_encode(df):
+    """
+    Find categorical attributes which can be one-hot-encoded.
+    """
+    cols = df.metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/CategoricalData")
+    targets = df.metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/SuggestedTarget")
+
+    for t in targets:
+        if t in cols:
+            cols.remove(t)
+
+    rows = len(df)
+    # use rule of thumb to exclude categorical atts with high cardinality for one-hot-encoding
+    max_num_cols = math.log(rows, 2)
+    tmp_cols = cols
+    for t in tmp_cols:
+        if len(df.iloc[:,t].unique()) > max_num_cols:
+            cols.remove(t)
+    return list(cols)
+
 def column_types_present(dataset):
     """
-    Retrieve special data types present: Text, Image, Timeseries, Audio
+    Retrieve special data types present: Text, Image, Timeseries, Audio, Categorical
+    Returns ([data types], total columns, total rows, categorical att indices)
     """
     primitive = d3m.index.get_primitive('d3m.primitives.data_transformation.denormalize.Common')
     primitive_hyperparams = primitive.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
@@ -66,9 +87,13 @@ def column_types_present(dataset):
     if cols > 0:
         types.append('AUDIO')
 
+    cols = get_cols_to_encode(df)
+    if len(cols) > 0:
+        types.append('Categorical')
+ 
     total_cols = len(metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/Attribute"))
     print("Data types present: ", types)
-    return (types, total_cols, len(df))
+    return (types, total_cols, len(df), cols)
 
 def compute_timestamp():
     now = time.time()
@@ -151,6 +176,11 @@ class SolutionDescription(object):
         self.primitives_outputs = None
         self.static_dir = static_dir
         self.pipeline_description = None
+        self.total_cols = 0
+        self.categorical_atts = None
+
+    def set_categorical_atts(self, atts):
+        self.categorical_atts = atts
 
     def contains_placeholder(self):
         if self.steptypes is not None:
@@ -368,7 +398,6 @@ class SolutionDescription(object):
         Exclude columns which cannot/need not be processed.
         """
         self.exclude_columns = set()
-        #metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/CategoricalData")
         metadata = df.metadata
         rows = len(df)
         attributes = metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/Attribute")
@@ -579,43 +608,55 @@ class SolutionDescription(object):
     def initialize_solution(self, taskname):
         """
         Initialize a solution from scratch consisting of predefined steps
-        Leave last step for filling in primitive
+        Leave last step for filling in primitive (for classification/regression problems)
         """
-        python_paths = solution_templates.task_paths[taskname]
-        num = len(python_paths)
+        python_paths = copy.deepcopy(solution_templates.task_paths[taskname])
 
+        if (taskname == 'CLASSIFICATION' or taskname == 'REGRESSION' or taskname == 'TEXT' or taskname == 'IMAGE' or taskname == 'TIMESERIES'):
+            if self.categorical_atts is not None and len(self.categorical_atts) > 0:
+                index = len(python_paths)-1
+                python_paths.insert(index, 'd3m.primitives.data_transformation.one_hot_encoder.SKlearn')
+            index = len(python_paths)-1
+            python_paths.insert(index, 'd3m.primitives.data_preprocessing.standard_scaler.SKlearn')
+            
+        num = len(python_paths)
         self.taskname = taskname
         self.primitives_arguments = {}
         self.primitives = {}
         self.hyperparams = {}
         self.steptypes = []
-        for i in range(0, num):
-            self.primitives_arguments[i] = {}
-            self.hyperparams[i] = None
-
+        self.pipeline = []
         self.execution_order = None
 
-        self.pipeline = [None] * num
         self.inputs = []
         self.inputs.append({"name": "dataset inputs"})
 
         # Constructing DAG to determine the execution order
         execution_graph = nx.DiGraph()
- 
-        for i in range(num):
-            prim = d3m.index.get_primitive(python_paths[i])
-            self.primitives[i] = prim          
-            self.steptypes.append(StepType.PRIMITIVE)
 
-            if 'SKlearn' in python_paths[i]:
+        # Iterate through steps 
+        for i in range(num):
+            self.add_primitive(python_paths[i], i)
+
+            if python_paths[i] == 'd3m.primitives.data_cleaning.imputer.SKlearn':
                 self.hyperparams[i] = {}
                 self.hyperparams[i]['use_semantic_types'] = True
                 self.hyperparams[i]['return_result'] = 'replace'
 
+            if python_paths[i] == 'd3m.primitives.data_transformation.one_hot_encoder.SKlearn':
+                self.hyperparams[i] = {}
+                self.hyperparams[i]['use_semantic_types'] = True
+                self.hyperparams[i]['return_result'] = 'replace'
+                self.hyperparams[i]['handle_unknown'] = 'ignore'
+
+            if python_paths[i] == 'd3m.primitives.data_preprocessing.standard_scaler.SKlearn':
+                self.hyperparams[i] = {}
+                self.hyperparams[i]['return_result'] = 'replace'
+
             if taskname == 'TIMESERIESFORECASTING':
-                if i == 0:
+                if i == 0: # dataset_to_dataframe
                     data = 'inputs.0'
-                elif i == num-1:
+                elif i == num-1: # extract_columns_by_semantic_types
                     data = 'steps.0.produce'
                 else:
                     data = 'steps.' + str(i-1) + '.produce'
@@ -627,33 +668,35 @@ class SolutionDescription(object):
                     self.hyperparams[i] = {}
                     self.hyperparams[i]['semantic_types'] = ('https://metadata.datadrivendiscovery.org/types/SuggestedTarget', 'https://metadata.datadrivendiscovery.org/types/PrimaryKey')
 
-            elif taskname == 'CLASSIFICATION' or taskname == 'REGRESSION' or taskname == 'TEXT' or taskname == 'IMAGE' or taskname == 'TIMESERIES':
-                if i == 0:
+            elif taskname == 'CLASSIFICATION' or \
+                 taskname == 'REGRESSION' or \
+                 taskname == 'TEXT' or \
+                 taskname == 'IMAGE' or \
+                 taskname == 'TIMESERIES':
+                if i == 0: # denormalize
                     data = 'inputs.0'
-                elif i == num-1:
+                elif i == num-1: # extract_columns_by_semantic_types (targets)
                     data = 'steps.1.produce'
-                else:
-                    data = 'steps.' + str(i-1) + '.produce'
-
-                if i == num-1:
                     self.hyperparams[i] = {}
                     self.hyperparams[i]['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/SuggestedTarget']
+                else: # other steps
+                    data = 'steps.' + str(i-1) + '.produce'
 
             elif taskname == 'AUDIO':
-                if i == 0 or i == 2 or i == num-1:
+                if i == 0 or i == 2 or i == num-1: # denormalize or AudioReader or TargetsReader
                     data = 'inputs.0'
-                else:
+                else: # other steps
                     data = 'steps.' + str(i-1) + '.produce'
             elif taskname == 'CLUSTERING':
-                if i == 0:
+                if i == 0: # dataset_to_dataframe
                     data = 'inputs.0'
-                elif i == num-1:
+                elif i == num-1: # construct_predictions
                     data = 'steps.0.produce'
                     origin = data.split('.')[0]
                     source = data.split('.')[1]
                     self.primitives_arguments[i]['reference'] = {'origin': origin, 'source': int(source), 'data': data}
                     data = 'steps.' + str(i-1) + '.produce'
-                else:
+                else: # other steps
                     data = 'steps.' + str(i-1) + '.produce'
                     if i == num-2:
                         self.hyperparams[i] = {}
@@ -679,6 +722,17 @@ class SolutionDescription(object):
         execution_order = list(filter(lambda x: x.isdigit(), execution_order))
         self.execution_order = [int(x) for x in execution_order]
 
+    def add_primitive(self, python_path, i):
+        """
+        Helper function to add a primitive in the pipeline with basic initialization only.
+        """
+        self.primitives_arguments[i] = {}
+        self.hyperparams[i] = None
+        self.pipeline.append(None)
+        prim = d3m.index.get_primitive(python_path)
+        self.primitives[i] = prim
+        self.steptypes.append(StepType.PRIMITIVE)
+
     def add_step(self, python_path):
         """
         Add new primitive (or replace placeholder)
@@ -694,43 +748,30 @@ class SolutionDescription(object):
                 placeholder_present = True
                 break
 
-        if placeholder_present == False:
-            self.steptypes.append(StepType.PRIMITIVE)
-
-        self.primitives_arguments[i] = {}
-        self.hyperparams[i] = None
-
-        self.pipeline.append(None)
-
-        prim = d3m.index.get_primitive(python_path)
-        self.primitives[i] = prim
+        self.add_primitive(python_path, i)
 
         data = 'steps.' + str(i-2) + str('.produce')
         origin = data.split('.')[0]
         source = data.split('.')[1]
         self.primitives_arguments[i]['inputs'] = {'origin': origin, 'source': int(source), 'data': data}
-        if i > 2:
-            data = 'steps.' + str(i-1) + str('.produce')
-            origin = data.split('.')[0]
-            source = data.split('.')[1]
-            self.primitives_arguments[i]['outputs'] = {'origin': origin, 'source': int(source), 'data': data}
+        
+        data = 'steps.' + str(i-1) + str('.produce')
+        origin = data.split('.')[0]
+        source = data.split('.')[1]
+        self.primitives_arguments[i]['outputs'] = {'origin': origin, 'source': int(source), 'data': data}
 
         if 'SKlearn' in python_path:
             self.hyperparams[i] = {}
             if self.taskname is not 'IMAGE' and self.taskname is not 'TIMESERIES': 
                 self.hyperparams[i]['use_semantic_types'] = True
-            hyperparam_spec = prim.metadata.query()['primitive_code']['hyperparams']
+            hyperparam_spec = self.primitives[i].metadata.query()['primitive_code']['hyperparams']
             if 'n_estimators' in hyperparam_spec:
                 self.hyperparams[i]['n_estimators'] = 100
             
         self.execution_order.append(i)
 
         i = i + 1
-        self.primitives_arguments[i] = {}
-        self.hyperparams[i] = None
-        self.pipeline.append(None)
-        prim = d3m.index.get_primitive('d3m.primitives.data_transformation.construct_predictions.DataFrameCommon')
-        self.primitives[i] = prim
+        self.add_primitive('d3m.primitives.data_transformation.construct_predictions.DataFrameCommon', i)
 
         data = 'steps.' + str(i-1) + str('.produce')
         origin = data.split('.')[0]
@@ -743,7 +784,6 @@ class SolutionDescription(object):
         self.primitives_arguments[i]['reference'] = {'origin': origin, 'source': int(source), 'data': data}
 
         self.execution_order.append(i)
-        self.steptypes.append(StepType.PRIMITIVE)
 
         self.add_outputs()
 
@@ -892,12 +932,18 @@ class SolutionDescription(object):
 
         for i in range(0, len(self.execution_order)):
             n_step = self.execution_order[i]
+            python_path = self.primitives[n_step].metadata.query()['python_path']
+            if python_path == 'd3m.primitives.data_transformation.one_hot_encoder.SKlearn':
+                cols = get_cols_to_encode(self.primitives_outputs[n_step-1])
+                self.hyperparams[n_step]['use_columns'] = list(cols)
+                print("Cats = ", cols)
+
             self.primitives_outputs[n_step] = self.process_step(n_step, self.primitives_outputs, ActionType.FIT, arguments)
+            
             if self.isDataFrameStep(n_step) == True:
                 self.exclude(self.primitives_outputs[n_step])
             
             if self.exclude_columns is not None and len(self.exclude_columns) > 0:
-                python_path = self.primitives[n_step].metadata.query()['python_path']
                 if python_path == 'd3m.primitives.data_transformation.column_parser.DataFrameCommon' or python_path == 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon':
                     if self.hyperparams[n_step] is None:
                         self.hyperparams[n_step] = {}
@@ -908,6 +954,10 @@ class SolutionDescription(object):
             if i == 1:
                 continue
             self.primitives_outputs[i] = [None]
+        self.total_cols = len(self.primitives_outputs[len(self.execution_order)-2].columns) 
+
+    def get_total_cols(self):
+        return self.total_cols
 
     def score_step(self, primitive: PrimitiveBaseMeta, primitive_arguments, metric, primitive_desc, hyperparams, step_index):
         """

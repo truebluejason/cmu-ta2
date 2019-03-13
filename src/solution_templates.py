@@ -101,7 +101,10 @@ def get_solutions(task_name, dataset, primitives, problem):
 
     if task_name == 'CLASSIFICATION' or task_name == 'REGRESSION':
         try:
-            (types_present, total_cols, rows) = solutiondescription.column_types_present(dataset)
+            (types_present, total_cols, rows, categorical_atts) = solutiondescription.column_types_present(dataset)
+            print(types_present)
+            basic_sol.set_categorical_atts(categorical_atts)
+            basic_sol.initialize_solution(task_name)
         except:
             logging.info(sys.exc_info()[0])
             basic_sol = None
@@ -123,11 +126,11 @@ def get_solutions(task_name, dataset, primitives, problem):
 
             try:
                 basic_sol.run_basic_solution(inputs=[dataset])
+                total_cols = basic_sol.get_total_cols()
+                print("Total cols = ", total_cols)
             except:
                 logging.info(sys.exc_info()[0])
                 basic_sol = None
-
-            print("Total cols = ", total_cols)
 
         # Iterate through primitives which match task type for populative pool of solutions
         for classname, p in primitives.items():
