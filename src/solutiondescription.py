@@ -627,7 +627,7 @@ class SolutionDescription(object):
 
             if taskname is not 'IMAGE':  # Image data frame has too many dimensions (in thousands)! This step is extremely slow! 
                 index = len(python_paths)-1
-                python_paths.insert(index, 'd3m.primitives.data_preprocessing.standard_scaler.SKlearn')
+                python_paths.insert(index, 'd3m.primitives.data_preprocessing.robust_scaler.SKlearn')
             
         num = len(python_paths)
         self.taskname = taskname
