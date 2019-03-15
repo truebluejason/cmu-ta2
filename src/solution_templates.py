@@ -116,7 +116,11 @@ def get_solutions(task_name, dataset, primitives, problem):
                 basic_sol.initialize_solution('AUDIO')
 
             try:
+                from timeit import default_timer as timer
+                start = timer()
                 basic_sol.run_basic_solution(inputs=[dataset])
+                end = timer()
+                logging.info("Time taken to run basic solution: %s seconds", end - start)
                 total_cols = basic_sol.get_total_cols()
                 print("Total cols = ", total_cols)
             except:

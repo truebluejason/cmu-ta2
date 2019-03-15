@@ -36,6 +36,10 @@ import networkx as nx
 import util
 import solution_templates
 
+import logging
+
+logging.basicConfig(level=logging.INFO)
+
 def get_cols_to_encode(df):
     """
     Find categorical attributes which can be one-hot-encoded.
@@ -620,8 +624,10 @@ class SolutionDescription(object):
             if self.categorical_atts is not None and len(self.categorical_atts) > 0:
                 index = len(python_paths)-1
                 python_paths.insert(index, 'd3m.primitives.data_transformation.one_hot_encoder.SKlearn')
-            index = len(python_paths)-1
-            python_paths.insert(index, 'd3m.primitives.data_preprocessing.standard_scaler.SKlearn')
+
+            if taskname is not 'IMAGE':  # Image data frame has too many dimensions (in thousands)! This step is extremely slow! 
+                index = len(python_paths)-1
+                python_paths.insert(index, 'd3m.primitives.data_preprocessing.standard_scaler.SKlearn')
             
         num = len(python_paths)
         self.taskname = taskname
@@ -917,6 +923,7 @@ class SolutionDescription(object):
         Run common parts of a pipeline before adding last step of classifier/regressor
         This saves on data processing, featurizing steps being repeated across multiple pipelines.
         """
+        from timeit import default_timer as timer
         self.primitives_outputs = [None] * len(self.execution_order)
 
         for i in range(0, len(self.execution_order)):
@@ -927,7 +934,12 @@ class SolutionDescription(object):
                 self.hyperparams[n_step]['use_columns'] = list(cols)
                 print("Cats = ", cols)
 
+            logging.info("Running %s", python_path) 
+            start = timer()
             self.primitives_outputs[n_step] = self.process_step(n_step, self.primitives_outputs, ActionType.FIT, arguments)
+            end = timer()
+            logging.info("Time taken : %s seconds", end - start)
+
             if self.isDataFrameStep(n_step) == True:
                 self.exclude(self.primitives_outputs[n_step])
             
