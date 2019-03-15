@@ -23,8 +23,6 @@ task_paths = {
 
 'IMAGE': ['d3m.primitives.data_transformation.denormalize.Common',
           'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
-          'd3m.primitives.data_transformation.column_parser.DataFrameCommon',
-          'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
           'd3m.primitives.data_preprocessing.DataFrameToTensor.DSBOX',
           'd3m.primitives.feature_extraction.ResNet50ImageFeature.DSBOX',
           'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'],
@@ -65,11 +63,6 @@ task_paths = {
 'COMMUNITYDETECTION': ['d3m.primitives.sri.graph.CommunityDetectionParser',
                        'd3m.primitives.sri.psl.CommunityDetection'],
 
-'TIMESERIESFORECASTING': ['d3m.primitives.data_transformation.dataset_to_dataframe.Common',
-                          'd3m.primitives.data_transformation.column_parser.DataFrameCommon',
-                          'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
-                          'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'],
-
 'AUDIO': ['d3m.primitives.data_transformation.denormalize.Common',
           'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
           'd3m.primitives.bbn.time_series.AudioReader',
@@ -96,6 +89,8 @@ def get_solutions(task_name, dataset, primitives, problem):
     except:
         static_dir = None
 
+    if task_name == 'TIMESERIESFORECASTING':
+        task_name = 'REGRESSION'
     basic_sol = solutiondescription.SolutionDescription(problem, static_dir)
     basic_sol.initialize_solution(task_name)
 
@@ -107,21 +102,17 @@ def get_solutions(task_name, dataset, primitives, problem):
             basic_sol.initialize_solution(task_name)
         except:
             logging.info(sys.exc_info()[0])
-            basic_sol = None
+            basic_sol = solutiondescription.SolutionDescription(problem, static_dir)
             types_present = None
 
         if types_present is not None:
             if 'TIMESERIES' in types_present:
-                basic_sol = solutiondescription.SolutionDescription(problem, static_dir)
                 basic_sol.initialize_solution('TIMESERIES')
             elif 'IMAGE' in types_present:
-                basic_sol = solutiondescription.SolutionDescription(problem, static_dir)
                 basic_sol.initialize_solution('IMAGE')
             elif 'TEXT' in types_present:
-                basic_sol = solutiondescription.SolutionDescription(problem, static_dir)
                 basic_sol.initialize_solution('TEXT')
             elif 'AUDIO' in types_present:
-                basic_sol = solutiondescription.SolutionDescription(problem, static_dir)
                 basic_sol.initialize_solution('AUDIO')
 
             try:

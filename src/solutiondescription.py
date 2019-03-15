@@ -61,15 +61,19 @@ def column_types_present(dataset):
     Retrieve special data types present: Text, Image, Timeseries, Audio, Categorical
     Returns ([data types], total columns, total rows, categorical att indices)
     """
-    primitive = d3m.index.get_primitive('d3m.primitives.data_transformation.denormalize.Common')
-    primitive_hyperparams = primitive.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
-    model = primitive(hyperparams=primitive_hyperparams.defaults())
-    ds = model.produce(inputs=dataset).value
+    try:
+        primitive = d3m.index.get_primitive('d3m.primitives.data_transformation.denormalize.Common')
+        primitive_hyperparams = primitive.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
+        model = primitive(hyperparams=primitive_hyperparams.defaults())
+        ds = model.produce(inputs=dataset).value
+        dataset = ds
+    except:
+        print("Exception with denormalize!")
 
     primitive = d3m.index.get_primitive('d3m.primitives.data_transformation.dataset_to_dataframe.Common')
     primitive_hyperparams = primitive.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
     model = primitive(hyperparams=primitive_hyperparams.defaults())
-    df = model.produce(inputs=ds).value
+    df = model.produce(inputs=dataset).value
 
     metadata = df.metadata
 
@@ -653,22 +657,7 @@ class SolutionDescription(object):
                 self.hyperparams[i] = {}
                 self.hyperparams[i]['return_result'] = 'replace'
 
-            if taskname == 'TIMESERIESFORECASTING':
-                if i == 0: # dataset_to_dataframe
-                    data = 'inputs.0'
-                elif i == num-1: # extract_columns_by_semantic_types
-                    data = 'steps.0.produce'
-                else:
-                    data = 'steps.' + str(i-1) + '.produce'
-
-                if i == 2:
-                    self.hyperparams[i] = {}
-                    self.hyperparams[i]['semantic_types'] = ('https://metadata.datadrivendiscovery.org/types/Attribute', 'https://metadata.datadrivendiscovery.org/types/PrimaryKey')
-                elif i == 3:
-                    self.hyperparams[i] = {}
-                    self.hyperparams[i]['semantic_types'] = ('https://metadata.datadrivendiscovery.org/types/SuggestedTarget', 'https://metadata.datadrivendiscovery.org/types/PrimaryKey')
-
-            elif taskname == 'CLASSIFICATION' or \
+            if taskname == 'CLASSIFICATION' or \
                  taskname == 'REGRESSION' or \
                  taskname == 'TEXT' or \
                  taskname == 'IMAGE' or \
@@ -939,12 +928,12 @@ class SolutionDescription(object):
                 print("Cats = ", cols)
 
             self.primitives_outputs[n_step] = self.process_step(n_step, self.primitives_outputs, ActionType.FIT, arguments)
-            
             if self.isDataFrameStep(n_step) == True:
                 self.exclude(self.primitives_outputs[n_step])
             
             if self.exclude_columns is not None and len(self.exclude_columns) > 0:
-                if python_path == 'd3m.primitives.data_transformation.column_parser.DataFrameCommon' or python_path == 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon':
+                if python_path == 'd3m.primitives.data_transformation.column_parser.DataFrameCommon' or \
+                   python_path == 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon':
                     if self.hyperparams[n_step] is None:
                         self.hyperparams[n_step] = {}
                     self.hyperparams[n_step]['exclude_columns'] = list(self.exclude_columns)
