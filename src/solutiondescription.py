@@ -54,7 +54,7 @@ def get_cols_to_encode(df):
     rows = len(df)
     # use rule of thumb to exclude categorical atts with high cardinality for one-hot-encoding
     max_num_cols = math.log(rows, 2)
-    tmp_cols = cols
+    tmp_cols = copy.deepcopy(cols)
     for t in tmp_cols:
         if len(df.iloc[:,t].unique()) > max_num_cols:
             cols.remove(t)
