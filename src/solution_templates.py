@@ -134,8 +134,6 @@ def get_solutions(task_name, dataset, primitives, problem):
                 python_path = p.primitive_class.python_path
                 if 'd3m.primitives.sri.' in python_path or 'JHU' in python_path or 'lupi_svm' in python_path or 'bbn' in python_path:
                     continue
-                if 'ard.SKlearn' in python_path:
-                    continue
 
                 if 'Find_projections' in python_path and (total_cols > 20 or rows > 10000):
                     continue
