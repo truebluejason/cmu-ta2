@@ -96,9 +96,10 @@ def get_solutions(task_name, dataset, primitives, problem):
 
     if task_name == 'CLASSIFICATION' or task_name == 'REGRESSION':
         try:
-            (types_present, total_cols, rows, categorical_atts) = solutiondescription.column_types_present(dataset)
+            (types_present, total_cols, rows, categorical_atts, ok_to_denormalize) = solutiondescription.column_types_present(dataset)
             print(types_present)
             basic_sol.set_categorical_atts(categorical_atts)
+            basic_sol.set_denormalize(ok_to_denormalize)
             basic_sol.initialize_solution(task_name)
         except:
             logging.info(sys.exc_info()[0])
@@ -137,6 +138,9 @@ def get_solutions(task_name, dataset, primitives, problem):
                 if 'Find_projections' in python_path and (total_cols > 20 or rows > 10000):
                     continue
 
+                if rows > 10000:
+                    if 'svc.SKlearn' in python_path or 'svr.SKlearn' in python_path or 'ard.SKlearn' in python_path:
+                        continue
                 pipe = copy.deepcopy(basic_sol)
                 pipe.id = str(uuid.uuid4())
                 pipe.add_step(p.primitive_class.python_path)
@@ -157,10 +161,7 @@ def get_solutions(task_name, dataset, primitives, problem):
         pipe.id = str(uuid.uuid4())
         pipe.add_step('d3m.primitives.classification.random_forest.SKlearn')
         solutions.append(pipe)
-    elif task_name == 'COLLABORATIVEFILTERING' or \
-         task_name == 'TIMESERIESFORECASTING':
-        if task_name == 'TIMESERIESFORECASTING':
-            basic_sol.add_step('d3m.primitives.sri.psl.RelationalTimeseries')
+    elif task_name == 'COLLABORATIVEFILTERING':
         pipe = copy.deepcopy(basic_sol)
         pipe.id = str(uuid.uuid4())
         pipe.add_outputs()
