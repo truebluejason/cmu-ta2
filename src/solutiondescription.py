@@ -424,10 +424,10 @@ class SolutionDescription(object):
                 col = (int)(numpy.random.choice(attributes, replace=False))
                 self.exclude_columns.add(col)
 
-        if rows > 1000000: # > 1M rows
-            cols = metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/FloatVector") # Found to be very expensive in ColumnParser!
-            for col in cols:
-                self.exclude_columns.add(col)
+        #if rows > 1000000: # > 1M rows
+        cols = metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/FloatVector") # Found to be very expensive in ColumnParser!
+        for col in cols:
+            self.exclude_columns.add(col)
 
         targets = metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/SuggestedTarget")
         for t in targets:
@@ -944,6 +944,14 @@ class SolutionDescription(object):
                 self.hyperparams[n_step]['use_columns'] = list(cols)
                 print("Cats = ", cols)
 
+            if self.exclude_columns is not None and len(self.exclude_columns) > 0:
+                if python_path == 'd3m.primitives.data_transformation.column_parser.DataFrameCommon' or \
+                   python_path == 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon':
+                    if self.hyperparams[n_step] is None:
+                        self.hyperparams[n_step] = {}
+                    self.hyperparams[n_step]['exclude_columns'] = list(self.exclude_columns)
+                    print("Excluding ", self.exclude_columns)
+
             logging.info("Running %s", python_path) 
             start = timer()
             self.primitives_outputs[n_step] = self.process_step(n_step, self.primitives_outputs, ActionType.FIT, arguments)
@@ -953,13 +961,6 @@ class SolutionDescription(object):
             if self.isDataFrameStep(n_step) == True:
                 self.exclude(self.primitives_outputs[n_step])
             
-            if self.exclude_columns is not None and len(self.exclude_columns) > 0:
-                if python_path == 'd3m.primitives.data_transformation.column_parser.DataFrameCommon' or \
-                   python_path == 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon':
-                    if self.hyperparams[n_step] is None:
-                        self.hyperparams[n_step] = {}
-                    self.hyperparams[n_step]['exclude_columns'] = list(self.exclude_columns)
-
         # Store inputs and outputs for feeding into classifier/regressor. Remove other intermediate step outputs, they are not needed anymore.
         for i in range(0, len(self.execution_order)-2):
             if i == 1:

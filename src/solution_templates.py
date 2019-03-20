@@ -138,9 +138,11 @@ def get_solutions(task_name, dataset, primitives, problem):
                 if 'Find_projections' in python_path and (total_cols > 20 or rows > 10000):
                     continue
 
+                # SVM gets extremely expensive for >10k samples!!!
                 if rows > 10000:
-                    if 'svc.SKlearn' in python_path or 'svr.SKlearn' in python_path:
+                    if 'classification.svc.SKlearn' in python_path or 'classification.svr.SKlearn' in python_path:
                         continue
+
                 pipe = copy.deepcopy(basic_sol)
                 pipe.id = str(uuid.uuid4())
                 pipe.add_step(p.primitive_class.python_path)
