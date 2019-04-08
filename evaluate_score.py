@@ -12,8 +12,10 @@ predictions = pd.read_csv(sys.argv[2])[target]
 
 if metric == 'MSE':
     print(metrics.mean_squared_error(Ytest, predictions))
-elif metric == 'F1':
+elif metric == 'F1Macro':
     print(metrics.f1_score(Ytest, predictions, average='macro'))
+elif metric == 'F1':
+    print(metrics.f1_score(Ytest, predictions))
 elif metric == 'MAE':
     print(metrics.mean_absolute_error(Ytest, predictions))
 elif metric == 'ACC':

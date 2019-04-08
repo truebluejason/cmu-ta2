@@ -673,6 +673,10 @@ class SolutionDescription(object):
                 self.hyperparams[i] = {}
                 self.hyperparams[i]['return_result'] = 'replace'
 
+            if python_paths[i] == 'd3m.primitives.feature_construction.corex_text.CorexText':
+                self.hyperparams[i] = {}
+                self.hyperparams[i]['threshold'] = 500
+
             if taskname == 'CLASSIFICATION' or \
                  taskname == 'REGRESSION' or \
                  taskname == 'TEXT' or \
@@ -848,7 +852,7 @@ class SolutionDescription(object):
             if action is ActionType.SCORE and self.is_last_step(n_step) == True:
                 primitive = self.primitives[n_step]
                 primitive_desc = arguments['primitive_dict'][primitive]
-                return self.score_step(primitive, primitive_arguments, arguments['metric'], primitive_desc, self.hyperparams[n_step], n_step)
+                return self.score_step(primitive, primitive_arguments, arguments['metric'], arguments['posLabel'], primitive_desc, self.hyperparams[n_step], n_step)
             elif action is ActionType.VALIDATE and self.is_last_step(n_step) == True:
                 return self.validate_step(self.primitives[n_step], primitive_arguments)    
             else:
@@ -939,18 +943,11 @@ class SolutionDescription(object):
         for i in range(0, len(self.execution_order)):
             n_step = self.execution_order[i]
             python_path = self.primitives[n_step].metadata.query()['python_path']
+            
             if python_path == 'd3m.primitives.data_transformation.one_hot_encoder.SKlearn':
                 cols = get_cols_to_encode(self.primitives_outputs[n_step-1])
                 self.hyperparams[n_step]['use_columns'] = list(cols)
                 print("Cats = ", cols)
-
-            if self.exclude_columns is not None and len(self.exclude_columns) > 0:
-                if python_path == 'd3m.primitives.data_transformation.column_parser.DataFrameCommon' or \
-                   python_path == 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon':
-                    if self.hyperparams[n_step] is None:
-                        self.hyperparams[n_step] = {}
-                    self.hyperparams[n_step]['exclude_columns'] = list(self.exclude_columns)
-                    print("Excluding ", self.exclude_columns)
 
             logging.info("Running %s", python_path) 
             start = timer()
@@ -961,6 +958,17 @@ class SolutionDescription(object):
             if self.isDataFrameStep(n_step) == True:
                 self.exclude(self.primitives_outputs[n_step])
             
+            if self.exclude_columns is not None and len(self.exclude_columns) > 0:
+                if python_path == 'd3m.primitives.data_transformation.column_parser.DataFrameCommon' or \
+                   python_path == 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon':
+                    if self.hyperparams[n_step] is None:
+                        self.hyperparams[n_step] = {}
+                    self.hyperparams[n_step]['exclude_columns'] = list(self.exclude_columns)
+
+            #if 'corex' in python_path:
+            #    with open("32testdata.csv", 'w') as outputFile:
+            #        self.primitives_outputs[n_step].to_csv(outputFile, header=True, index=False)
+
         # Store inputs and outputs for feeding into classifier/regressor. Remove other intermediate step outputs, they are not needed anymore.
         for i in range(0, len(self.execution_order)-2):
             if i == 1:
@@ -971,7 +979,7 @@ class SolutionDescription(object):
     def get_total_cols(self):
         return self.total_cols
 
-    def score_step(self, primitive: PrimitiveBaseMeta, primitive_arguments, metric, primitive_desc, hyperparams, step_index):
+    def score_step(self, primitive: PrimitiveBaseMeta, primitive_arguments, metric, posLabel, primitive_desc, hyperparams, step_index):
         """
         Last step of a solution evaluated for score_solution()
         Does hyperparameters tuning
@@ -997,7 +1005,8 @@ class SolutionDescription(object):
 
         if len(training_arguments) == 0:
             training_arguments['inputs'] = primitive_arguments['inputs']
-        (score, optimal_params) = primitive_desc.score_primitive(training_arguments['inputs'], outputs, metric, custom_hyperparams, step_index)
+
+        (score, optimal_params) = primitive_desc.score_primitive(training_arguments['inputs'], outputs, metric, posLabel, custom_hyperparams, step_index)
         return (score, optimal_params) 
 
     def validate_step(self, primitive: PrimitiveBaseMeta, primitive_arguments):

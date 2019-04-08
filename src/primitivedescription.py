@@ -7,6 +7,7 @@ import bo.gp_call
 import problem_pb2
 import util
 import logging
+import d3m.index
 
 logging.basicConfig(level=logging.INFO)
 
@@ -14,42 +15,37 @@ from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor, Extr
 from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.linear_model import LogisticRegression, Lasso, Ridge
+from sklearn.linear_model.stochastic_gradient import SGDClassifier
 from sklearn.svm import LinearSVC, LinearSVR, SVC, SVR
 from sklearn.model_selection import GridSearchCV
 
 gridsearch_estimators_parameters = {'d3m.primitives.regression.random_forest.SKlearn': [RandomForestRegressor(), 
                                                                                         {'n_estimators': [100],
                                                                                          'max_depth': [8, 10, 15, None],
-                                                                   'min_samples_split': [2, 5, 10]}],
+                                                                                         'min_samples_split': [2, 5, 10]}],
               'd3m.primitives.classification.random_forest.SKlearn': [RandomForestClassifier(),
                                                                       {'n_estimators': [100],
                                                                        'max_depth': [8, 10, 15, None],
-                                                                       'min_samples_split': [2, 5, 10]}],
-              'd3m.primitives.classification.gradient_boosting.SKlearn': [GradientBoostingClassifier(),
-                                                                      {'n_estimators': [100],
-                                                                       'max_depth': [3, 8, 10, None],
-                                                                       'min_samples_split': [2, 5, 10]}],
-              'd3m.primitives.regression.gradient_boosting.SKlearn': [GradientBoostingRegressor(),
-                                                                      {'n_estimators': [100],
-                                                                       'max_depth': [3, 8, 10, None],
-                                                                       'min_samples_split': [2, 5, 10]}],
+                                                                       'min_samples_split': [2, 5, 10],
+                                                                       'class_weight': ['balanced', None]}],
               'd3m.primitives.classification.extra_trees.SKlearn': [ExtraTreesClassifier(),
                                                                       {'n_estimators': [100],
                                                                        'max_depth': [8, 10, 15, None],
-                                                                       'min_samples_split': [2, 5, 10]}],
+                                                                       'min_samples_split': [2, 5, 10],
+                                                                       'class_weight': ['balanced', None]}],
               'd3m.primitives.regression.extra_trees.SKlearn': [ExtraTreesRegressor(),
                                                                       {'n_estimators': [100],
                                                                        'max_depth': [8, 10, 15, None],
                                                                        'min_samples_split': [2, 5, 10]}],
-              #'d3m.primitives.classification.linear_discriminant_analysis.SKlearn': [LinearDiscriminantAnalysis(),
-              #                                                        {'solver': ['svd', 'lsqr', 'eigen']}],
               'd3m.primitives.classification.linear_svc.SKlearn': [LinearSVC(),
-                                                                   {'C': [0.01, 0.1, 1, 10, 100]}],
+                                                                   {'C': [0.01, 0.1, 1, 10, 100],
+                                                                    'class_weight': ['balanced', None]}],
               'd3m.primitives.regression.linear_svr.SKlearn': [LinearSVR(),
                                                                    {'C': [0.01, 0.1, 1, 10, 100]}],
               'd3m.primitives.classification.svc.SKlearn': [SVC(),
                                                             {'C': [0.01, 0.1, 1, 10, 100],
-                                                             'gamma': [0.01, 0.1, 1, 10]}],
+                                                             'gamma': [0.01, 0.1, 1, 10],
+                                                             'class_weight': ['balanced', None]}],
               'd3m.primitives.regression.svr.SKlearn': [SVR(),
                                                         {'C': [0.01, 0.1, 1, 10, 100],
                                                          'gamma': [0.01, 0.1, 1, 10]}],
@@ -58,13 +54,19 @@ gridsearch_estimators_parameters = {'d3m.primitives.regression.random_forest.SKl
               'd3m.primitives.regression.k_neighbors.SKlearn': [KNeighborsRegressor(),
                                                                    {'n_neighbors': [5, 10, 50, 100, 200, 500]}],
               'd3m.primitives.classification.logistic_regression.SKlearn': [LogisticRegression(),
-                                                                            {'C': [0.1, 1, 10, 100]}],
+                                                                            {'C': [0.1, 1, 10, 100],
+                                                                             'class_weight': ['balanced', None]}],
+              'd3m.primitives.classification.sgd.SKlearn': [SGDClassifier(),
+                                                            {'class_weight': ['balanced', None]}],
               'd3m.primitives.regression.ridge.SKlearn': [Ridge(), 
                                                           {'alpha': [0.001, 0.01, 0.1, 1, 5]}],
               'd3m.primitives.regression.lasso.SKlearn': [Lasso(),
-                                                          {'alpha': [0.001, 0.01, 0.1, 1, 5]}],
+                                                          {'alpha': [0.001, 0.01, 0.1, 1, 5]}]
 }
              
+def rmse(y_true, y_pred):
+    return math.sqrt(metrics.mean_squared_error(y_true, y_pred))
+
 class PrimitiveDescription(object):
     """
     Class representing single primitive.
@@ -75,10 +77,12 @@ class PrimitiveDescription(object):
         self.primitive = primitive
         self.primitive_class = primitive_class
 
-    def get_num_splits(self, length):
+    def get_num_splits(self, length, cols):
         splits = 2
-        if length < 1000:
+        if length < 500:
             splits = 50
+        elif length < 1000:
+            splits = 25
         elif length < 2500:
             splits = 20
         elif length < 5000:
@@ -92,19 +96,15 @@ class PrimitiveDescription(object):
         return splits
 
         
-    def score_primitive(self, X, y, metric_type, custom_hyperparams, step_index=0):
+    def score_primitive(self, X, y, metric_type, posLabel, custom_hyperparams, step_index=0):
         """
         Learns optimal hyperparameters for the primitive
         Returns metric score and optimal parameters.
         """
         python_path = self.primitive.metadata.query()['python_path']
 
-        # Tune hyperparams for classification/regression primitives currently using Bayesian optimization
-        if 'hyperparams' in self.primitive.metadata.query()['primitive_code'] and y is not None and 'Find_projections' not in python_path and 'SKlearn' not in python_path:
-            hyperparam_spec = self.primitive.metadata.query()['primitive_code']['hyperparams']
-            optimal_params = dict() #self.find_optimal_hyperparams(train=X, output=y, hyperparam_spec=hyperparam_spec,metric=metric_type, custom_hyperparams=custom_hyperparams)
-        else:
-            optimal_params = dict()
+        #self.find_optimal_hyperparams(train=X, output=y, hyperparam_spec=hyperparam_spec,metric=metric_type, posLabel=posLabel, custom_hyperparams=custom_hyperparams)
+        optimal_params = dict()
 
         if custom_hyperparams is not None:
             for name, value in custom_hyperparams.items():
@@ -130,11 +130,11 @@ class PrimitiveDescription(object):
 
         # Do grid-search to learn optimal parameters for the model
         params = None
-        #try:
-        #    params = self.optimize_primitive_gridsearch(X, np.ravel(y), python_path)
-        #except:
-        #    print("optimize_primitive_gridsearch: ", sys.exc_info()[0])
-        #    params = None
+        try:
+            params = self.optimize_primitive_gridsearch(X, np.ravel(y), python_path, metric_type, posLabel)
+        except:
+            print("optimize_primitive_gridsearch: ", sys.exc_info()[0])
+            params = None
 
         if params is not None:
             for name, value in params.items():
@@ -144,16 +144,17 @@ class PrimitiveDescription(object):
         prim_instance = self.primitive(hyperparams=primitive_hyperparams(primitive_hyperparams.defaults(), **optimal_params))
         score = 0.0
 
-        splits = self.get_num_splits(len(X))
+        splits = self.get_num_splits(len(X), len(X.columns))
         # Run k-fold CV and compute mean metric score
-        (score, metric_scores) = self.k_fold_CV(prim_instance, X, y, metric_type, splits)
+        (score, metric_scores) = self.k_fold_CV(prim_instance, X, y, metric_type, posLabel, splits)
         mean = np.mean(metric_scores)
         stderror = np.std(metric_scores)/math.sqrt(len(metric_scores))
         z = 1.96*stderror
-        logging.info("CV scores for %s = %s(%s - %s) k = %s", python_path, mean, mean-z, mean+z, len(metric_scores))
+        #logging.info("CV scores for %s = %s(%s - %s) k = %s", python_path, mean, mean-z, mean+z, len(metric_scores))
+        print("CV scores for ", python_path, " = ", mean, "(", mean-z, "-", mean+z, ") k = ", len(metric_scores))
         return (score, optimal_params)
 
-    def evaluate_metric(self, predictions, Ytest, metric):
+    def evaluate_metric(self, predictions, Ytest, metric, posLabel):
         """
         Function to compute metric score for predicted-vs-true output.
         """
@@ -166,7 +167,7 @@ class PrimitiveDescription(object):
         elif metric is problem_pb2.RECALL:
             return metrics.recall_score(Ytest, predictions)
         elif metric is problem_pb2.F1:
-            return metrics.f1_score(Ytest, predictions)
+            return metrics.f1_score(Ytest, predictions, pos_label=posLabel)
         elif metric is problem_pb2.F1_MICRO:
             return metrics.f1_score(Ytest, predictions, average='micro')
         elif metric is problem_pb2.F1_MACRO:
@@ -198,13 +199,13 @@ class PrimitiveDescription(object):
         else:
             return metrics.accuracy_score(Ytest, predictions)
 
-    def optimize_primitive_gridsearch(self, train, output, python_path):
+    def optimize_primitive_gridsearch(self, train, output, python_path, metric, posLabel):
         # Do grid-search to learn optimal parameters for the model
         if python_path in gridsearch_estimators_parameters:
             from timeit import default_timer as timer
             start = timer()
             (model, search_grid) = gridsearch_estimators_parameters[python_path]
-            splits = self.get_num_splits(len(train))
+            splits = self.get_num_splits(len(train), len(train.columns))
 
             if 'k_neighbors' in python_path:
                 training_samples = len(train)*(splits-1)/splits
@@ -213,8 +214,22 @@ class PrimitiveDescription(object):
                 for n in n_neighbors:
                     if n >= training_samples:
                         search_grid['n_neighbors'].remove(n)
- 
-            rf_random = GridSearchCV(estimator = model, param_grid = search_grid, cv = splits, verbose=2, n_jobs = -1)
+
+            from sklearn.metrics import make_scorer
+            if metric is problem_pb2.ACCURACY:
+                scorer = make_scorer(metrics.accuracy_score)
+            elif metric is problem_pb2.F1:
+                scorer = make_scorer(metrics.f1_score, pos_label=posLabel)
+            elif metric is problem_pb2.F1_MACRO:
+                scorer = make_scorer(metrics.f1_score, average='macro')
+            elif metric is problem_pb2.MEAN_SQUARED_ERROR:
+                scorer = make_scorer(metrics.mean_squared_error, greater_is_better=False)
+            elif metric is problem_pb2.ROOT_MEAN_SQUARED_ERROR: 
+                scorer = make_scorer(rmse, greater_is_better=False)
+            else:
+                scorer = None
+
+            rf_random = GridSearchCV(estimator = model, param_grid = search_grid, scoring = scorer, cv = splits, verbose=2, n_jobs = -1)
 
             # Fit the random search model
             rf_random.fit(train, output)
@@ -226,7 +241,40 @@ class PrimitiveDescription(object):
             print("No grid search done for ", python_path)
             return None
 
-    def optimize_primitive(self, train, output, inputs, primitive_hyperparams, optimal_params, hyperparam_types, metric_type):
+    def optimize_corex(self, train, y, python_path, metric_type, posLabel):
+        corex_hp = {'n_hidden': [5, 10],
+                    'threshold': [0, 500],
+                    'n_grams': [1, 3]
+                   }
+
+        primitive_hyperparams = self.primitive.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
+        custom_hyperparams = dict()
+        custom_hyperparams['use_semantic_types'] = True
+        custom_hyperparams['n_estimators'] = 10
+        rf_model = self.primitive(hyperparams=primitive_hyperparams(
+                    primitive_hyperparams.defaults(), **custom_hyperparams))
+
+        prim = d3m.index.get_primitive(python_path)
+        primitive_hyperparams = prim.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
+        for i in corex_hp['n_hidden']:
+            for j in corex_hp['threshold']:
+                for k in corex_hp['n_grams']:
+                    custom_hyperparams = dict()
+                    custom_hyperparams['n_hidden'] = i
+                    custom_hyperparams['threshold'] = j
+                    custom_hyperparams['n_grams'] = k
+                    model = prim(hyperparams=primitive_hyperparams(primitive_hyperparams.defaults(), **custom_hyperparams))
+
+                    model.set_training_data(inputs=train)
+                    model.fit()
+                    output = model.produce(inputs=train).value
+
+                    (score, metric_scores) = self.k_fold_CV(rf_model, output, y, metric_type, posLabel, 5)
+                    mean = np.mean(metric_scores)
+                    print("n_hidden = ", i, " threshold = ", j, " n_grams = ", k, " score = ", mean)
+            
+
+    def optimize_primitive(self, train, output, inputs, primitive_hyperparams, optimal_params, hyperparam_types, metric_type, posLabel):
         """
         Function to evaluate each input point in the hyper parameter space.
         This is called for every input sample being evaluated by the bayesian optimization package.
@@ -241,13 +289,13 @@ class PrimitiveDescription(object):
 
         prim_instance = self.primitive(hyperparams=primitive_hyperparams(primitive_hyperparams.defaults(), **custom_hyperparams))
 
-        metric = self.k_fold_CV(prim_instance, train, output, metric_type, 2)
+        metric = self.k_fold_CV(prim_instance, train, output, metric_type, posLabel, 2)
         if util.invert_metric(metric_type) is True:
             metric = metric * (-1)
         print('Metric: %f' %(metric))
         return metric
 
-    def k_fold_CV(self, prim_instance, X, y, metric_type, splits):
+    def k_fold_CV(self, prim_instance, X, y, metric_type, posLabel, splits):
         """
         Run k-fold CV.
         k = splits
@@ -286,7 +334,6 @@ class PrimitiveDescription(object):
         # Do the actual k-fold CV here
         for train_index, test_index in split_indices:
             X_train, X_test = Xnew.iloc[train_index], Xnew.iloc[test_index]
-
             y_train, y_test = y.iloc[train_index], y.iloc[test_index]
             X_train.metadata = X.metadata
             X_test.metadata = X.metadata
@@ -297,7 +344,7 @@ class PrimitiveDescription(object):
             predictions = prim_instance.produce(inputs=X_test).value
             if len(predictions.columns) > 1:
                 predictions = predictions.iloc[:,len(predictions.columns)-1]
-            metric = self.evaluate_metric(predictions, y_test, metric_type)
+            metric = self.evaluate_metric(predictions, y_test, metric_type, posLabel)
             metric_scores.append(metric)
             metric_sum += metric
 

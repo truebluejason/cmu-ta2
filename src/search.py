@@ -13,20 +13,34 @@ def search_phase():
     inputDir = os.environ['D3MINPUTDIR']
     outputDir = os.environ['D3MOUTPUTDIR']
     timeout_env = os.environ['D3MTIMEOUT']
-    num_cpus = 8 #os.environ['D3MCPU']
+    num_cpus = (int)(os.environ['D3MCPU'])
     problemPath = os.environ['D3MPROBLEMPATH']
 
     logging.info("D3MINPUTDIR = %s", inputDir)
     logging.info("D3MOUTPUTDIR = %s", outputDir)
     logging.info("timeout = %s", timeout_env)
     logging.info("cpus = %s", num_cpus)
-    (dataset, task_name, problem_desc) = util.load_data_problem(inputDir, problemPath)
+    (dataset, task_name, problem_desc, metric, posLabel) = util.load_data_problem(inputDir, problemPath)
 
+    print("Metric = ", metric, " poslabel = ", posLabel)
     timeout_in_min = (int)(timeout_env)
     primitives = primitive_lib.load_primitives()
     task_name = task_name.upper()
     logging.info(task_name)
 
+    problem_metric = problem_pb2.F1_MACRO
+    if metric == 'f1Macro':
+        problem_metric = problem_pb2.F1_MACRO
+    elif metric == 'f1': 
+        problem_metric = problem_pb2.F1
+    elif metric == 'accuracy':
+        problem_metric = problem_pb2.ACCURACY
+    elif metric == 'meanSquaredError':
+        problem_metric = problem_pb2.MEAN_SQUARED_ERROR
+    elif metric == 'rootMeanSquaredError':
+        problem_metric = problem_pb2.ROOT_MEAN_SQUARED_ERROR
+    elif metric == 'meanAbsoluteError':
+        problem_metric = problem_pb2.MEAN_ABSOLUTE_ERROR
     solutions = solution_templates.get_solutions(task_name, dataset, primitives, None)
 
     async_message_thread = Pool((int)(num_cpus))
@@ -35,13 +49,9 @@ def search_phase():
 
     inputs = []
     inputs.append(dataset)
-    if task_name == 'REGRESSION' or task_name == 'TIMESERIESFORECASTING':
-        metric= problem_pb2.MEAN_SQUARED_ERROR
-    else:
-        metric= problem_pb2.F1_MACRO
 
     # Score potential solutions
-    results = [async_message_thread.apply_async(evaluate_solution_score, (inputs, sol, primitives, metric,)) for sol in solutions]
+    results = [async_message_thread.apply_async(evaluate_solution_score, (inputs, sol, primitives, problem_metric, posLabel,)) for sol in solutions]
     timeout = timeout_in_min * 60
     halftimeout = None
     if timeout <= 0:
@@ -70,7 +80,7 @@ def search_phase():
     # Sort solutions by their scores and rank them
     import operator
     sorted_x = sorted(valid_solution_scores.items(), key=operator.itemgetter(1))
-    if util.invert_metric(metric) is False:
+    if util.invert_metric(problem_metric) is False:
         sorted_x.reverse()
 
     index = 1
@@ -102,14 +112,14 @@ def search_phase():
             logging.info("Solution terminated: %s", valid_solutions[sorted_x[index][0]].id)
         index = index + 1
 
-def evaluate_solution_score(inputs, solution, primitives, metric):
+def evaluate_solution_score(inputs, solution, primitives, metric, posLabel):
     """
     Scores each potential solution
     Runs in a separate process
     """
     logging.info("Evaluating %s", solution.id)
 
-    (score, optimal_params) = solution.score_solution(inputs=inputs, metric=metric,
+    (score, optimal_params) = solution.score_solution(inputs=inputs, metric=metric, posLabel=posLabel,
                                 primitive_dict=primitives, solution_dict=None)
 
     return (score, optimal_params)
@@ -120,7 +130,7 @@ def fit_solution(inputs, solution, primitives, outputDir, problem_desc):
     Runs in a separate process
     """
     logging.info("Fitting %s", solution.id)
-    solution.fit(inputs=inputs, solution_dict=None)
+    #solution.fit(inputs=inputs, solution_dict=None)
 
     util.write_pipeline_json(solution, primitives, outputDir + "/pipelines_ranked", rank=solution.rank)
     #util.write_pipeline_yaml(solution, outputDir + "/pipeline_runs", inputs, problem_desc)

@@ -68,8 +68,12 @@ def load_data_problem(inputdir, problempath):
     dataset = add_target_columns_metadata(dataset, problem_description)
 
     taskname = problem_doc_metadata.query(())['about']['taskType']
+    metric = problem_doc_metadata.query(())['inputs']['performanceMetrics'][0]['metric']
+    posLabel = None
+    if metric == "f1":
+        posLabel = problem_doc_metadata.query(())['inputs']['performanceMetrics'][0]['posLabel']
 
-    return (dataset, taskname, problem_description)
+    return (dataset, taskname, problem_description, metric, posLabel)
 
 def get_pipeline(dirname, pipeline_name):
     newdirname = dirname + "/" + pipeline_name

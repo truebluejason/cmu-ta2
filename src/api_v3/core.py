@@ -243,6 +243,7 @@ class Core(core_pb2_grpc.CoreServicer):
                 logging.info(self._solutions[solution_id].primitives)
                 s = timer()                
                 (score, optimal_params) = self._solutions[solution_id].score_solution(inputs=inputs, metric=request_params.performance_metrics[0].metric,
+                                posLabel = request_params.performance_metrics[0].pos_label,
                                 primitive_dict=self._primitives, solution_dict=self._solutions)
                 e = timer()
                 logging.info("Time taken = %s sec", e-s) 
