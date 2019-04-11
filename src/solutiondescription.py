@@ -949,6 +949,13 @@ class SolutionDescription(object):
                 self.hyperparams[n_step]['use_columns'] = list(cols)
                 print("Cats = ", cols)
 
+            if self.exclude_columns is not None and len(self.exclude_columns) > 0:
+                if python_path == 'd3m.primitives.data_transformation.column_parser.DataFrameCommon' or \
+                   python_path == 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon':
+                    if self.hyperparams[n_step] is None:
+                        self.hyperparams[n_step] = {}
+                    self.hyperparams[n_step]['exclude_columns'] = list(self.exclude_columns)
+
             logging.info("Running %s", python_path) 
             start = timer()
             self.primitives_outputs[n_step] = self.process_step(n_step, self.primitives_outputs, ActionType.FIT, arguments)
@@ -958,13 +965,6 @@ class SolutionDescription(object):
             if self.isDataFrameStep(n_step) == True:
                 self.exclude(self.primitives_outputs[n_step])
             
-            if self.exclude_columns is not None and len(self.exclude_columns) > 0:
-                if python_path == 'd3m.primitives.data_transformation.column_parser.DataFrameCommon' or \
-                   python_path == 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon':
-                    if self.hyperparams[n_step] is None:
-                        self.hyperparams[n_step] = {}
-                    self.hyperparams[n_step]['exclude_columns'] = list(self.exclude_columns)
-
             #if 'corex' in python_path:
             #    with open("32testdata.csv", 'w') as outputFile:
             #        self.primitives_outputs[n_step].to_csv(outputFile, header=True, index=False)

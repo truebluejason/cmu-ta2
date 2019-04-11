@@ -143,7 +143,7 @@ def get_solutions(task_name, dataset, primitives, problem):
                     if 'classification.svc.SKlearn' in python_path or 'classification.svr.SKlearn' in python_path:
                         continue
 
-                if total_cols > 50 and 'k_neighbors' in python_path:
+                if 'k_neighbors' in python_path:
                     continue
 
                 if 'kernel_ridge' in python_path:

@@ -130,11 +130,11 @@ class PrimitiveDescription(object):
 
         # Do grid-search to learn optimal parameters for the model
         params = None
-        try:
-            params = self.optimize_primitive_gridsearch(X, np.ravel(y), python_path, metric_type, posLabel)
-        except:
-            print("optimize_primitive_gridsearch: ", sys.exc_info()[0])
-            params = None
+        #try:
+        #    params = self.optimize_primitive_gridsearch(X, np.ravel(y), python_path, metric_type, posLabel)
+        #except:
+        #    print("optimize_primitive_gridsearch: ", sys.exc_info()[0])
+        #    params = None
 
         if params is not None:
             for name, value in params.items():
@@ -148,10 +148,16 @@ class PrimitiveDescription(object):
         # Run k-fold CV and compute mean metric score
         (score, metric_scores) = self.k_fold_CV(prim_instance, X, y, metric_type, posLabel, splits)
         mean = np.mean(metric_scores)
+        metric_scores.sort()
+        median = np.median(metric_scores)
+        lb = min((int)(0.025*len(metric_scores) + 0.5)-1,0)
+        ub = max((int)(0.975*len(metric_scores) + 0.5)-1, len(metric_scores)-1)
         stderror = np.std(metric_scores)/math.sqrt(len(metric_scores))
         z = 1.96*stderror
-        #logging.info("CV scores for %s = %s(%s - %s) k = %s", python_path, mean, mean-z, mean+z, len(metric_scores))
+        logging.info("CV scores for %s = %s(%s - %s) k = %s", python_path, mean, mean-z, mean+z, len(metric_scores))
+        logging.info("CV scores for %s = %s(%s - %s) k = %s", python_path, median, metric_scores[lb], metric_scores[ub], len(metric_scores))
         print("CV scores for ", python_path, " = ", mean, "(", mean-z, "-", mean+z, ") k = ", len(metric_scores))
+        print("CV scores for ", python_path, " = ", median, "(", metric_scores[lb], "-", metric_scores[ub], ") k = ", len(metric_scores))
         return (score, optimal_params)
 
     def evaluate_metric(self, predictions, Ytest, metric, posLabel):
