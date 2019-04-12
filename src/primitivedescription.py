@@ -150,8 +150,8 @@ class PrimitiveDescription(object):
         mean = np.mean(metric_scores)
         metric_scores.sort()
         median = np.median(metric_scores)
-        lb = min((int)(0.025*len(metric_scores) + 0.5)-1,0)
-        ub = max((int)(0.975*len(metric_scores) + 0.5)-1, len(metric_scores)-1)
+        lb = max((int)(0.025*len(metric_scores) + 0.5)-1,0)
+        ub = min((int)(0.975*len(metric_scores) + 0.5)-1, len(metric_scores)-1)
         stderror = np.std(metric_scores)/math.sqrt(len(metric_scores))
         z = 1.96*stderror
         logging.info("CV scores for %s = %s(%s - %s) k = %s", python_path, mean, mean-z, mean+z, len(metric_scores))
