@@ -349,8 +349,8 @@ class SolutionDescription(object):
                 self.primitives[i] = s
                 self.steptypes.append(StepType.SUBPIPELINE)
                 self.primitives_arguments[i] = []
-                for j in range(len(pipeline_description.steps[i].inputs)):
-                    argument_edge = pipeline_description.steps[i].inputs[j].data
+                for j in range(len(s.inputs)):
+                    argument_edge = s.inputs[j].data
                     origin = argument_edge.split('.')[0]
                     source = argument_edge.split('.')[1]
                     self.primitives_arguments[i].append({'origin': origin, 'source': int(source), 'data': argument_edge})
@@ -364,8 +364,8 @@ class SolutionDescription(object):
                 s = pipeline_description.steps[i].placeholder
                 self.steptypes.append(StepType.PLACEHOLDER)
                 self.primitives_arguments[i] = []
-                for j in range(len(pipeline_description.steps[i].inputs)):
-                    argument_edge = pipeline_description.steps[i].inputs[j].data
+                for j in range(len(s.inputs)):
+                    argument_edge = s.inputs[j].data
                     origin = argument_edge.split('.')[0]
                     source = argument_edge.split('.')[1]
                     self.primitives_arguments[i].append({'origin': origin, 'source': int(source), 'data': argument_edge})
@@ -965,10 +965,6 @@ class SolutionDescription(object):
             if self.isDataFrameStep(n_step) == True:
                 self.exclude(self.primitives_outputs[n_step])
             
-            #if 'corex' in python_path:
-            #    with open("32testdata.csv", 'w') as outputFile:
-            #        self.primitives_outputs[n_step].to_csv(outputFile, header=True, index=False)
-
         # Store inputs and outputs for feeding into classifier/regressor. Remove other intermediate step outputs, they are not needed anymore.
         for i in range(0, len(self.execution_order)-2):
             if i == 1:
