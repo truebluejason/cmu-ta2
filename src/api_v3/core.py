@@ -78,6 +78,7 @@ class Core(core_pb2_grpc.CoreServicer):
                 inputs.append(dataset)
                 new_dataset = basic_sol.fit(inputs=inputs, solution_dict=self._solutions)            
                 dataset = new_dataset
+                logging.info("New datset from specified pipeline: %s", dataset)
 
         taskname = task_name.replace('_', '')
         solutions = solution_templates.get_solutions(taskname, dataset, primitives, request.problem)
@@ -89,6 +90,7 @@ class Core(core_pb2_grpc.CoreServicer):
                 pipe.id = str(uuid.uuid4())
                 pipe.add_subpipeline(s)
                 new_solution_set.append(pipe)
+            logging.info("%s", new_solution_set)
             return new_solution_set
  
         return solutions
