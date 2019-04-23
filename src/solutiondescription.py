@@ -296,7 +296,7 @@ class SolutionDescription(object):
         for user in pipeline_description.users:
             self.users.append({"id": user.id, "reason": user.reason, "rationale": user.rationale})
 
-        self.subpipelines = []
+        self.subpipelines = {}
         self.primitives_arguments = {}
         self.primitives = {}
         self.hyperparams = {}
@@ -647,7 +647,7 @@ class SolutionDescription(object):
         num = len(python_paths)
         self.taskname = taskname
         self.primitives_arguments = {}
-        self.subpipelines = []
+        self.subpipelines = {}
         self.primitives = {}
         self.hyperparams = {}
         self.steptypes = []
@@ -749,7 +749,7 @@ class SolutionDescription(object):
         self.steptypes.append(StepType.PRIMITIVE)
         self.subpipelines[i] = None
 
-    def add_subpipeline(self, pipeline: Solution):
+    def add_subpipeline(self, pipeline):
         """
         Helper function to add a subpipeline(replace placeholder step) in the pipeline with basic initialization only.
         """
