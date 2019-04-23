@@ -36,6 +36,8 @@ def add_target_columns_metadata(dataset: 'Dataset', problem_doc: 'Metadata'):
             if 'https://metadata.datadrivendiscovery.org/types/TrueTarget' not in semantic_types:
                 semantic_types.append('https://metadata.datadrivendiscovery.org/types/TrueTarget')
                 dataset.metadata = dataset.metadata.update((target['resource_id'], metadata_base.ALL_ELEMENTS, target['column_index']), {'semantic_types': semantic_types})
+            dataset.metadata = dataset.metadata.remove_semantic_type((target['resource_id'], 
+            metadata_base.ALL_ELEMENTS, target['column_index']),'https://metadata.datadrivendiscovery.org/types/Attribute',)
 
     return dataset
 
@@ -57,6 +59,10 @@ def load_data_problem(inputdir, problempath):
 
     with open(problempath) as file:
         problem_schema =  json.load(file)
+
+    filename = "scores.csv"
+    with open(filename, "a") as g:
+        g.write(inputdir + "\n")
  
     datasetId = problempath[:-29]
     dataset_schema = datasetId + "dataset_TRAIN/datasetDoc.json"
