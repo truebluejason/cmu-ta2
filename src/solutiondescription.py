@@ -275,7 +275,8 @@ class SolutionDescription(object):
         """
         n_steps = len(pipeline_description.steps)
 
-        print("Steps = ", n_steps)
+        logging.info("Steps = %d", n_steps)
+        logging.info("Running %s", pipeline_description)
        
         self.inputs = []
         for ip in pipeline_description.inputs:
@@ -353,7 +354,7 @@ class SolutionDescription(object):
                     argument_edge = s.inputs[j].data
                     origin = argument_edge.split('.')[0]
                     source = argument_edge.split('.')[1]
-                    self.primitives_arguments[i].append({'origin': origin, 'source': int(source), 'data': argument_edge})
+                    self.primitives_arguments[i]['inputs'] = {'origin': origin, 'source': int(source), 'data': argument_edge}
 
                     if origin == 'steps':
                         execution_graph.add_edge(str(source), str(i))
@@ -368,7 +369,7 @@ class SolutionDescription(object):
                     argument_edge = s.inputs[j].data
                     origin = argument_edge.split('.')[0]
                     source = argument_edge.split('.')[1]
-                    self.primitives_arguments[i].append({'origin': origin, 'source': int(source), 'data': argument_edge})
+                    self.primitives_arguments[i]['inputs'] = {'origin': origin, 'source': int(source), 'data': argument_edge}
 
                     if origin == 'steps':
                         execution_graph.add_edge(str(source), str(i))
