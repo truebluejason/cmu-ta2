@@ -199,7 +199,7 @@ class SolutionDescription(object):
         self.ok_to_denormalize = ok_to_denormalize
 
     def contains_placeholder(self):
-        if self.steptypes is not None:
+        if self.steptypes is None:
             return False
 
         for step in self.steptypes:
