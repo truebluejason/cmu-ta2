@@ -751,9 +751,9 @@ class SolutionDescription(object):
 
     def add_subpipeline(self, pipeline: Solution):
         """
-        Helper function to add a subpipeline in the pipeline with basic initialization only.
+        Helper function to add a subpipeline(replace placeholder step) in the pipeline with basic initialization only.
         """
-        i = len(self.primitives_arguments)
+        i = len(self.primitives_arguments)-1
 
         self.primitives_arguments[i] = {}
         self.hyperparams[i] = None
