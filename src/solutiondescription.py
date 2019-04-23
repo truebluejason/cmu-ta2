@@ -349,7 +349,6 @@ class SolutionDescription(object):
                 s = pipeline_description.steps[i].pipeline
                 self.primitives[i] = s
                 self.steptypes.append(StepType.SUBPIPELINE)
-                self.primitives_arguments[i] = []
                 for j in range(len(s.inputs)):
                     argument_edge = s.inputs[j].data
                     origin = argument_edge.split('.')[0]
@@ -364,7 +363,6 @@ class SolutionDescription(object):
             else: # PlaceholderPipelineDescriptionStep
                 s = pipeline_description.steps[i].placeholder
                 self.steptypes.append(StepType.PLACEHOLDER)
-                self.primitives_arguments[i] = []
                 for j in range(len(s.inputs)):
                     argument_edge = s.inputs[j].data
                     origin = argument_edge.split('.')[0]
