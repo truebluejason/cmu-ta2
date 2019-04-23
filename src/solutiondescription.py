@@ -177,6 +177,7 @@ class SolutionDescription(object):
         self.execution_order = None
         self.primitives_arguments = None
         self.primitives = None
+        self.subpipelines = None
         self.pipeline = None
         self.produce_order = None
         self.hyperparams = None
@@ -295,6 +296,7 @@ class SolutionDescription(object):
         for user in pipeline_description.users:
             self.users.append({"id": user.id, "reason": user.reason, "rationale": user.rationale})
 
+        self.subpipelines = []
         self.primitives_arguments = {}
         self.primitives = {}
         self.hyperparams = {}
@@ -317,6 +319,7 @@ class SolutionDescription(object):
                 python_path = s.primitive.python_path
                 prim = d3m.index.get_primitive(python_path)
                 self.primitives[i] = prim
+                self.subpipelines[i] = None
                 arguments = s.arguments
                 self.steptypes.append(StepType.PRIMITIVE)
 
@@ -347,7 +350,8 @@ class SolutionDescription(object):
             # SubpipelinePipelineDescriptionStep
             elif pipeline_description.steps[i].HasField("pipeline") == True:
                 s = pipeline_description.steps[i].pipeline
-                self.primitives[i] = s
+                self.primitives[i] = None
+                self.subpipelines[i] = s
                 self.steptypes.append(StepType.SUBPIPELINE)
                 for j in range(len(s.inputs)):
                     argument_edge = s.inputs[j].data
@@ -363,6 +367,8 @@ class SolutionDescription(object):
             else: # PlaceholderPipelineDescriptionStep
                 s = pipeline_description.steps[i].placeholder
                 self.steptypes.append(StepType.PLACEHOLDER)
+                self.primitives[i] = None
+                self.subpipelines[i] = None
                 for j in range(len(s.inputs)):
                     argument_edge = s.inputs[j].data
                     origin = argument_edge.split('.')[0]
@@ -444,7 +450,6 @@ class SolutionDescription(object):
         """
         primitives_outputs = [None] * len(self.execution_order)
    
-        last_step = self.get_last_step()   
         if self.primitives_outputs is None: 
             for i in range(0, len(self.execution_order)):
                 n_step = self.execution_order[i]
@@ -453,6 +458,7 @@ class SolutionDescription(object):
                 if self.isDataFrameStep(n_step) == True:
                     self.exclude(primitives_outputs[n_step])
         else:
+            last_step = self.get_last_step()
             primitives_outputs[last_step] = self.process_step(last_step, self.primitives_outputs, ActionType.FIT, arguments)
             primitives_outputs[1] = self.primitives_outputs[1]
             if last_step == len(self.execution_order) - 2:
@@ -641,6 +647,7 @@ class SolutionDescription(object):
         num = len(python_paths)
         self.taskname = taskname
         self.primitives_arguments = {}
+        self.subpipelines = []
         self.primitives = {}
         self.hyperparams = {}
         self.steptypes = []
@@ -740,21 +747,28 @@ class SolutionDescription(object):
         prim = d3m.index.get_primitive(python_path)
         self.primitives[i] = prim
         self.steptypes.append(StepType.PRIMITIVE)
+        self.subpipelines[i] = None
 
+    def add_subpipeline(self, pipeline: Solution):
+        """
+        Helper function to add a subpipeline in the pipeline with basic initialization only.
+        """
+        i = len(self.primitives_arguments)
+
+        self.primitives_arguments[i] = {}
+        self.hyperparams[i] = None
+        self.pipeline.append(None)
+        self.primitives[i] = None
+        self.steptypes.append(StepType.SUBPIPELINE)
+        self.subpipelines[i] = pipeline
+ 
     def add_step(self, python_path):
         """
-        Add new primitive (or replace placeholder)
+        Add new primitive
         This is currently for classification/regression pipelines
         """
         n_steps = len(self.primitives_arguments) + 1
         i = n_steps-1
-
-        placeholder_present = False
-        for j in range(len(self.steptypes)):
-            if self.steptypes[j] == StepType.PLACEHOLDER:
-                i = j
-                placeholder_present = True
-                break
 
         self.add_primitive(python_path, i)
 
@@ -830,13 +844,12 @@ class SolutionDescription(object):
         """
         # Subpipeline step
         if self.steptypes[n_step] is StepType.SUBPIPELINE:
-            primitive_arguments = []
-            for j in range(len(self.primitives_arguments[n_step])):
-                value = self.primitives_arguments[n_step][j]
+            primitive_arguments = {}
+            for argument, value in self.primitives_arguments[n_step].items():
                 if value['origin'] == 'steps':
-                    primitive_arguments.append(primitives_outputs[value['source']])
+                    primitive_arguments[argument] = primitives_outputs[value['source']]
                 else:
-                    primitive_arguments.append(arguments['inputs'][value['source']])
+                    primitive_arguments[argument] = arguments['inputs'][value['source']]
             return self._pipeline_step_fit(n_step, self.primitives[n_step], primitive_arguments,
  arguments['solution_dict'], arguments['primitive_dict'], action)
 
@@ -857,6 +870,10 @@ class SolutionDescription(object):
             else:
                 v = self.fit_step(n_step, self.primitives[n_step], primitive_arguments)
                 return v
+
+        # Placeholder step
+        if self.steptypes[n_step] is StepType.PLACEHOLDER:
+            return primitives_outputs[n_step-1]
  
     def is_last_step(self, n):
         last_step = self.get_last_step()
@@ -964,7 +981,8 @@ class SolutionDescription(object):
             if self.isDataFrameStep(n_step) == True:
                 self.exclude(self.primitives_outputs[n_step])
             
-        # Store inputs and outputs for feeding into classifier/regressor. Remove other intermediate step outputs, they are not needed anymore.
+        # Store inputs and outputs for feeding into classifier/regressor. 
+        # Remove other intermediate step outputs, they are not needed anymore.
         for i in range(0, len(self.execution_order)-2):
             if i == 1:
                 continue

@@ -62,17 +62,35 @@ class Core(core_pb2_grpc.CoreServicer):
         logging.info(task_name)
 
         solutions = []
+        pipeline_placeholder_present = False
+        basic_sol = None
 
+        # TA3 has specified a pipeline
         if template != None and isinstance(template, pipeline_pb2.PipelineDescription) and len(template.steps) > 0:
             basic_sol = solutiondescription.SolutionDescription(request.problem, None)
             basic_sol.create_from_pipelinedescription(pipeline_description=template)
             if basic_sol.contains_placeholder() == False:  # Fully defined
                 solutions.append(basic_sol)
                 return solutions
+            else: # Placeholder present
+                pipeline_placeholder_present = True    
+                inputs = []
+                inputs.append(dataset)
+                new_dataset = basic_sol.fit(inputs=inputs, solution_dict=self._solutions)            
+                dataset = new_dataset
 
         taskname = task_name.replace('_', '')
         solutions = solution_templates.get_solutions(taskname, dataset, primitives, request.problem)
 
+        if pipeline_placeholder_present is True:
+            new_solution_set = []
+            for s in solutions:
+                pipe = copy.deepcopy(basic_sol)
+                pipe.id = str(uuid.uuid4())
+                pipe.add_subpipeline(s)
+                new_solution_set.append(pipe)
+            return new_solution_set
+ 
         return solutions
     
     def SearchSolutions(self, request, context):
