@@ -240,7 +240,7 @@ class SolutionDescription(object):
                 if pdesc is None:
                     self.subpipelines[i].create_pipeline_json(prim_dict)
                     pdesc = self.subpipelines[i].pipeline_description 
-                step = SubpipelineStep(pipeline_description=pdesc)
+                step = SubpipelineStep(pipeline=pdesc)
                 for output in self.subpipelines[i].outputs:
                     step.add_output(output_id=output)
 
