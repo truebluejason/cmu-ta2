@@ -242,7 +242,7 @@ class SolutionDescription(object):
                     pdesc = self.subpipelines[i].pipeline_description 
                 step = SubpipelineStep(pipeline=pdesc)
                 for output in self.subpipelines[i].outputs:
-                    step.add_output(output_id=output)
+                    step.add_output(output_id=output[2])
 
             for name, value in self.primitives_arguments[i].items():
                 origin = value['origin']

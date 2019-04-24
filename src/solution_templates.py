@@ -116,7 +116,7 @@ def get_solutions(task_name, dataset, primitives, problem):
             elif 'AUDIO' in types_present:
                 basic_sol.initialize_solution('AUDIO')
 
-            try:
+            if 1:#try:
                 from timeit import default_timer as timer
                 start = timer()
                 basic_sol.run_basic_solution(inputs=[dataset])
@@ -124,9 +124,9 @@ def get_solutions(task_name, dataset, primitives, problem):
                 logging.info("Time taken to run basic solution: %s seconds", end - start)
                 total_cols = basic_sol.get_total_cols()
                 print("Total cols = ", total_cols)
-            except:
-                logging.info(sys.exc_info()[0])
-                basic_sol = None
+            #except:
+            #    logging.info(sys.exc_info()[0])
+            #    basic_sol = None
 
         # Iterate through primitives which match task type for populative pool of solutions
         for classname, p in primitives.items():
