@@ -241,8 +241,8 @@ class SolutionDescription(object):
                     self.subpipelines[i].create_pipeline_json(prim_dict)
                     pdesc = self.subpipelines[i].pipeline_description 
                 step = SubpipelineStep(pipeline_description=pdesc)
-                for output_id in self.subpipelines[i].outputs:
-                    step.add_output(output_id)
+                for output in self.subpipelines[i].outputs:
+                    step.add_output(output_id=output)
 
             for name, value in self.primitives_arguments[i].items():
                 origin = value['origin']
