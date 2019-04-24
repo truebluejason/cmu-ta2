@@ -50,8 +50,8 @@ def add_target_metadata(dataset, targets):
         if 'https://metadata.datadrivendiscovery.org/types/TrueTarget' not in semantic_types:
             semantic_types.append('https://metadata.datadrivendiscovery.org/types/TrueTarget')
             dataset.metadata = dataset.metadata.update((target.resource_id, metadata_base.ALL_ELEMENTS, target.column_index), {'semantic_types': semantic_types})
-        dataset.metadata = dataset.metadata.remove_semantic_type((target['resource_id'],
-        metadata_base.ALL_ELEMENTS, target['column_index']),'https://metadata.datadrivendiscovery.org/types/Attribute',)
+        dataset.metadata = dataset.metadata.remove_semantic_type((target.resource_id,
+        metadata_base.ALL_ELEMENTS, target.column_index),'https://metadata.datadrivendiscovery.org/types/Attribute',)
 
     return dataset
 
