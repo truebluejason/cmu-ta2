@@ -225,20 +225,29 @@ class SolutionDescription(object):
 
         num = self.num_steps()
         for i in range(num):
-            p = prim_dict[self.primitives[i]]
-            pdesc = {}
-            pdesc['id'] = p.id
-            pdesc['version'] = p.primitive_class.version
-            pdesc['python_path'] = p.primitive_class.python_path
-            pdesc['name'] = p.primitive_class.name
-            pdesc['digest'] = p.primitive_class.digest
-            step = PrimitiveStep(primitive_description=pdesc)
+            if self.steptypes[i] == StepType.PRIMITIVE: # Primitive
+                p = prim_dict[self.primitives[i]]
+                pdesc = {}
+                pdesc['id'] = p.id
+                pdesc['version'] = p.primitive_class.version
+                pdesc['python_path'] = p.primitive_class.python_path
+                pdesc['name'] = p.primitive_class.name
+                pdesc['digest'] = p.primitive_class.digest
+                step = PrimitiveStep(primitive_description=pdesc)
+                step.add_output(output_id=p.primitive_class.produce_methods[0])
+            else: # Subpipeline
+                pdesc = self.subpipelines[i].pipeline_description
+                if pdesc is None:
+                    self.subpipelines[i].create_pipeline_json(prim_dict)
+                    pdesc = self.subpipelines[i].pipeline_description 
+                step = SubpipelineStep(pipeline_description=pdesc)
+                for output_id in self.subpipelines[i].outputs:
+                    step.add_output(output_id)
 
             for name, value in self.primitives_arguments[i].items():
                 origin = value['origin']
                 argument_type = ArgumentType.CONTAINER
                 step.add_argument(name=name, argument_type=argument_type, data_reference=value['data'])
-            step.add_output(output_id=p.primitive_class.produce_methods[0])
             if self.hyperparams[i] is not None:
                 for name, value in self.hyperparams[i].items():
                     step.add_hyperparameter(name=name, argument_type=ArgumentType.VALUE, data=value)
