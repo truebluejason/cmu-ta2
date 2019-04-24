@@ -253,6 +253,7 @@ class SolutionDescription(object):
                     step.add_hyperparameter(name=name, argument_type=ArgumentType.VALUE, data=value)
             pipeline_description.add_step(step)
 
+        logging.info("data: %s", pipeline_description.get_available_data_references())
         for op in self.outputs:
             pipeline_description.add_output(data_reference=op[2], name=op[3])
 
@@ -416,6 +417,7 @@ class SolutionDescription(object):
                     else:
                         self.produce_order.add(step_source)
                         current_step = step_source
+        logging.info("Outputs = %s", self.outputs)
 
     def isDataFrameStep(self, n_step):
         if self.steptypes[n_step] is StepType.PRIMITIVE and self.primitives[n_step].metadata.query()['python_path'] == 'd3m.primitives.data_transformation.dataset_to_dataframe.Common':
@@ -770,6 +772,11 @@ class SolutionDescription(object):
         self.primitives[i] = None
         self.steptypes.append(StepType.SUBPIPELINE)
         self.subpipelines[i] = pipeline
+        data = 'steps.' + str(n_steps-1) + '.' + pipeline.outputs[0]['id']
+        origin = data.split('.')[0]
+        source = data.split('.')[1]
+        self.outputs = []
+        self.outputs.append((origin, int(source), data, "output predictions"))
  
     def add_step(self, python_path):
         """
@@ -826,8 +833,9 @@ class SolutionDescription(object):
         n_steps = len(self.execution_order)
         
         self.outputs = []
-        # Creating set of steps to be call in produce
+
         data = 'steps.' + str(n_steps-1) + '.produce'
+
         origin = data.split('.')[0]
         source = data.split('.')[1]
         self.outputs.append((origin, int(source), data, "output predictions"))
