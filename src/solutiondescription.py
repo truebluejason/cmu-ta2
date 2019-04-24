@@ -773,7 +773,7 @@ class SolutionDescription(object):
         self.steptypes.append(StepType.SUBPIPELINE)
         self.subpipelines[i] = pipeline
         
-        data = 'steps.' + str(i) + '.' + pipeline.outputs[0]['id']
+        data = 'steps.' + str(i) + '.' + pipeline.outputs[0][2]
         origin = data.split('.')[0]
         source = data.split('.')[1]
         self.outputs = []
