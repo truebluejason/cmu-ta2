@@ -116,6 +116,7 @@ class Core(core_pb2_grpc.CoreServicer):
                 data = pd.read_csv(ip.csv_uri, dtype=str, header=0, na_filter=False, encoding='utf8', low_memory=False,)
                 dataset = container.DataFrame(data)
 
+            logging.info("Problem %s", problem)
             if len(problem.inputs) > 0:
                 targets = problem.inputs[0].targets
                 dataset = util.add_target_metadata(dataset, targets)
