@@ -45,7 +45,7 @@ def get_cols_to_encode(df):
     Find categorical attributes which can be one-hot-encoded.
     """
     cols = df.metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/CategoricalData")
-    targets = df.metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/SuggestedTarget")
+    targets = df.metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/TrueTarget")
 
     for t in targets:
         if t in cols:
@@ -445,7 +445,7 @@ class SolutionDescription(object):
         for col in cols:
             self.exclude_columns.add(col)
 
-        targets = metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/SuggestedTarget")
+        targets = metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/TrueTarget")
         for t in targets:
             if t in self.exclude_columns:
                 self.exclude_columns.remove(t)
@@ -704,7 +704,7 @@ class SolutionDescription(object):
                 elif i == num-1: # extract_columns_by_semantic_types (targets)
                     data = 'steps.1.produce'
                     self.hyperparams[i] = {}
-                    self.hyperparams[i]['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/SuggestedTarget']
+                    self.hyperparams[i]['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/TrueTarget']
                 else: # other steps
                     data = 'steps.' + str(i-1) + '.produce'
 
