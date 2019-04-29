@@ -22,47 +22,15 @@ source /opt/rh/rh-python36/enable
 
 virtualenv env --python=python36
 source env/bin/activate
-pip install --upgrade pip
-pip install --process-dependency-links git+https://gitlab.com/datadrivendiscovery/primitive-interfaces.git
 pip install docker grpcio-tools grpcio d3m
 ```
-
-
 
 # Related things
 
 ## Interfaces
 
- * https://gitlab.com/datadrivendiscovery/primitive-interfaces
-  * https://gitlab.com/datadrivendiscovery/tests-data.git
  * https://gitlab.datadrivendiscovery.org/jpl/primitives_repo.git
- * https://gitlab.datadrivendiscovery.org/nyu/ta3ta2-api
-  * https://gitlab.com/datadrivendiscovery/ta3ta2-api -- newer than above???  There's a v2017.12.20 branch, sigh
-
-# A bit more guts
-
-Requests from the TA3 include a SessionContext which just contains a (string) ID.  Then the session ID is included with each request, so the server needs to remember that state.
-
-Each session has N pipelines defined, which are basically trained models.  You can create, delete, alter and run pipelines.  Pipelines must also be able to be saved and exported to be re-run later.
-
-Currently pipelines are 100% opaque.  Mitar's proposal, which we are going to need to do sooner or later, basically opens the black box and lets the user look inside, breaking pipelines into steps.  The steps can be defined, tuned, etc.  We need to build the system on the assumption that we're going to do either/both.
-
-## Tech
-
- * plasma for object store?  https://arrow.apache.org/docs/python/plasma.html
- * Celery for task distribution and communication, almost certainly.  Alternatives to look at: rq, huey, maybe kuyruk.  Question is basically whether to use redis or rabbitmq as the message broker.
- * 
-
-
-# Running (very ad-hoc)
-
-So after some hacking of paths and ports, we can start Matthias's TA3 interface like so (having installed all the deps in our virtualenv and activating it):
-
-```
-env CONFIG_JSON_PATH=/home/sheath/projects/D3M/cmu-ta3/test-configs/test_config_185_local_mg.json python ta3ta2-proxy.py 
-```
-
-Now we can browse to `localhost:8088` (or whatever port set in `ta3ta2-proxy.py`) and should see "D3M January blah blah System Evaluation".
+ * https://gitlab.com/datadrivendiscovery/ta3ta2-api 
 
 We start our TA2:
 
