@@ -56,6 +56,10 @@ task_paths = {
 'VERTEXNOMINATION': ['d3m.primitives.sri.graph.VertexNominationParser',
                      'd3m.primitives.sri.psl.VertexNomination'],
 
+'OBJECTDETECTION': ['d3m.primitives.data_transformation.denormalize.Common',
+                    'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
+                    'd3m.primitives.object_detection.retina_net.JPLPrimitives'],
+
 'LINKPREDICTION': ['d3m.primitives.sri.graph.GraphMatchingParser',
                    'd3m.primitives.sri.graph.GraphTransformer',
                    'd3m.primitives.sri.psl.LinkPrediction'],
@@ -73,9 +77,30 @@ task_paths = {
           'd3m.primitives.bbn.time_series.IVectorExtractor',
           'd3m.primitives.bbn.time_series.TargetsReader'],
 
-'FALLBACK1': ['d3m.primitives.sri.baseline.MeanBaseline'],
+'FALLBACK1': ['d3m.primitives.sri.baseline.MeanBaseline']}
 
-'FALLBACK2': ['d3m.primitives.sri.psl.GeneralRelationalDataset']}
+classifiers = ['d3m.primitives.classification.random_forest.SKlearn',
+               'd3m.primitives.classification.bagging.SKlearn',
+               'd3m.primitives.classification.bernoulli_naive_bayes.SKlearn',
+               'd3m.primitives.classification.extra_trees.SKlearn',
+               'd3m.primitives.classification.gradient_boosting.SKlearn',
+               'd3m.primitives.classification.linear_discriminant_analysis.SKlearn',
+               'd3m.primitives.classification.linear_svc.SKlearn',
+               'd3m.primitives.classification.logistic_regression.SKlearn',
+               'd3m.primitives.classification.sgd.SKlearn',
+               'd3m.primitives.classification.svc.SKlearn',
+               'd3m.primitives.classification.gaussian_naive_bayes.SKlearn']
+
+regressors = ['d3m.primitives.regression.random_forest.SKlearn',
+               'd3m.primitives.regression.extra_trees.SKlearn',
+               'd3m.primitives.regression.gradient_boosting.SKlearn',
+               'd3m.primitives.regression.linear_svr.SKlearn', 
+               'd3m.primitives.regression.sgd.SKlearn', 
+               'd3m.primitives.regression.svr.SKlearn',
+               'd3m.primitives.regression.gaussian_process.SKlearn',
+               'd3m.primitives.regression.ridge.SKlearn',
+               'd3m.primitives.regression.lasso.SKlearn',
+               'd3m.primitives.regression.lasso_cv.SKlearn']
 
 def get_solutions(task_name, dataset, primitives, problem):
     """
@@ -129,26 +154,26 @@ def get_solutions(task_name, dataset, primitives, problem):
                 basic_sol = None
 
         # Iterate through primitives which match task type for populative pool of solutions
-        for classname, p in primitives.items():
-            if p.primitive_class.family == task_name and basic_sol is not None:
-                python_path = p.primitive_class.python_path
-                if 'd3m.primitives.sri.' in python_path or 'JHU' in python_path or 'lupi_svm' in python_path or 'bbn' in python_path:
-                    continue
+        if basic_sol is not None:
+            listOfSolutions = classifiers
+            if task_name == "REGRESSION":
+                listOfSolutions = regressors
+        else:
+            listOfSolutions = []
 
-                if 'Find_projections' in python_path and (total_cols > 20 or rows > 10000):
-                    continue
+        for python_path in listOfSolutions:
+            if 'Find_projections' in python_path and (total_cols > 20 or rows > 10000):
+                continue
 
-                # SVM gets extremely expensive for >10k samples!!!
-                if rows > 10000:
-                    if 'classification.svc.SKlearn' in python_path or 'classification.svr.SKlearn' in python_path:
-                        continue
-
-                if 'k_neighbors' in python_path or 'kernel_ridge' in python_path or 'lars' in python_path:
+            # SVM gets extremely expensive for >10k samples!!!
+            if rows > 10000:
+                if 'classification.svc.SKlearn' in python_path or 'classification.svr.SKlearn' in python_path:
                     continue
-                pipe = copy.deepcopy(basic_sol)
-                pipe.id = str(uuid.uuid4())
-                pipe.add_step(p.primitive_class.python_path)
-                solutions.append(pipe)
+           
+            pipe = copy.deepcopy(basic_sol) 
+            pipe.id = str(uuid.uuid4())
+            pipe.add_step(python_path)
+            solutions.append(pipe)
     elif task_name == 'VERTEXNOMINATION' or \
          task_name == 'COMMUNITYDETECTION' or \
          task_name == 'GRAPHMATCHING' or \

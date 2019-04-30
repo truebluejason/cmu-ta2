@@ -253,7 +253,6 @@ class SolutionDescription(object):
                     step.add_hyperparameter(name=name, argument_type=ArgumentType.VALUE, data=value)
             pipeline_description.add_step(step)
 
-        logging.info("data: %s", pipeline_description.get_available_data_references())
         for op in self.outputs:
             pipeline_description.add_output(data_reference=op[2], name=op[3])
 
@@ -654,7 +653,7 @@ class SolutionDescription(object):
             if taskname is not 'IMAGE':  # Image data frame has too many dimensions (in thousands)! This step is extremely slow! 
                 index = len(python_paths)-1
                 python_paths.insert(index, 'd3m.primitives.data_preprocessing.robust_scaler.SKlearn')
-            
+
         num = len(python_paths)
         self.taskname = taskname
         self.primitives_arguments = {}
@@ -998,8 +997,7 @@ class SolutionDescription(object):
 
             if self.isDataFrameStep(n_step) == True:
                 self.exclude(self.primitives_outputs[n_step])
-            
-        # Store inputs and outputs for feeding into classifier/regressor. 
+        
         # Remove other intermediate step outputs, they are not needed anymore.
         for i in range(0, len(self.execution_order)-2):
             if i == 1:
