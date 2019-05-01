@@ -5,9 +5,6 @@ maintainer "Donghan Wang<donghanw@cs.cmu.edu>"
 
 user root
 
-# add git-lfs gpg and return exit code 0
-RUN apt-get update || (apt-get install dirmngr && apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 762E3157)
-
 # libcurl4-openssl-dev for pycurl
 # fortran for bayesian_optimization
 # python3-tk for d3m.index
@@ -17,11 +14,7 @@ RUN sudo apt-get update && apt-get install -y \
     python3-tk
 
 ## install d3m and grpc, a D3M dependency
-##
-## We use pip==18.1 because pip 19+ removed --process-dependency-links
-##
-RUN pip3 install --upgrade pip==18.1 \
-#    && python3 -m pip install --process-dependency-links d3m \
+RUN pip3 install --upgrade pip \
     && python3 -m pip install --upgrade grpcio grpcio-tools
 
 # Create static dir for Image weights file
@@ -33,8 +26,9 @@ COPY bayesian_optimization /tmp/bayesian_optimization
 RUN cd /tmp/bayesian_optimization/bo/utils/direct_fortran; \
     bash make_direct.sh; \
     cd /tmp/bayesian_optimization; \
-    python3 setup.py bdist_wheel; \
-    pip3 install ./dist/bo*.whl
+    pip3 install --upgrade pip \
+    && python3 setup.py bdist_wheel \
+    && pip3 install ./dist/bo*.whl
 
 EXPOSE 45042
 
