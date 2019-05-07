@@ -422,7 +422,7 @@ class Core(core_pb2_grpc.CoreServicer):
         if request_params.expose_outputs is not None and len(request_params.expose_outputs) > 0:
             last_step_output = request_params.expose_outputs[len(request_params.expose_outputs)-1]
         else:
-            last_step_output = fitted_solution.outputs[0][2]
+            last_step_output = solution.outputs[0][2]
 
         exposed_outputs[last_step_output] = result
 
