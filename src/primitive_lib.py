@@ -18,7 +18,7 @@ def list_primitives():
         
     for pc in prims:
         # Do not load expensive primitives! These ones have been reported to take very long making TA2 unavailable!
-        if 'cornell' in pc or 'umich' in pc:
+        if 'cornell' in pc or 'Umich' in pc:
             continue
         try:
             primitive_obj = d3m.index.get_primitive(pc)
@@ -74,9 +74,7 @@ def load_primitives():
             continue
         if 'quadratic_discriminant_analysis.SKlearn' in p.python_path or 'd3m.primitives.classification.random_forest.DataFrameCommon' in p.python_path or 'bayesian_logistic_regression.Common' in p.python_path or 'regression.linear_regression.Common' in p.python_path:
             continue
-        if 'decision_tree' in p.python_path or 'dummy' in p.python_path or 'tensor_machines' in p.python_path or 'fast_lad' in p.python_path or 'multinomial_naive_bayes' in p.python_path or 'passive_aggressive' in p.python_path or 'regression.ard.SKlearn' in p.python_path: 
-            continue
-        if 'rfm_precondition' in p.python_path or 'BayesianInfRPI' in p.python_path or 'xgboost' in p.python_path or 'light_gbm.DataFrameCommon' in p.python_path or 'search_hybrid' in p.python_path:
+        if 'rfm_precondition' in p.python_path or 'BayesianInfRPI' in p.python_path or 'xgboost' in p.python_path or 'light_gbm.DataFrameCommon' in p.python_path:
             continue
 
         primitives[p.classname] = primitivedescription.PrimitiveDescription(p.classname, p)
