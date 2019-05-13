@@ -44,40 +44,40 @@ task_paths = {
 'CLUSTERING': ['d3m.primitives.data_transformation.dataset_to_dataframe.Common',
                'd3m.primitives.data_transformation.column_parser.DataFrameCommon',
                'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
-               'd3m.primitives.cmu.fastlvm.CoverTree',
+               'd3m.primitives.clustering.k_means.Fastlvm',
                'd3m.primitives.data_transformation.construct_predictions.DataFrameCommon'],
 
-'GRAPHMATCHING': ['d3m.primitives.sri.psl.GraphMatchingLinkPrediction'],
+'GRAPHMATCHING': ['d3m.primitives.link_prediction.graph_matching_link_prediction.GraphMatchingLinkPrediction'],
 
 'GRAPHMATCHING2': ['d3m.primitives.graph_matching.seeded_graph_matching.JHU'],
 
-'COLLABORATIVEFILTERING': ['d3m.primitives.sri.psl.CollaborativeFilteringLinkPrediction'],
+'COLLABORATIVEFILTERING': ['d3m.primitives.link_prediction.collaborative_filtering_link_prediction.CollaborativeFilteringLinkPrediction'],
 
-'VERTEXNOMINATION': ['d3m.primitives.sri.graph.VertexNominationParser',
-                     'd3m.primitives.sri.psl.VertexNomination'],
+'VERTEXNOMINATION': ['d3m.primitives.data_transformation.vertex_nomination_parser.VertexNominationParser',
+                     'd3m.primitives.classification.vertex_nomination.VertexNomination'],
 
 'OBJECTDETECTION': ['d3m.primitives.data_transformation.denormalize.Common',
                     'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
                     'd3m.primitives.object_detection.retina_net.JPLPrimitives'],
 
-'LINKPREDICTION': ['d3m.primitives.sri.graph.GraphMatchingParser',
-                   'd3m.primitives.sri.graph.GraphTransformer',
-                   'd3m.primitives.sri.psl.LinkPrediction'],
+'LINKPREDICTION': ['d3m.primitives.data_transformation.graph_matching_parser.GraphMatchingParser',
+                   'd3m.primitives.data_transformation.graph_transformer.GraphTransformer',
+                   'd3m.primitives.link_prediction.link_prediction.LinkPrediction'],
 
-'COMMUNITYDETECTION': ['d3m.primitives.sri.graph.CommunityDetectionParser',
-                       'd3m.primitives.sri.psl.CommunityDetection'],
+'COMMUNITYDETECTION': ['d3m.primitives.community_detection.community_detection_parser.CommunityDetectionParser',
+                       'd3m.primitives.classification.community_detection.CommunityDetection'],
 
 'AUDIO': ['d3m.primitives.data_transformation.denormalize.Common',
           'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
-          'd3m.primitives.bbn.time_series.AudioReader',
-          'd3m.primitives.bbn.time_series.ChannelAverager',
-          'd3m.primitives.bbn.time_series.SignalDither',
-          'd3m.primitives.bbn.time_series.SignalFramer',
-          'd3m.primitives.bbn.time_series.SignalMFCC',
-          'd3m.primitives.bbn.time_series.IVectorExtractor',
-          'd3m.primitives.bbn.time_series.TargetsReader'],
+          'd3m.primitives.data_preprocessing.audio_reader.AudioReader',
+          'd3m.primitives.data_preprocessing.channel_averager.ChannelAverager',
+          'd3m.primitives.data_preprocessing.signal_dither.SignalDither',
+          'd3m.primitives.time_series_segmentation.signal_framer.SignalFramer',
+          'd3m.primitives.feature_extraction.signal_mfcc.SignalMFCC',
+          'd3m.primitives.data_transformation.i_vector_extractor.IVectorExtractor',
+          'd3m.primitives.data_preprocessing.targets_reader.TargetsReader'],
 
-'FALLBACK1': ['d3m.primitives.sri.baseline.MeanBaseline']}
+'FALLBACK1': ['d3m.primitives.classification.gaussian_classification.MeanBaseline']}
 
 classifiers = ['d3m.primitives.classification.random_forest.SKlearn',
                'd3m.primitives.classification.bagging.SKlearn',
@@ -121,10 +121,11 @@ def get_solutions(task_name, dataset, primitives, problem):
 
     if task_name == 'CLASSIFICATION' or task_name == 'REGRESSION':
         try:
-            (types_present, total_cols, rows, categorical_atts, ok_to_denormalize) = solutiondescription.column_types_present(dataset)
+            (types_present, total_cols, rows, categorical_atts, ok_to_denormalize, ok_to_impute) = solutiondescription.column_types_present(dataset)
             print(types_present)
             basic_sol.set_categorical_atts(categorical_atts)
             basic_sol.set_denormalize(ok_to_denormalize)
+            basic_sol.set_impute(ok_to_impute)
             basic_sol.initialize_solution(task_name)
         except:
             logging.info(sys.exc_info()[0])

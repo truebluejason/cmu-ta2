@@ -138,8 +138,9 @@ def invert_metric(metric_type):
     min_metrics = set()
     min_metrics.add(problem_pb2.MEAN_SQUARED_ERROR)
     min_metrics.add(problem_pb2.ROOT_MEAN_SQUARED_ERROR)
-    min_metrics.add(problem_pb2.ROOT_MEAN_SQUARED_ERROR_AVG)
     min_metrics.add(problem_pb2.MEAN_ABSOLUTE_ERROR)
+    min_metrics.add(problem_pb2.LOSS)
+    min_metrics.add(problem_pb2.HAMMING_LOSS)
     if metric_type in min_metrics:
         return True
     return False

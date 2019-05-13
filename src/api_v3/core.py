@@ -13,6 +13,7 @@ import primitive_lib
 import os, sys, copy
 import pandas as pd
 import numpy as np
+import search
 
 import solutiondescription, util, solution_templates
 from multiprocessing import Pool, cpu_count
@@ -155,25 +156,34 @@ class Core(core_pb2_grpc.CoreServicer):
             index = 0
             msg = core_pb2.Progress(state=core_pb2.RUNNING, status="", start=start, end=solutiondescription.compute_timestamp())
 
-            results = [self.async_message_thread.apply_async(evaluate_solution, (inputs, sol, None,)) for sol in solutions]
-            timeout = request_params.time_bound * 60
+            #results = [self.async_message_thread.apply_async(evaluate_solution, (inputs, sol, None,)) for sol in solutions]
+            metric = request_params.problem.problem.performance_metrics[0].metric
+            posLabel = request_params.problem.problem.performance_metrics[0].pos_label
+            results = [self.async_message_thread.apply_async(search.evaluate_solution_score, (inputs, sol, self._primitives, metric, posLabel,)) for sol in solutions]
+            timeout = request_params.time_bound_search * 60
             if timeout <= 0:
                 timeout = None
             elif timeout > 60:
                 timeout = timeout - 60
 
             outputDir = os.environ['D3MOUTPUTDIR']
+            valid_solution_scores = {}
+
             # Evaluate potential solutions asynchronously and get end-result
             for r in results:
                 try:
-                    val = r.get(timeout=timeout)
-                    if val == 0:
-                        count = count + 1
-                        id = solutions[index].id
-                        self._solutions[id] = solutions[index]
-                        self._search_solutions[search_id_str].append(id)
-                        util.write_pipeline_json(solutions[index], self._primitives, outputDir + "/pipelines_searched")
-                        yield core_pb2.GetSearchSolutionsResultsResponse(progress=msg, done_ticks=count, all_ticks=len(solutions), solution_id=id,
+                    #val = r.get(timeout=timeout)
+                    (score, optimal_params) = r.get(timeout=timeout)
+                    #if val == 0:
+                    count = count + 1
+                    id = solutions[index].id
+                    self._solutions[id] = solutions[index]
+                    self._search_solutions[search_id_str].append(id)
+                    valid_solution_scores[id] = score
+                    if optimal_params is not None and len(optimal_params) > 0:
+                        self._solutions[id].set_hyperparams(optimal_params)
+                    util.write_pipeline_json(solutions[index], self._primitives, outputDir + "/pipelines_searched")
+                    yield core_pb2.GetSearchSolutionsResultsResponse(progress=msg, done_ticks=count, all_ticks=len(solutions), solution_id=id,
                                         internal_score=0.0, scores=[])
                 except:
                     logging.info(solutions[index].primitives)
@@ -185,6 +195,17 @@ class Core(core_pb2_grpc.CoreServicer):
         self._solution_score_map.pop(search_id_str, None)
       
         logging.info("No. of sol = %d", count) 
+
+        # Sort solutions by their scores and rank them
+        sorted_x = search.rank_solutions(valid_solution_scores, metric)
+
+        index = 1
+        for (sol, score) in sorted_x:
+            self._solutions[sol].rank = index
+            print("Rank ", index)
+            print("Score ", score)
+            index = index + 1
+
         msg = core_pb2.Progress(state=core_pb2.COMPLETED, status="", start=start, end=solutiondescription.compute_timestamp()) 
         yield core_pb2.GetSearchSolutionsResultsResponse(progress=msg, done_ticks=count, all_ticks=count,
                           solution_id="", internal_score=0.0, scores=[])
@@ -259,27 +280,27 @@ class Core(core_pb2_grpc.CoreServicer):
             self._solution_score_map.pop(request_id, None)
             yield core_pb2.GetScoreSolutionResultsResponse(progress=msg, scores=[])
         else:
-            inputs = self._get_inputs(self._solutions[solution_id].problem, request_params.inputs)
-            try:
-                logging.info(self._solutions[solution_id].primitives)
-                s = timer()                
-                (score, optimal_params) = self._solutions[solution_id].score_solution(inputs=inputs, metric=request_params.performance_metrics[0].metric,
-                                posLabel = request_params.performance_metrics[0].pos_label,
-                                primitive_dict=self._primitives, solution_dict=self._solutions)
-                e = timer()
-                logging.info("Time taken = %s sec", e-s) 
-                if optimal_params is not None and len(optimal_params) > 0:
-                    self._solutions[solution_id].set_hyperparams(optimal_params)
-            except:
-                score = 0.0
-                logging.info(self._solutions[solution_id].primitives)
-                logging.info(sys.exc_info()[0])
-
+            #inputs = self._get_inputs(self._solutions[solution_id].problem, request_params.inputs)
+            #try:
+            #    logging.info(self._solutions[solution_id].primitives)
+            #    s = timer()                
+            #    (score, optimal_params) = self._solutions[solution_id].score_solution(inputs=inputs, metric=request_params.performance_metrics[0].metric,
+            #                    posLabel = request_params.performance_metrics[0].pos_label,
+            #                    primitive_dict=self._primitives, solution_dict=self._solutions)
+            #    e = timer()
+            #    logging.info("Time taken = %s sec", e-s) 
+            #    if optimal_params is not None and len(optimal_params) > 0:
+            #        self._solutions[solution_id].set_hyperparams(optimal_params)
+            #except:
+            #    score = 0.0
+            #    logging.info(self._solutions[solution_id].primitives)
+            #    logging.info(sys.exc_info()[0])
+            score = self._solutions[solution_id].rank
             outputDir = os.environ['D3MOUTPUTDIR']
             util.write_pipeline_json(self._solutions[solution_id], self._primitives, outputDir + "/pipelines_scored")
             logging.info("Score = %f", score)
             send_scores.append(core_pb2.Score(metric=request_params.performance_metrics[0],
-             fold=request_params.configuration.folds, targets=[], value=value_pb2.Value(raw=value_pb2.ValueRaw(double=score))))
+             fold=0, value=value_pb2.Value(raw=value_pb2.ValueRaw(double=score)), random_seed=0))
 
             yield core_pb2.GetScoreSolutionResultsResponse(progress=msg, scores=[]) 
 

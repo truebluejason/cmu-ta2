@@ -6,6 +6,14 @@ import problem_pb2
 import primitive_lib
 from multiprocessing import Pool, cpu_count
 
+def rank_solutions(valid_solution_scores, problem_metric):
+    # Sort solutions by their scores and rank them
+    import operator
+    sorted_x = sorted(valid_solution_scores.items(), key=operator.itemgetter(1))
+    if util.invert_metric(problem_metric) is False:
+        sorted_x.reverse()
+    return sorted_x
+
 def search_phase():
     """
     TA2 running in stand-alone search phase
@@ -78,10 +86,7 @@ def search_phase():
         index = index + 1
 
     # Sort solutions by their scores and rank them
-    import operator
-    sorted_x = sorted(valid_solution_scores.items(), key=operator.itemgetter(1))
-    if util.invert_metric(problem_metric) is False:
-        sorted_x.reverse()
+    sorted_x = rank_solutions(valid_solution_scores, problem_metric)
 
     index = 1
     for (sol, score) in sorted_x:

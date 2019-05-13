@@ -103,7 +103,6 @@ class PrimitiveDescription(object):
         """
         python_path = self.primitive.metadata.query()['python_path']
 
-        #self.find_optimal_hyperparams(train=X, output=y, hyperparam_spec=hyperparam_spec,metric=metric_type, posLabel=posLabel, custom_hyperparams=custom_hyperparams)
         optimal_params = dict()
 
         if custom_hyperparams is not None:
@@ -158,6 +157,11 @@ class PrimitiveDescription(object):
         logging.info("CV scores for %s = %s(%s - %s) k = %s", python_path, median, metric_scores[lb], metric_scores[ub], len(metric_scores))
         print("CV scores for ", python_path, " = ", mean, "(", mean-z, "-", mean+z, ") k = ", len(metric_scores))
         print("CV scores for ", python_path, " = ", median, "(", metric_scores[lb], "-", metric_scores[ub], ") k = ", len(metric_scores))
+        print("Second last score: ", python_path, " = ", metric_scores[1])
+        text = python_path + "," + str(mean) + "," + str(mean-z) + "," + str(median) + "," + str(metric_scores[lb]) + "," + str(metric_scores[1]) + "\n"
+        filename = "scores.csv"
+        with open(filename, "a") as g:
+            g.write(text)
         return (score, optimal_params)
 
     def evaluate_metric(self, predictions, Ytest, metric, posLabel):

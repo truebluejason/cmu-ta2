@@ -66,6 +66,7 @@ def column_types_present(dataset):
     Returns ([data types], total columns, total rows, [categorical att indices], ok_to_denormalize)
     """
     ok_to_denormalize = True
+    ok_to_impute = False
     try:
         primitive = d3m.index.get_primitive('d3m.primitives.data_transformation.denormalize.Common')
         primitive_hyperparams = primitive.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
@@ -103,8 +104,16 @@ def column_types_present(dataset):
         print("Cats = ", cols)
  
     total_cols = len(metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/Attribute"))
+    attcols = metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/Attribute")
+    for t in attcols:
+        column_metadata = metadata.query((metadata_base.ALL_ELEMENTS, t))
+        semantic_types = column_metadata.get('semantic_types', [])
+        if "http://schema.org/Integer" in semantic_types or "http://schema.org/Float" in semantic_types:
+            ok_to_impute = True
+            break
+
     print("Data types present: ", types)
-    return (types, total_cols, len(df), cols, ok_to_denormalize)
+    return (types, total_cols, len(df), cols, ok_to_denormalize, ok_to_impute)
 
 def compute_timestamp():
     now = time.time()
@@ -191,12 +200,16 @@ class SolutionDescription(object):
         self.total_cols = 0
         self.categorical_atts = None
         self.ok_to_denormalize = True
+        self.ok_to_impute = False
 
     def set_categorical_atts(self, atts):
         self.categorical_atts = atts
 
     def set_denormalize(self, ok_to_denormalize):
         self.ok_to_denormalize = ok_to_denormalize
+
+    def set_impute(self, ok_to_impute):
+        self.ok_to_impute = ok_to_impute
 
     def contains_placeholder(self):
         if self.steptypes is None:
@@ -645,6 +658,9 @@ class SolutionDescription(object):
         if 'denormalize' in python_paths[0] and self.ok_to_denormalize == False:
             python_paths.remove('d3m.primitives.data_transformation.denormalize.Common')
 
+        if len(python_paths) > 4 and 'imputer' in python_paths[4] and self.ok_to_impute == False:
+            python_paths.remove('d3m.primitives.data_cleaning.imputer.SKlearn')
+
         if (taskname == 'CLASSIFICATION' or taskname == 'REGRESSION' or taskname == 'TEXT' or taskname == 'IMAGE' or taskname == 'TIMESERIES'):
             if self.categorical_atts is not None and len(self.categorical_atts) > 0:
                 index = len(python_paths)-1
@@ -723,9 +739,6 @@ class SolutionDescription(object):
                     data = 'steps.' + str(i-1) + '.produce'
                 else: # other steps
                     data = 'steps.' + str(i-1) + '.produce'
-                    if i == num-2:
-                        self.hyperparams[i] = {}
-                        self.hyperparams[i]['k'] = 1
             else:
                 if i == 0:
                     data = 'inputs.0'
