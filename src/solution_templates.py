@@ -69,13 +69,13 @@ task_paths = {
 
 'AUDIO': ['d3m.primitives.data_transformation.denormalize.Common',
           'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
-          'd3m.primitives.data_preprocessing.audio_reader.AudioReader',
-          'd3m.primitives.data_preprocessing.channel_averager.ChannelAverager',
-          'd3m.primitives.data_preprocessing.signal_dither.SignalDither',
-          'd3m.primitives.time_series_segmentation.signal_framer.SignalFramer',
-          'd3m.primitives.feature_extraction.signal_mfcc.SignalMFCC',
-          'd3m.primitives.data_transformation.i_vector_extractor.IVectorExtractor',
-          'd3m.primitives.data_preprocessing.targets_reader.TargetsReader'],
+          'd3m.primitives.bbn.time_series.AudioReader',
+          'd3m.primitives.bbn.time_series.ChannelAverager',
+          'd3m.primitives.bbn.time_series.SignalDither',
+          'd3m.primitives.bbn.time_series.SignalFramer',
+          'd3m.primitives.bbn.time_series.SignalMFCC',
+          'd3m.primitives.bbn.time_series.IVectorExtractor',
+          'd3m.primitives.bbn.time_series.TargetsReader'],
 
 'FALLBACK1': ['d3m.primitives.classification.gaussian_classification.MeanBaseline']}
 
