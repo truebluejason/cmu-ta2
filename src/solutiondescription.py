@@ -30,6 +30,7 @@ from d3m.metadata import base as metadata_base
 from d3m.primitive_interfaces.base import PrimitiveBaseMeta
 from d3m.container import DataFrame as d3m_dataframe
 from d3m.runtime import Runtime
+from sri.psl.link_prediction import LinkPredictionHyperparams
 import d3m.index
 
 import networkx as nx
@@ -549,10 +550,7 @@ class SolutionDescription(object):
         hyperparams = self.hyperparams[n_step]
         if hyperparams is not None:
             for hyperparam, value in hyperparams.items():
-                if isinstance(value, dict):
-                    custom_hyperparams[hyperparam] = value['data']
-                else:
-                    custom_hyperparams[hyperparam] = value
+                custom_hyperparams[hyperparam] = value
 
         training_arguments_primitive = self._primitive_arguments(primitive, 'set_training_data')
         training_arguments = {}
@@ -708,6 +706,12 @@ class SolutionDescription(object):
             if python_paths[i] == 'd3m.primitives.feature_construction.corex_text.CorexText':
                 self.hyperparams[i] = {}
                 self.hyperparams[i]['threshold'] = 500
+           
+            if python_paths[i] == 'd3m.primitives.link_prediction.graph_matching_link_prediction.GraphMatchingLinkPrediction':
+                self.hyperparams[i] = {}
+                custom_hyperparams = {}
+                custom_hyperparams['prediction_column'] = 'match'
+                self.hyperparams[i]['link_prediction_hyperparams'] = LinkPredictionHyperparams(LinkPredictionHyperparams.defaults(), **custom_hyperparams)
 
             if taskname == 'CLASSIFICATION' or \
                  taskname == 'REGRESSION' or \
@@ -1032,10 +1036,7 @@ class SolutionDescription(object):
         custom_hyperparams = dict()
         if hyperparams is not None:
             for hyperparam, value in hyperparams.items():
-                if isinstance(value, dict):
-                    custom_hyperparams[hyperparam] = value['data']
-                else:
-                    custom_hyperparams[hyperparam] = value
+                custom_hyperparams[hyperparam] = value
 
         for param, value in primitive_arguments.items():
             if param in training_arguments_primitive:
