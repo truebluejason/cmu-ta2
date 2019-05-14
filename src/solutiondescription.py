@@ -109,7 +109,7 @@ def column_types_present(dataset):
     for t in attcols:
         column_metadata = metadata.query((metadata_base.ALL_ELEMENTS, t))
         semantic_types = column_metadata.get('semantic_types', [])
-        if "http://schema.org/Integer" in semantic_types or "http://schema.org/Float" in semantic_types:
+        if "http://schema.org/Integer" in semantic_types or "http://schema.org/Float" in semantic_types or "http://schema.org/DateTime" in semantic_types:
             ok_to_impute = True
             break
 
@@ -736,8 +736,12 @@ class SolutionDescription(object):
                     data = 'steps.' + str(i-1) + '.produce'
 
             elif taskname == 'AUDIO':
-                if i == 0 or i == 2 or i == num-1: # denormalize or AudioReader or TargetsReader
+                if i == 0 or i == 2:# or i == num-1: # denormalize or AudioReader or TargetsReader
                     data = 'inputs.0'
+                elif i == num-1: # extract_columns_by_semantic_types (targets)
+                    data = 'steps.1.produce'
+                    self.hyperparams[i] = {}
+                    self.hyperparams[i]['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/TrueTarget']
                 else: # other steps
                     data = 'steps.' + str(i-1) + '.produce'
             elif taskname == 'CLUSTERING':

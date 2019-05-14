@@ -160,6 +160,7 @@ class Core(core_pb2_grpc.CoreServicer):
             metric = request_params.problem.problem.performance_metrics[0].metric
             posLabel = request_params.problem.problem.performance_metrics[0].pos_label
             results = [self.async_message_thread.apply_async(search.evaluate_solution_score, (inputs, sol, self._primitives, metric, posLabel,)) for sol in solutions]
+            logging.info("Search timeout = %d", request_params.time_bound_search)
             timeout = request_params.time_bound_search * 60
             if timeout <= 0:
                 timeout = None

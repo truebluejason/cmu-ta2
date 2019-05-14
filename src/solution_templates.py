@@ -73,7 +73,8 @@ task_paths = {
           'd3m.primitives.bbn.time_series.SignalFramer',
           'd3m.primitives.bbn.time_series.SignalMFCC',
           'd3m.primitives.bbn.time_series.IVectorExtractor',
-          'd3m.primitives.bbn.time_series.TargetsReader'],
+          #'d3m.primitives.bbn.time_series.TargetsReader'],
+          'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'],
 
 'FALLBACK1': ['d3m.primitives.classification.gaussian_classification.MeanBaseline']}
 
