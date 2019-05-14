@@ -17,14 +17,14 @@ task_paths = {
                'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
                'd3m.primitives.data_transformation.column_parser.DataFrameCommon',
                'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
-               'd3m.primitives.data_preprocessing.TimeseriesToList.DSBOX',
-               'd3m.primitives.feature_extraction.RandomProjectionTimeSeriesFeaturization.DSBOX',
+               'd3m.primitives.data_preprocessing.time_series_to_list.DSBOX',
+               'd3m.primitives.feature_extraction.random_projection_timeseries_featurization.DSBOX',
                'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'],
 
 'IMAGE': ['d3m.primitives.data_transformation.denormalize.Common',
           'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
-          'd3m.primitives.data_preprocessing.DataFrameToTensor.DSBOX',
-          'd3m.primitives.feature_extraction.ResNet50ImageFeature.DSBOX',
+          'd3m.primitives.data_preprocessing.dataframe_to_tensor.DSBOX',
+          'd3m.primitives.feature_extraction.resnet50_image_feature.DSBOX',
           'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'],
 
 'CLASSIFICATION': ['d3m.primitives.data_transformation.denormalize.Common',
