@@ -15,8 +15,6 @@ task_paths = {
 
 'TIMESERIES': ['d3m.primitives.data_transformation.denormalize.Common',
                'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
-               'd3m.primitives.data_transformation.column_parser.DataFrameCommon',
-               'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
                'd3m.primitives.data_preprocessing.time_series_to_list.DSBOX',
                'd3m.primitives.feature_extraction.random_projection_timeseries_featurization.DSBOX',
                'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'],
@@ -121,11 +119,12 @@ def get_solutions(task_name, dataset, primitives, problem):
 
     if task_name == 'CLASSIFICATION' or task_name == 'REGRESSION':
         try:
-            (types_present, total_cols, rows, categorical_atts, ok_to_denormalize, ok_to_impute) = solutiondescription.column_types_present(dataset)
+            (types_present, total_cols, rows, categorical_atts, ok_to_denormalize, ok_to_impute, privileged) = solutiondescription.column_types_present(dataset)
             print(types_present)
             basic_sol.set_categorical_atts(categorical_atts)
             basic_sol.set_denormalize(ok_to_denormalize)
             basic_sol.set_impute(ok_to_impute)
+            basic_sol.set_privileged(privileged)
             basic_sol.initialize_solution(task_name)
         except:
             logging.info(sys.exc_info()[0])

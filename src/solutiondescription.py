@@ -103,8 +103,8 @@ def column_types_present(dataset):
     if len(cols) > 0:
         types.append('Categorical')
         print("Cats = ", cols)
- 
-    total_cols = len(metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/Attribute"))
+    
+    privileged = metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/SuggestedPrivilegedData") 
     attcols = metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/Attribute")
     for t in attcols:
         column_metadata = metadata.query((metadata_base.ALL_ELEMENTS, t))
@@ -114,7 +114,7 @@ def column_types_present(dataset):
             break
 
     print("Data types present: ", types)
-    return (types, total_cols, len(df), cols, ok_to_denormalize, ok_to_impute)
+    return (types, len(attcols), len(df), cols, ok_to_denormalize, ok_to_impute, privileged)
 
 def compute_timestamp():
     now = time.time()
@@ -202,6 +202,7 @@ class SolutionDescription(object):
         self.categorical_atts = None
         self.ok_to_denormalize = True
         self.ok_to_impute = False
+        self.privileged = None
 
     def set_categorical_atts(self, atts):
         self.categorical_atts = atts
@@ -211,6 +212,9 @@ class SolutionDescription(object):
 
     def set_impute(self, ok_to_impute):
         self.ok_to_impute = ok_to_impute
+
+    def set_privileged(self, privileged):
+        self.privileged = privileged
 
     def contains_placeholder(self):
         if self.steptypes is None:
@@ -712,6 +716,10 @@ class SolutionDescription(object):
                 custom_hyperparams = {}
                 custom_hyperparams['prediction_column'] = 'match'
                 self.hyperparams[i]['link_prediction_hyperparams'] = LinkPredictionHyperparams(LinkPredictionHyperparams.defaults(), **custom_hyperparams)
+
+            if self.privileged is not None and len(self.privileged) > 0 and python_paths[i] == 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon':
+                self.hyperparams[i] = {}
+                self.hyperparams[i]['exclude_columns'] = self.privileged
 
             if taskname == 'CLASSIFICATION' or \
                  taskname == 'REGRESSION' or \
