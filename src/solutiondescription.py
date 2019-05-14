@@ -817,7 +817,7 @@ class SolutionDescription(object):
 
         if 'SKlearn' in python_path:
             self.hyperparams[i] = {}
-            if self.taskname is not 'IMAGE' and self.taskname is not 'TIMESERIES' and self.taskanme is not 'AUDIO': 
+            if self.taskname is not 'IMAGE' and self.taskname is not 'TIMESERIES' and self.taskname is not 'AUDIO': 
                 self.hyperparams[i]['use_semantic_types'] = True
             hyperparam_spec = self.primitives[i].metadata.query()['primitive_code']['hyperparams']
             if 'n_estimators' in hyperparam_spec:
