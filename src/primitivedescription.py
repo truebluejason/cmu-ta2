@@ -12,7 +12,6 @@ import d3m.index
 logging.basicConfig(level=logging.INFO)
 
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor, ExtraTreesClassifier, ExtraTreesRegressor, GradientBoostingClassifier, GradientBoostingRegressor
-from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.linear_model import LogisticRegression, Lasso, Ridge
 from sklearn.linear_model.stochastic_gradient import SGDClassifier
@@ -49,10 +48,6 @@ gridsearch_estimators_parameters = {'d3m.primitives.regression.random_forest.SKl
               'd3m.primitives.regression.svr.SKlearn': [SVR(),
                                                         {'C': [0.01, 0.1, 1, 10, 100],
                                                          'gamma': [0.01, 0.1, 1, 10]}],
-              'd3m.primitives.classification.k_neighbors.SKlearn': [KNeighborsClassifier(),
-                                                                   {'n_neighbors': [5, 10, 50, 100, 200, 500]}],
-              'd3m.primitives.regression.k_neighbors.SKlearn': [KNeighborsRegressor(),
-                                                                   {'n_neighbors': [5, 10, 50, 100, 200, 500]}],
               'd3m.primitives.classification.logistic_regression.SKlearn': [LogisticRegression(),
                                                                             {'C': [0.1, 1, 10, 100],
                                                                              'class_weight': ['balanced', None]}],
@@ -115,7 +110,7 @@ class PrimitiveDescription(object):
             else:
                 return (0.0, optimal_params)
 
-        if y is None or 'd3m.primitives.sri' in python_path or 'bbn' in python_path:
+        if y is None or 'graph' in python_path or 'link' in python_path or 'community' in python_path:
             if util.invert_metric(metric_type) is True:
                 return (0.0, optimal_params)
             else:
