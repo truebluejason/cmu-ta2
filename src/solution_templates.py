@@ -106,6 +106,7 @@ def get_solutions(task_name, dataset, primitives, problem):
     Used by both TA2 in "search" phase and TA2-TA3
     """
     solutions = []
+    time_used = 0
 
     try:
         static_dir = os.environ['D3MSTATICDIR']
@@ -154,6 +155,7 @@ def get_solutions(task_name, dataset, primitives, problem):
                 basic_sol.run_basic_solution(inputs=[dataset])
                 end = timer()
                 logging.info("Time taken to run basic solution: %s seconds", end - start)
+                time_used = end - start
                 total_cols = basic_sol.get_total_cols()
                 print("Total cols = ", total_cols)
             except:
@@ -212,5 +214,5 @@ def get_solutions(task_name, dataset, primitives, problem):
     else:
         logging.info("No matching solutions")
 
-    return solutions
+    return (solutions, time_used)
 

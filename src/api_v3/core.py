@@ -17,6 +17,7 @@ import search
 
 import solutiondescription, util, solution_templates
 from multiprocessing import Pool, cpu_count
+from multiprocessing.context import TimeoutError
 import uuid
 
 logging.basicConfig(level=logging.INFO)
@@ -82,7 +83,7 @@ class Core(core_pb2_grpc.CoreServicer):
                 logging.info("New datset from specified pipeline: %s", dataset)
 
         taskname = task_name.replace('_', '')
-        solutions = solution_templates.get_solutions(taskname, dataset, primitives, request.problem)
+        (solutions,time_used) = solution_templates.get_solutions(taskname, dataset, primitives, request.problem)
 
         if pipeline_placeholder_present is True:
             new_solution_set = []
@@ -92,9 +93,9 @@ class Core(core_pb2_grpc.CoreServicer):
                 pipe.add_subpipeline(s)
                 new_solution_set.append(pipe)
             logging.info("%s", new_solution_set)
-            return new_solution_set
+            return (new_solution_set, time_used)
  
-        return solutions
+        return (solutions, time_used)
     
     def SearchSolutions(self, request, context):
         """
@@ -140,7 +141,7 @@ class Core(core_pb2_grpc.CoreServicer):
         request_params = self._solution_score_map[search_id_str]
         count = 0
         inputs = self._get_inputs(request_params.problem, request_params.inputs)
-        solutions = self.search_solutions(request_params, inputs[0])
+        (solutions, time_used) = self.search_solutions(request_params, inputs[0])
         self._search_solutions[search_id_str] = []
 
         # Fully specified solution
@@ -166,6 +167,12 @@ class Core(core_pb2_grpc.CoreServicer):
                 timeout = None
             elif timeout > 60:
                 timeout = timeout - 60
+                timeout = timeout - time_used
+                if timeout <= 0:
+                    timeout = 1
+
+            if timeout is not None:
+                logging.info("Timeout = %d sec", timeout)
 
             outputDir = os.environ['D3MOUTPUTDIR']
             valid_solution_scores = {}
@@ -173,9 +180,7 @@ class Core(core_pb2_grpc.CoreServicer):
             # Evaluate potential solutions asynchronously and get end-result
             for r in results:
                 try:
-                    #val = r.get(timeout=timeout)
                     (score, optimal_params) = r.get(timeout=timeout)
-                    #if val == 0:
                     count = count + 1
                     id = solutions[index].id
                     self._solutions[id] = solutions[index]
@@ -186,6 +191,12 @@ class Core(core_pb2_grpc.CoreServicer):
                     util.write_pipeline_json(solutions[index], self._primitives, outputDir + "/pipelines_searched")
                     yield core_pb2.GetSearchSolutionsResultsResponse(progress=msg, done_ticks=count, all_ticks=len(solutions), solution_id=id,
                                         internal_score=0.0, scores=[])
+                except TimeoutError:
+                    logging.info(solutions[index].primitives)
+                    logging.info(sys.exc_info()[0])
+                    logging.info("Solution terminated: %s", solutions[index].id)
+                    #self.async_message_thread.terminate()
+                    break
                 except:
                     logging.info(solutions[index].primitives)
                     logging.info(sys.exc_info()[0])

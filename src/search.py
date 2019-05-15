@@ -49,7 +49,7 @@ def search_phase():
         problem_metric = problem_pb2.ROOT_MEAN_SQUARED_ERROR
     elif metric == 'meanAbsoluteError':
         problem_metric = problem_pb2.MEAN_ABSOLUTE_ERROR
-    solutions = solution_templates.get_solutions(task_name, dataset, primitives, None)
+    (solutions, time_used) = solution_templates.get_solutions(task_name, dataset, primitives, None)
 
     async_message_thread = Pool((int)(num_cpus))
     valid_solutions = {}
