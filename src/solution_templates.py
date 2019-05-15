@@ -73,33 +73,32 @@ task_paths = {
           'd3m.primitives.bbn.time_series.SignalFramer',
           'd3m.primitives.bbn.time_series.SignalMFCC',
           'd3m.primitives.bbn.time_series.IVectorExtractor',
-          #'d3m.primitives.bbn.time_series.TargetsReader'],
           'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'],
 
 'FALLBACK1': ['d3m.primitives.classification.gaussian_classification.MeanBaseline']}
 
-classifiers = ['d3m.primitives.classification.random_forest.SKlearn',
-               'd3m.primitives.classification.bagging.SKlearn',
-               'd3m.primitives.classification.bernoulli_naive_bayes.SKlearn',
-               'd3m.primitives.classification.extra_trees.SKlearn',
-               'd3m.primitives.classification.gradient_boosting.SKlearn',
+classifiers = ['d3m.primitives.classification.bernoulli_naive_bayes.SKlearn',
                'd3m.primitives.classification.linear_discriminant_analysis.SKlearn',
-               'd3m.primitives.classification.linear_svc.SKlearn',
                'd3m.primitives.classification.logistic_regression.SKlearn',
+               'd3m.primitives.classification.linear_svc.SKlearn',
+               'd3m.primitives.classification.extra_trees.SKlearn',
+               'd3m.primitives.classification.random_forest.SKlearn',
+               'd3m.primitives.classification.bagging.SKlearn',
+               'd3m.primitives.classification.gaussian_naive_bayes.SKlearn',
                'd3m.primitives.classification.sgd.SKlearn',
                'd3m.primitives.classification.svc.SKlearn',
-               'd3m.primitives.classification.gaussian_naive_bayes.SKlearn']
+               'd3m.primitives.classification.gradient_boosting.SKlearn']
 
-regressors = ['d3m.primitives.regression.random_forest.SKlearn',
-               'd3m.primitives.regression.extra_trees.SKlearn',
-               'd3m.primitives.regression.gradient_boosting.SKlearn',
-               'd3m.primitives.regression.linear_svr.SKlearn', 
-               'd3m.primitives.regression.sgd.SKlearn', 
-               'd3m.primitives.regression.svr.SKlearn',
-               'd3m.primitives.regression.gaussian_process.SKlearn',
-               'd3m.primitives.regression.ridge.SKlearn',
-               'd3m.primitives.regression.lasso.SKlearn',
-               'd3m.primitives.regression.lasso_cv.SKlearn']
+regressors = ['d3m.primitives.regression.gaussian_process.SKlearn',
+              'd3m.primitives.regression.ridge.SKlearn',
+              'd3m.primitives.regression.lasso.SKlearn',
+              'd3m.primitives.regression.lasso_cv.SKlearn',
+              'd3m.primitives.regression.linear_svr.SKlearn',
+              'd3m.primitives.regression.svr.SKlearn',
+              'd3m.primitives.regression.random_forest.SKlearn',
+              'd3m.primitives.regression.extra_trees.SKlearn',
+              'd3m.primitives.regression.sgd.SKlearn',
+              'd3m.primitives.regression.gradient_boosting.SKlearn']
 
 def get_solutions(task_name, dataset, primitives, problem):
     """
@@ -112,6 +111,13 @@ def get_solutions(task_name, dataset, primitives, problem):
         static_dir = os.environ['D3MSTATICDIR']
     except:
         static_dir = None
+
+    basic_sol = solutiondescription.SolutionDescription(problem, static_dir)
+    basic_sol.initialize_solution('FALLBACK1')
+    pipe = copy.deepcopy(basic_sol)
+    pipe.id = str(uuid.uuid4())
+    pipe.add_outputs()
+    solutions.append(pipe)
 
     if task_name == 'TIMESERIESFORECASTING':
         task_name = 'REGRESSION'
@@ -205,13 +211,6 @@ def get_solutions(task_name, dataset, primitives, problem):
         solutions.append(pipe)
     else:
         logging.info("No matching solutions")
-
-    basic_sol = solutiondescription.SolutionDescription(problem, static_dir)
-    basic_sol.initialize_solution('FALLBACK1')
-    pipe = copy.deepcopy(basic_sol)
-    pipe.id = str(uuid.uuid4())
-    pipe.add_outputs()
-    solutions.append(pipe)
 
     return solutions
 
