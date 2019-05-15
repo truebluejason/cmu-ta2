@@ -140,16 +140,16 @@ def get_solutions(task_name, dataset, primitives, problem):
             types_present = None
 
         if types_present is not None:
-            if 'TIMESERIES' in types_present:
-                basic_sol.initialize_solution('TIMESERIES')
-            elif 'IMAGE' in types_present:
-                basic_sol.initialize_solution('IMAGE')
-            elif 'TEXT' in types_present:
-                basic_sol.initialize_solution('TEXT')
-            elif 'AUDIO' in types_present:
-                basic_sol.initialize_solution('AUDIO')
-
             try:
+                if 'TIMESERIES' in types_present:
+                    basic_sol.initialize_solution('TIMESERIES')
+                elif 'IMAGE' in types_present:
+                    basic_sol.initialize_solution('IMAGE')
+                elif 'TEXT' in types_present:
+                    basic_sol.initialize_solution('TEXT')
+                elif 'AUDIO' in types_present:
+                    basic_sol.initialize_solution('AUDIO')
+
                 from timeit import default_timer as timer
                 start = timer()
                 basic_sol.run_basic_solution(inputs=[dataset])
