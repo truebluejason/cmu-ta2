@@ -190,22 +190,20 @@ class Core(core_pb2_grpc.CoreServicer):
                     logging.info(solutions[index].primitives)
                     logging.info(sys.exc_info()[0])
                     logging.info("Solution terminated: %s", solutions[index].id)
-
                 index = index + 1
+
+            # Sort solutions by their scores and rank them
+            sorted_x = search.rank_solutions(valid_solution_scores, metric)
+            index = 1
+            for (sol, score) in sorted_x:
+                self._solutions[sol].rank = index
+                print("Rank ", index)
+                print("Score ", score)
+                index = index + 1  
 
         self._solution_score_map.pop(search_id_str, None)
       
         logging.info("No. of sol = %d", count) 
-
-        # Sort solutions by their scores and rank them
-        sorted_x = search.rank_solutions(valid_solution_scores, metric)
-
-        index = 1
-        for (sol, score) in sorted_x:
-            self._solutions[sol].rank = index
-            print("Rank ", index)
-            print("Score ", score)
-            index = index + 1
 
         msg = core_pb2.Progress(state=core_pb2.COMPLETED, status="", start=start, end=solutiondescription.compute_timestamp()) 
         yield core_pb2.GetSearchSolutionsResultsResponse(progress=msg, done_ticks=count, all_ticks=count,
