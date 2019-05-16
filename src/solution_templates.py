@@ -89,8 +89,7 @@ classifiers = ['d3m.primitives.classification.bernoulli_naive_bayes.SKlearn',
                'd3m.primitives.classification.svc.SKlearn',
                'd3m.primitives.classification.gradient_boosting.SKlearn']
 
-regressors = ['d3m.primitives.regression.gaussian_process.SKlearn',
-              'd3m.primitives.regression.ridge.SKlearn',
+regressors = ['d3m.primitives.regression.ridge.SKlearn',
               'd3m.primitives.regression.lasso.SKlearn',
               'd3m.primitives.regression.lasso_cv.SKlearn',
               'd3m.primitives.regression.linear_svr.SKlearn',
