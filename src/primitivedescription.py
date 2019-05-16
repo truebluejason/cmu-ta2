@@ -51,8 +51,6 @@ gridsearch_estimators_parameters = {'d3m.primitives.regression.random_forest.SKl
               'd3m.primitives.classification.logistic_regression.SKlearn': [LogisticRegression(),
                                                                             {'C': [0.1, 1, 10, 100],
                                                                              'class_weight': ['balanced', None]}],
-              'd3m.primitives.classification.sgd.SKlearn': [SGDClassifier(),
-                                                            {'class_weight': ['balanced', None]}],
               'd3m.primitives.regression.ridge.SKlearn': [Ridge(), 
                                                           {'alpha': [0.001, 0.01, 0.1, 1, 5]}],
               'd3m.primitives.regression.lasso.SKlearn': [Lasso(),
@@ -186,8 +184,6 @@ class PrimitiveDescription(object):
         elif metric is problem_pb2.MEAN_SQUARED_ERROR:
             return metrics.mean_squared_error(Ytest, predictions)
         elif metric is problem_pb2.ROOT_MEAN_SQUARED_ERROR:
-            return math.sqrt(metrics.mean_squared_error(Ytest, predictions))
-        elif metric is problem_pb2.ROOT_MEAN_SQUARED_ERROR_AVG:
             return math.sqrt(metrics.mean_squared_error(Ytest, predictions))
         elif metric is problem_pb2.MEAN_ABSOLUTE_ERROR:
             return metrics.mean_absolute_error(Ytest, predictions)
