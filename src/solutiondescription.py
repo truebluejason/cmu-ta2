@@ -512,9 +512,9 @@ class SolutionDescription(object):
         """
         solution = solution_dict[pipeline_id]
 
+        logging.info("Subpipeline: %s", primitive_arguments)
         inputs = []
-        for i in range(len(primitive_arguments)):
-            inputs.append(primitive_arguments[i])
+        inputs.append(primitive_arguments)
 
         if action is ActionType.FIT: 
             return solution.fit(inputs=inputs, solution_dict=solution_dict)
@@ -962,7 +962,6 @@ class SolutionDescription(object):
 
         last_step = self.get_last_step()
 
-        logging.info("score_sol: %s", arguments)
         if self.primitives_outputs is None:
             for i in range(0, last_step+1): 
                 n_step = self.execution_order[i]
