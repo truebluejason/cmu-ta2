@@ -936,6 +936,10 @@ class SolutionDescription(object):
         This is the last-1 step of the pipeline, since it is followed by construct_predictions primitive to construct predictions output from d3mIndex and primitive output.
         """
         n_steps = len(self.primitives_arguments)
+
+        if self.steptypes[n_steps-1] is StepType.SUBPIPELINE:
+            return n_steps - 1
+
         if 'construct_predictions' in self.primitives[n_steps-1].metadata.query()['python_path']:
             return n_steps - 2
         else:
