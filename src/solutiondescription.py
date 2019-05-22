@@ -898,7 +898,7 @@ class SolutionDescription(object):
                     primitive_arguments[argument] = primitives_outputs[value['source']]
                 else:
                     primitive_arguments[argument] = arguments['inputs'][value['source']]
-            return self._pipeline_step_fit(n_step, self.primitives[n_step], primitive_arguments,
+            return self._pipeline_step_fit(n_step, self.subpipelines[n_step].id, primitive_arguments,
  arguments['solution_dict'], arguments['primitive_dict'], action)
 
         # Primitive step
