@@ -937,12 +937,20 @@ class SolutionDescription(object):
         """
         n_steps = len(self.primitives_arguments)
 
+        logging.info("Running step = ", self.steptypes[n_steps-1]) 
         if self.steptypes[n_steps-1] is StepType.SUBPIPELINE:
+            logging.info("Return 1")
+            return n_steps - 1
+
+        if self.primitives[n_steps-1] is None:
+            logging.info("Return 2")
             return n_steps - 1
 
         if 'construct_predictions' in self.primitives[n_steps-1].metadata.query()['python_path']:
+            logging.info("Return 3")
             return n_steps - 2
         else:
+            logging.info("Return 4")
             return n_steps - 1
 
     def score_solution(self, **arguments):
