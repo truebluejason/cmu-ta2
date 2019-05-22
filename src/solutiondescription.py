@@ -937,7 +937,7 @@ class SolutionDescription(object):
         """
         n_steps = len(self.primitives_arguments)
 
-        logging.info("Running step = ", self.steptypes[n_steps-1]) 
+        logging.info("Running step = %s", self.steptypes[n_steps-1]) 
         if self.steptypes[n_steps-1] is StepType.SUBPIPELINE:
             logging.info("Return 1")
             return n_steps - 1
