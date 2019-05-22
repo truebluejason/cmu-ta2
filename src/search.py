@@ -59,7 +59,7 @@ def search_phase():
     inputs.append(dataset)
 
     # Score potential solutions
-    results = [async_message_thread.apply_async(evaluate_solution_score, (inputs, sol, primitives, problem_metric, posLabel,)) for sol in solutions]
+    results = [async_message_thread.apply_async(evaluate_solution_score, (inputs, sol, primitives, problem_metric, posLabel, None, )) for sol in solutions]
     timeout = timeout_in_min * 60
     halftimeout = None
     if timeout <= 0:
@@ -117,7 +117,7 @@ def search_phase():
             logging.info("Solution terminated: %s", valid_solutions[sorted_x[index][0]].id)
         index = index + 1
 
-def evaluate_solution_score(inputs, solution, primitives, metric, posLabel):
+def evaluate_solution_score(inputs, solution, primitives, metric, posLabel, sol_dict):
     """
     Scores each potential solution
     Runs in a separate process
@@ -125,7 +125,7 @@ def evaluate_solution_score(inputs, solution, primitives, metric, posLabel):
     logging.info("Evaluating %s", solution.id)
 
     (score, optimal_params) = solution.score_solution(inputs=inputs, metric=metric, posLabel=posLabel,
-                                primitive_dict=primitives, solution_dict=None)
+                                primitive_dict=primitives, solution_dict=sol_dict)
 
     return (score, optimal_params)
 

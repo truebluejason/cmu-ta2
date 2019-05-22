@@ -160,7 +160,7 @@ class Core(core_pb2_grpc.CoreServicer):
 
             metric = request_params.problem.problem.performance_metrics[0].metric
             posLabel = request_params.problem.problem.performance_metrics[0].pos_label
-            results = [self.async_message_thread.apply_async(search.evaluate_solution_score, (inputs, sol, self._primitives, metric, posLabel,)) for sol in solutions]
+            results = [self.async_message_thread.apply_async(search.evaluate_solution_score, (inputs, sol, self._primitives, metric, posLabel, self._solutions, )) for sol in solutions]
             logging.info("Search timeout = %d", request_params.time_bound_search)
             timeout = request_params.time_bound_search * 60
             if timeout <= 0:
@@ -179,7 +179,7 @@ class Core(core_pb2_grpc.CoreServicer):
 
             # Evaluate potential solutions asynchronously and get end-result
             for r in results:
-                try:
+                if 1:#try:
                     (score, optimal_params) = r.get(timeout=timeout)
                     count = count + 1
                     id = solutions[index].id
@@ -191,16 +191,16 @@ class Core(core_pb2_grpc.CoreServicer):
                     util.write_pipeline_json(solutions[index], self._primitives, outputDir + "/pipelines_searched")
                     yield core_pb2.GetSearchSolutionsResultsResponse(progress=msg, done_ticks=count, all_ticks=len(solutions), solution_id=id,
                                         internal_score=0.0, scores=[])
-                except TimeoutError:
-                    logging.info(solutions[index].primitives)
-                    logging.info(sys.exc_info()[0])
-                    logging.info("Solution terminated: %s", solutions[index].id)
+                #except TimeoutError:
+                #    logging.info(solutions[index].primitives)
+                #    logging.info(sys.exc_info()[0])
+                #    logging.info("Solution terminated: %s", solutions[index].id)
                     #self.async_message_thread.terminate()
-                    break
-                except:
-                    logging.info(solutions[index].primitives)
-                    logging.info(sys.exc_info()[0])
-                    logging.info("Solution terminated: %s", solutions[index].id)
+                #    break
+                #except:
+                #    logging.info(solutions[index].primitives)
+                #    logging.info(sys.exc_info()[0])
+                #    logging.info("Solution terminated: %s", solutions[index].id)
                 index = index + 1
 
             # Sort solutions by their scores and rank them
