@@ -497,7 +497,7 @@ class SolutionDescription(object):
         v = primitives_outputs[len(self.execution_order)-1]
         return v
 
-    def _pipeline_step_fit(self, n_step: int, pipeline_id: str, primitive_arguments, solution_dict, primitive_dict, action):
+    def _pipeline_step_fit(self, n_step: int, pipeline_id: str, primitive_arguments, arguments, action):
         """
         Execute a subpipeline step
         
@@ -517,11 +517,12 @@ class SolutionDescription(object):
         inputs.append(primitive_arguments)
 
         if action is ActionType.FIT: 
-            return solution.fit(inputs=inputs, solution_dict=solution_dict)
+            return solution.fit(inputs=inputs, solution_dict=arguments['solution_dict'])
         elif action is ActionType.SCORE:
-            return solution.score_solution(inputs=inputs, solution_dict=solution_dict, primitive_dict=primitive_dict)
+            return solution.score_solution(inputs=inputs, solution_dict=arguments['solution_dict'], primitive_dict=arguments['primitive_dict'],
+                   posLabel=arguments['posLabel'], metric=arguments['metric'])
         else:
-            return solution.validate_solution(inputs=inputs, solution_dict=solution_dict)
+            return solution.validate_solution(inputs=inputs, solution_dict=arguments['solution_dict'])
  
     def fit_step(self, n_step: int, primitive: PrimitiveBaseMeta, primitive_arguments):
         """
@@ -719,6 +720,9 @@ class SolutionDescription(object):
                 custom_hyperparams['prediction_column'] = 'match'
                 self.hyperparams[i]['link_prediction_hyperparams'] = LinkPredictionHyperparams(LinkPredictionHyperparams.defaults(), **custom_hyperparams)
 
+            if python_paths[i] == 'd3m.primitives.natural_language_processing.lda.Fastlvm':
+                self.hyperparams[i] = {}
+
             if self.privileged is not None and len(self.privileged) > 0 and python_paths[i] == 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon':
                 self.hyperparams[i] = {}
                 self.hyperparams[i]['exclude_columns'] = self.privileged
@@ -903,8 +907,7 @@ class SolutionDescription(object):
                     primitive_arguments[argument] = primitives_outputs[value['source']]
                 else:
                     primitive_arguments[argument] = arguments['inputs'][value['source']]
-            return self._pipeline_step_fit(n_step, self.subpipelines[n_step].id, primitive_arguments,
- arguments['solution_dict'], arguments['primitive_dict'], action)
+            return self._pipeline_step_fit(n_step, self.subpipelines[n_step].id, primitive_arguments, arguments, action)
 
         # Primitive step
         if self.steptypes[n_step] is StepType.PRIMITIVE:
