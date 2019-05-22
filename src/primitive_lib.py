@@ -69,14 +69,6 @@ def load_primitives():
     primitives = {}
     for p in list_primitives():
 
-        # Do not add primitives which do not work or do not give good performance
-        if 'convolutional_neural_net' in p.python_path or 'feed_forward_neural_net' in p.python_path or 'regression.k_neighbors' in p.python_path or 'loss.TorchCommon' in p.python_path:
-            continue
-        if 'quadratic_discriminant_analysis.SKlearn' in p.python_path or 'd3m.primitives.classification.random_forest.DataFrameCommon' in p.python_path or 'bayesian_logistic_regression.Common' in p.python_path or 'regression.linear_regression.Common' in p.python_path:
-            continue
-        if 'rfm_precondition' in p.python_path or 'BayesianInfRPI' in p.python_path or 'xgboost' in p.python_path or 'light_gbm.DataFrameCommon' in p.python_path:
-            continue
-
         primitives[p.classname] = primitivedescription.PrimitiveDescription(p.classname, p)
 
     end = timer()

@@ -259,6 +259,8 @@ class SolutionDescription(object):
                     self.subpipelines[i].create_pipeline_json(prim_dict)
                     pdesc = self.subpipelines[i].pipeline_description 
                 step = SubpipelineStep(pipeline=pdesc)
+                ipname = 'steps.' + str(i-1) + '.produce'
+                step.add_input(data=ipname)
                 for output in self.subpipelines[i].outputs:
                     step.add_output(output_id=output[2])
 
@@ -283,7 +285,7 @@ class SolutionDescription(object):
         filename = dirName + "/" + self.id + ".json"
         if self.pipeline_description is None:
             self.create_pipeline_json(prim_dict)
- 
+
         with open(filename, "w") as out:
             parsed = json.loads(self.pipeline_description.to_json())
             if rank is not None:
@@ -703,7 +705,7 @@ class SolutionDescription(object):
                 self.hyperparams[i]['return_result'] = 'replace'
                 self.hyperparams[i]['handle_unknown'] = 'ignore'
 
-            if python_paths[i] == 'd3m.primitives.data_preprocessing.standard_scaler.SKlearn':
+            if python_paths[i] == 'd3m.primitives.data_preprocessing.robust_scaler.SKlearn':
                 self.hyperparams[i] = {}
                 self.hyperparams[i]['return_result'] = 'replace'
 
@@ -829,7 +831,7 @@ class SolutionDescription(object):
 
         if 'SKlearn' in python_path:
             self.hyperparams[i] = {}
-            if self.taskname is not 'IMAGE' and self.taskname is not 'TIMESERIES' and self.taskname is not 'AUDIO': 
+            if self.taskname is not 'IMAGE' and self.taskname is not 'TIMESERIES' and self.taskname is not 'AUDIO' and self.taskname is not 'TEXT': 
                 self.hyperparams[i]['use_semantic_types'] = True
             hyperparam_spec = self.primitives[i].metadata.query()['primitive_code']['hyperparams']
             if 'n_estimators' in hyperparam_spec:

@@ -145,7 +145,8 @@ class Core(core_pb2_grpc.CoreServicer):
         self._search_solutions[search_id_str] = []
 
         # Fully specified solution
-        if request_params.template != None and isinstance(request_params.template, pipeline_pb2.PipelineDescription) and len(request_params.template.steps) > 0:
+        if request_params.template != None and isinstance(request_params.template, pipeline_pb2.PipelineDescription) \
+            and len(request_params.template.steps) > 0 and len(solutions) == 1:
             msg = core_pb2.Progress(state=core_pb2.COMPLETED, status="", start=start, end=solutiondescription.compute_timestamp())
             count = count + 1
             id = solutions[0].id
@@ -157,7 +158,6 @@ class Core(core_pb2_grpc.CoreServicer):
             index = 0
             msg = core_pb2.Progress(state=core_pb2.RUNNING, status="", start=start, end=solutiondescription.compute_timestamp())
 
-            #results = [self.async_message_thread.apply_async(evaluate_solution, (inputs, sol, None,)) for sol in solutions]
             metric = request_params.problem.problem.performance_metrics[0].metric
             posLabel = request_params.problem.problem.performance_metrics[0].pos_label
             results = [self.async_message_thread.apply_async(search.evaluate_solution_score, (inputs, sol, self._primitives, metric, posLabel,)) for sol in solutions]
