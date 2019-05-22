@@ -802,8 +802,13 @@ class SolutionDescription(object):
         self.primitives[i] = None
         self.steptypes[i] = StepType.SUBPIPELINE
         self.subpipelines[i] = pipeline
-        
-        data = 'steps.' + str(i) + '.' + pipeline.outputs[0][2]
+       
+        data = 'steps.' + str(i-1) + '.produce'
+        origin = data.split('.')[0]
+        source = data.split('.')[1] 
+        self.primitives_arguments[i]['inputs'] = {'origin': origin, 'source': int(source), 'data': data}
+
+        data = 'steps.' + str(i) + '.produce'
         origin = data.split('.')[0]
         source = data.split('.')[1]
         self.outputs = []
@@ -957,6 +962,7 @@ class SolutionDescription(object):
 
         last_step = self.get_last_step()
 
+        logging.info("score_sol: %s", arguments)
         if self.primitives_outputs is None:
             for i in range(0, last_step+1): 
                 n_step = self.execution_order[i]
