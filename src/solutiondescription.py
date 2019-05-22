@@ -510,7 +510,7 @@ class SolutionDescription(object):
         primitive_arguments
             Arguments for the solution
         """
-        solution = solution_dict[pipeline_id]
+        solution = argument['solution_dict'][pipeline_id]
 
         logging.info("Subpipeline: %s", primitive_arguments)
         inputs = []
@@ -722,6 +722,7 @@ class SolutionDescription(object):
 
             if python_paths[i] == 'd3m.primitives.natural_language_processing.lda.Fastlvm':
                 self.hyperparams[i] = {}
+                self.hyperparams[i]['k'] = 200
 
             if self.privileged is not None and len(self.privileged) > 0 and python_paths[i] == 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon':
                 self.hyperparams[i] = {}
