@@ -800,7 +800,7 @@ class SolutionDescription(object):
         self.hyperparams[i] = None
         self.pipeline.append(None)
         self.primitives[i] = None
-        self.steptypes.append(StepType.SUBPIPELINE)
+        self.steptypes[i] = StepType.SUBPIPELINE
         self.subpipelines[i] = pipeline
         
         data = 'steps.' + str(i) + '.' + pipeline.outputs[0][2]
