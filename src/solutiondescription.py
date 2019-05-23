@@ -514,8 +514,8 @@ class SolutionDescription(object):
         """
         solution = arguments['solution_dict'][pipeline_id]
 
-        inputs = []
-        inputs.append(primitive_arguments)
+        #inputs = []
+        #inputs.append(primitive_arguments)
 
         if action is ActionType.FIT: 
             return solution.fit(inputs=inputs, solution_dict=arguments['solution_dict'])
@@ -607,7 +607,7 @@ class SolutionDescription(object):
         """
         steps_outputs = [None] * len(self.execution_order)
 
-        logging.info("produce %s", arguments)
+        logging.info("produce %s", self.primitives_arguments)
         for i in range(0, len(self.execution_order)):
             n_step = self.execution_order[i]
             produce_arguments = {}
