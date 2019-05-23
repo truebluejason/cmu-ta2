@@ -9,8 +9,9 @@ task_paths = {
          'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
          'd3m.primitives.data_transformation.column_parser.DataFrameCommon',
          'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
+         'd3m.primitives.data_preprocessing.text_reader.DataFrameCommon',
          'd3m.primitives.data_cleaning.imputer.SKlearn',
-         'd3m.primitives.feature_construction.corex_text.CorexText',
+         'd3m.primitives.natural_language_processing.lda.Fastlvm',
          'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'],
 
 'TIMESERIES': ['d3m.primitives.data_transformation.denormalize.Common',
@@ -182,6 +183,7 @@ def get_solutions(task_name, dataset, primitives, problem):
             pipe.id = str(uuid.uuid4())
             pipe.add_step(python_path)
             solutions.append(pipe)
+            break
     elif task_name == 'VERTEXNOMINATION' or \
          task_name == 'COMMUNITYDETECTION' or \
          task_name == 'GRAPHMATCHING' or \

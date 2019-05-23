@@ -542,6 +542,7 @@ class SolutionDescription(object):
         produce_params_primitive = self._primitive_arguments(primitive, 'produce')
         produce_params = {}
 
+        logging.info("fit_step primitive = %s", primitive_arguments)
         for param, value in primitive_arguments.items():
             if param in produce_params_primitive:
                 produce_params[param] = value
@@ -606,6 +607,7 @@ class SolutionDescription(object):
         """
         steps_outputs = [None] * len(self.execution_order)
 
+        logging.info("produce %s", arguments)
         for i in range(0, len(self.execution_order)):
             n_step = self.execution_order[i]
             produce_arguments = {}
@@ -1081,7 +1083,6 @@ class SolutionDescription(object):
         if len(training_arguments) == 0:
             training_arguments['inputs'] = primitive_arguments['inputs']
 
-        logging.info("score_step: %s", training_arguments)
         (score, optimal_params) = primitive_desc.score_primitive(training_arguments['inputs'], outputs, metric, posLabel, custom_hyperparams, step_index)
         return (score, optimal_params) 
 
