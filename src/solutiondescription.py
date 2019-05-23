@@ -515,7 +515,7 @@ class SolutionDescription(object):
         solution = arguments['solution_dict'][pipeline_id]
 
         #inputs = []
-        #inputs.append(primitive_arguments)
+        inputs = primitive_arguments
 
         if action is ActionType.FIT: 
             return solution.fit(inputs=inputs, solution_dict=arguments['solution_dict'])
