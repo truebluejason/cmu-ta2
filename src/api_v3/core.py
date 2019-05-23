@@ -358,12 +358,12 @@ class Core(core_pb2_grpc.CoreServicer):
             self._solutions[fitted_solution.id] = fitted_solution
 
             inputs = self._get_inputs(solution.problem, request_params.inputs)
-            try:
+            if 1:#try:
                 output = fitted_solution.fit(inputs=inputs, solution_dict=self._solutions)
-            except:
-                logging.info(fitted_solution.primitives)
-                logging.info(sys.exc_info()[0])
-                output = None
+            #except:
+            #    logging.info(fitted_solution.primitives)
+            #    logging.info(sys.exc_info()[0])
+            #    output = None
 
             result = None
             outputDir = os.environ['D3MOUTPUTDIR']
