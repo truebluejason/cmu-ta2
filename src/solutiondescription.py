@@ -815,7 +815,7 @@ class SolutionDescription(object):
         source = data.split('.')[1] 
         self.primitives_arguments[i]['inputs'] = {'origin': origin, 'source': int(source), 'data': data}
 
-        data = 'steps.' + str(i) + '.' + pipeline.outputs[0]
+        data = 'steps.' + str(i) + '.' + pipeline.outputs[0][2]
         origin = data.split('.')[0]
         source = data.split('.')[1]
         self.outputs = []
