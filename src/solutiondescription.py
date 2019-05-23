@@ -260,7 +260,7 @@ class SolutionDescription(object):
                     pdesc = self.subpipelines[i].pipeline_description 
                 step = SubpipelineStep(pipeline=pdesc)
                 ipname = 'steps.' + str(i-1) + '.produce'
-                step.add_input(data=ipname)
+                step.add_input(ipname)
                 for output in self.subpipelines[i].outputs:
                     step.add_output(output_id=output[2])
 
@@ -512,7 +512,6 @@ class SolutionDescription(object):
         """
         solution = arguments['solution_dict'][pipeline_id]
 
-        logging.info("Subpipeline: %s", primitive_arguments)
         inputs = []
         inputs.append(primitive_arguments)
 
@@ -663,8 +662,10 @@ class SolutionDescription(object):
         if 'denormalize' in python_paths[0] and self.ok_to_denormalize == False:
             python_paths.remove('d3m.primitives.data_transformation.denormalize.Common')
 
-        if len(python_paths) > 4 and 'imputer' in python_paths[4] and self.ok_to_impute == False:
+        if len(python_paths) > 5 and 'imputer' in python_paths[5] and self.ok_to_impute == False:
             python_paths.remove('d3m.primitives.data_cleaning.imputer.SKlearn')
+            if 'imputer' in python_paths[4] and self.ok_to_impute == False:
+                python_paths.remove('d3m.primitives.data_cleaning.imputer.SKlearn')
 
         if (taskname == 'CLASSIFICATION' or taskname == 'REGRESSION' or taskname == 'TEXT' or taskname == 'IMAGE' or taskname == 'TIMESERIES'):
             if self.categorical_atts is not None and len(self.categorical_atts) > 0:
@@ -1039,6 +1040,7 @@ class SolutionDescription(object):
             logging.info("Running %s", python_path) 
             start = timer()
             self.primitives_outputs[n_step] = self.process_step(n_step, self.primitives_outputs, ActionType.FIT, arguments)
+            #print(self.primitives_outputs[n_step])
             end = timer()
             logging.info("Time taken : %s seconds", end - start)
 
