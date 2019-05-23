@@ -510,7 +510,7 @@ class SolutionDescription(object):
         primitive_arguments
             Arguments for the solution
         """
-        solution = argument['solution_dict'][pipeline_id]
+        solution = arguments['solution_dict'][pipeline_id]
 
         logging.info("Subpipeline: %s", primitive_arguments)
         inputs = []
