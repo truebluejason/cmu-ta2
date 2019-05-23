@@ -575,7 +575,7 @@ class SolutionDescription(object):
             model = primitive(hyperparams=primitive_hyperparams(
                     primitive_hyperparams.defaults(), **custom_hyperparams))
 
-        logging.info("args = %s", training_arguments)
+        logging.info("fit_step = %s", training_arguments)
         model.set_training_data(**training_arguments)
         model.fit()
         self.pipeline[n_step] = model
@@ -611,17 +611,14 @@ class SolutionDescription(object):
             produce_arguments = {}
 
             if self.steptypes[n_step] is StepType.SUBPIPELINE:
-                produce_arguments = []
-                for j in range(len(self.primitives_arguments[n_step])):
-                    value = self.primitives_arguments[n_step][j]
+                produce_arguments = {}
+                for argument, value in self.primitives_arguments[n_step].items():
                     if value['origin'] == 'steps':
-                        produce_arguments.append(steps_outputs[value['source']])
+                        produce_arguments[argument] = steps_outputs[value['source']]
                     else:
-                        produce_arguments.append(arguments['inputs'][value['source']])
-                    v = produce_arguments[len(produce_arguments)-1]
-                    if v is None:
+                        produce_arguments[argument] = arguments['inputs'][value['source']]
+                    if produce_arguments[argument] is None:
                         continue
-                    produce_arguments[len(produce_arguments)-1] = v
 
             if self.steptypes[n_step] is StepType.PRIMITIVE:
                 primitive = self.primitives[n_step]
@@ -643,7 +640,7 @@ class SolutionDescription(object):
                     steps_outputs[n_step] = None
             else:
                 solution_dict = arguments['solution_dict']
-                solution = solution_dict[self.primitives[n_step]]
+                solution = solution_dict[self.subpipelines[n_step].id]
                 steps_outputs[n_step] = solution.produce(inputs=produce_arguments, solution_dict=solution_dict)
 
         # Create output
@@ -1084,6 +1081,7 @@ class SolutionDescription(object):
         if len(training_arguments) == 0:
             training_arguments['inputs'] = primitive_arguments['inputs']
 
+        logging.info("score_step: %s", training_arguments)
         (score, optimal_params) = primitive_desc.score_primitive(training_arguments['inputs'], outputs, metric, posLabel, custom_hyperparams, step_index)
         return (score, optimal_params) 
 
