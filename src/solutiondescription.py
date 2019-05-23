@@ -722,9 +722,9 @@ class SolutionDescription(object):
                 custom_hyperparams['prediction_column'] = 'match'
                 self.hyperparams[i]['link_prediction_hyperparams'] = LinkPredictionHyperparams(LinkPredictionHyperparams.defaults(), **custom_hyperparams)
 
-            if python_paths[i] == 'd3m.primitives.natural_language_processing.glda.Fastlvm':
+            if python_paths[i] == 'd3m.primitives.natural_language_processing.lda.Fastlvm':
                 self.hyperparams[i] = {}
-                self.hyperparams[i]['k'] = 50
+                self.hyperparams[i]['k'] = 200
 
             if self.privileged is not None and len(self.privileged) > 0 and python_paths[i] == 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon':
                 self.hyperparams[i] = {}
@@ -815,7 +815,7 @@ class SolutionDescription(object):
         source = data.split('.')[1] 
         self.primitives_arguments[i]['inputs'] = {'origin': origin, 'source': int(source), 'data': data}
 
-        data = 'steps.' + str(i) + '.produce'
+        data = 'steps.' + str(i) + '.' + pipeline.outputs[0]
         origin = data.split('.')[0]
         source = data.split('.')[1]
         self.outputs = []
