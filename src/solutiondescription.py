@@ -440,7 +440,8 @@ class SolutionDescription(object):
         logging.info("Outputs = %s", self.outputs)
 
     def isDataFrameStep(self, n_step):
-        if self.steptypes[n_step] is StepType.PRIMITIVE and self.primitives[n_step].metadata.query()['python_path'] == 'd3m.primitives.data_transformation.dataset_to_dataframe.Common':
+        if self.steptypes[n_step] is StepType.PRIMITIVE and \
+        self.primitives[n_step].metadata.query()['python_path'] == 'd3m.primitives.data_transformation.dataset_to_dataframe.Common':
             return True
         return False
 
@@ -574,6 +575,7 @@ class SolutionDescription(object):
             model = primitive(hyperparams=primitive_hyperparams(
                     primitive_hyperparams.defaults(), **custom_hyperparams))
 
+        logging.info("args = %s", training_arguments)
         model.set_training_data(**training_arguments)
         model.fit()
         self.pipeline[n_step] = model
