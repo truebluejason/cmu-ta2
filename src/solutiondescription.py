@@ -253,6 +253,13 @@ class SolutionDescription(object):
                 pdesc['digest'] = p.primitive_class.digest
                 step = PrimitiveStep(primitive_description=pdesc)
                 step.add_output(output_id=p.primitive_class.produce_methods[0])
+                for name, value in self.primitives_arguments[i].items():
+                    origin = value['origin']
+                    argument_type = ArgumentType.CONTAINER
+                    step.add_argument(name=name, argument_type=argument_type, data_reference=value['data'])
+                if self.hyperparams[i] is not None:
+                    for name, value in self.hyperparams[i].items():
+                        step.add_hyperparameter(name=name, argument_type=ArgumentType.VALUE, data=value)
             else: # Subpipeline
                 pdesc = self.subpipelines[i].pipeline_description
                 if pdesc is None:
@@ -264,13 +271,6 @@ class SolutionDescription(object):
                 for output in self.subpipelines[i].outputs:
                     step.add_output(output_id=output[2])
 
-            for name, value in self.primitives_arguments[i].items():
-                origin = value['origin']
-                argument_type = ArgumentType.CONTAINER
-                step.add_argument(name=name, argument_type=argument_type, data_reference=value['data'])
-            if self.hyperparams[i] is not None:
-                for name, value in self.hyperparams[i].items():
-                    step.add_hyperparameter(name=name, argument_type=ArgumentType.VALUE, data=value)
             pipeline_description.add_step(step)
 
         for op in self.outputs:
@@ -723,7 +723,7 @@ class SolutionDescription(object):
 
             if python_paths[i] == 'd3m.primitives.natural_language_processing.lda.Fastlvm':
                 self.hyperparams[i] = {}
-                self.hyperparams[i]['k'] = 200
+                self.hyperparams[i]['k'] = 100
 
             if self.privileged is not None and len(self.privileged) > 0 and python_paths[i] == 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon':
                 self.hyperparams[i] = {}
