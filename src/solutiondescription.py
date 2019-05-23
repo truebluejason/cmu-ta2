@@ -273,6 +273,7 @@ class SolutionDescription(object):
 
             pipeline_description.add_step(step)
 
+        logging.info("DR = %s", pipeline_description.get_available_data_references())
         for op in self.outputs:
             pipeline_description.add_output(data_reference=op[2], name=op[3])
 
@@ -721,9 +722,9 @@ class SolutionDescription(object):
                 custom_hyperparams['prediction_column'] = 'match'
                 self.hyperparams[i]['link_prediction_hyperparams'] = LinkPredictionHyperparams(LinkPredictionHyperparams.defaults(), **custom_hyperparams)
 
-            if python_paths[i] == 'd3m.primitives.natural_language_processing.lda.Fastlvm':
+            if python_paths[i] == 'd3m.primitives.natural_language_processing.glda.Fastlvm':
                 self.hyperparams[i] = {}
-                self.hyperparams[i]['k'] = 100
+                self.hyperparams[i]['k'] = 50
 
             if self.privileged is not None and len(self.privileged) > 0 and python_paths[i] == 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon':
                 self.hyperparams[i] = {}
