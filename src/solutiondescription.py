@@ -576,7 +576,6 @@ class SolutionDescription(object):
             model = primitive(hyperparams=primitive_hyperparams(
                     primitive_hyperparams.defaults(), **custom_hyperparams))
 
-        logging.info("fit_step = %s", training_arguments)
         model.set_training_data(**training_arguments)
         model.fit()
         self.pipeline[n_step] = model
@@ -608,6 +607,7 @@ class SolutionDescription(object):
         steps_outputs = [None] * len(self.execution_order)
 
         logging.info("produce %s", self.primitives_arguments)
+        logging.info("produce args %s", arguments)
         for i in range(0, len(self.execution_order)):
             n_step = self.execution_order[i]
             produce_arguments = {}
