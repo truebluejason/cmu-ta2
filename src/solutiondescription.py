@@ -57,7 +57,6 @@ def get_cols_to_encode(df):
     max_num_cols = math.log(rows, 2)
     tmp_cols = copy.deepcopy(cols)
     for t in tmp_cols:
-        print("Col ", t, ", ", len(df.iloc[:,t].unique()))
         if len(df.iloc[:,t].unique()) > max_num_cols:
             cols.remove(t)
     return list(cols)
@@ -634,16 +633,18 @@ class SolutionDescription(object):
                         if produce_arguments[argument] is None:
                             continue
 
-            if self.steptypes[n_step] is StepType.PRIMITIVE:
+            if self.steptypes[n_step] is StepType.PRIMITIVE: # Primitive
                 if n_step in self.produce_order:
                     v = self.pipeline[n_step].produce(**produce_arguments).value
                     steps_outputs[n_step] = v
                 else:
                     steps_outputs[n_step] = None
-            else:
+            else: # Subpipeline
                 solution_dict = arguments['solution_dict']
                 solution = solution_dict[self.subpipelines[n_step].id]
-                steps_outputs[n_step] = solution.produce(inputs=produce_arguments['inputs'], solution_dict=solution_dict)
+                inputs = []
+                inputs.append(produce_arguments['inputs'])
+                steps_outputs[n_step] = solution.produce(inputs=inputs, solution_dict=solution_dict)
 
         # Create output
         pipeline_output = []
@@ -1044,8 +1045,6 @@ class SolutionDescription(object):
             logging.info("Running %s", python_path) 
             start = timer()
             self.primitives_outputs[n_step] = self.process_step(n_step, self.primitives_outputs, ActionType.FIT, arguments)
-            if n_step > 0:
-                print(self.primitives_outputs[n_step].shape)
             end = timer()
             logging.info("Time taken : %s seconds", end - start)
 
