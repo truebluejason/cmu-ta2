@@ -183,7 +183,6 @@ def get_solutions(task_name, dataset, primitives, problem):
             pipe.id = str(uuid.uuid4())
             pipe.add_step(python_path)
             solutions.append(pipe)
-            break
     elif task_name == 'VERTEXNOMINATION' or \
          task_name == 'COMMUNITYDETECTION' or \
          task_name == 'GRAPHMATCHING' or \

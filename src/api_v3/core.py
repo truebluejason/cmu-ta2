@@ -73,7 +73,7 @@ class Core(core_pb2_grpc.CoreServicer):
             basic_sol.create_from_pipelinedescription(pipeline_description=template)
             if basic_sol.contains_placeholder() == False:  # Fully defined
                 solutions.append(basic_sol)
-                return solutions
+                return (solutions, 0)
             else: # Placeholder present
                 pipeline_placeholder_present = True    
                 inputs = []
@@ -358,12 +358,12 @@ class Core(core_pb2_grpc.CoreServicer):
             self._solutions[fitted_solution.id] = fitted_solution
 
             inputs = self._get_inputs(solution.problem, request_params.inputs)
-            if 1:#try:
+            try:
                 output = fitted_solution.fit(inputs=inputs, solution_dict=self._solutions)
-            #except:
-            #    logging.info(fitted_solution.primitives)
-            #    logging.info(sys.exc_info()[0])
-            #    output = None
+            except:
+                logging.info(fitted_solution.primitives)
+                logging.info(sys.exc_info()[0])
+                output = None
 
             result = None
             outputDir = os.environ['D3MOUTPUTDIR']
@@ -422,12 +422,12 @@ class Core(core_pb2_grpc.CoreServicer):
         solution = self._solutions[solution_id]
 
         inputs = self._get_inputs(solution.problem, request_params.inputs)
-        if 1:#try:
+        try:
             output = solution.produce(inputs=inputs, solution_dict=self._solutions)[0]
-        #except:
-        #    logging.info(solution.primitives)
-        #    logging.info(sys.exc_info()[0])
-        #    output = None
+        except:
+            logging.info(solution.primitives)
+            logging.info(sys.exc_info()[0])
+            output = None
     
         result = None
         
@@ -436,7 +436,6 @@ class Core(core_pb2_grpc.CoreServicer):
             output = pd.DataFrame(data=output)
 
         if output is not None:
-            logging.info("Output = %s", output)
             uri = util.write_predictions(output, outputDir + "/predictions", solution)
             uri = 'file://{uri}'.format(uri=os.path.abspath(uri))
             result = value_pb2.Value(csv_uri=uri)

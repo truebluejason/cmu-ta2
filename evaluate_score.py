@@ -15,7 +15,10 @@ if metric == 'MSE':
 elif metric == 'F1Macro':
     print(metrics.f1_score(Ytest, predictions, average='macro'))
 elif metric == 'F1':
-    print(metrics.f1_score(Ytest, predictions))
+    pos_label=sys.argv[5]
+    if pos_label == '1':
+        pos_label = int(pos_label)
+    print(metrics.f1_score(Ytest, predictions, pos_label=pos_label))
 elif metric == 'MAE':
     print(metrics.mean_absolute_error(Ytest, predictions))
 elif metric == 'ACC':

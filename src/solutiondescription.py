@@ -273,7 +273,6 @@ class SolutionDescription(object):
 
             pipeline_description.add_step(step)
 
-        logging.info("DR = %s", pipeline_description.get_available_data_references())
         for op in self.outputs:
             pipeline_description.add_output(data_reference=op[2], name=op[3])
 
@@ -605,8 +604,6 @@ class SolutionDescription(object):
         """
         steps_outputs = [None] * len(self.execution_order)
 
-        logging.info("produce %s", self.primitives_arguments)
-        logging.info("produce args %s", arguments)
         for i in range(0, len(self.execution_order)):
             n_step = self.execution_order[i]
             produce_arguments = {}
@@ -645,7 +642,6 @@ class SolutionDescription(object):
                 inputs = []
                 inputs.append(produce_arguments['inputs'])
                 steps_outputs[n_step] = solution.produce(inputs=inputs, solution_dict=solution_dict)[0]
-                logging.info("produce op = %s", steps_outputs[n_step])
 
         # Create output
         pipeline_output = []
@@ -909,8 +905,6 @@ class SolutionDescription(object):
         if self.steptypes[n_step] is StepType.SUBPIPELINE:
             primitive_arguments = {}
             for argument, value in self.primitives_arguments[n_step].items():
-                logging.info("Arg = %s", argument)
-                logging.info("Value = %s", value)
                 if value['origin'] == 'steps':
                     primitive_arguments[argument] = primitives_outputs[value['source']]
                 else:
