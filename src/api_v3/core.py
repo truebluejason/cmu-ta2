@@ -436,6 +436,7 @@ class Core(core_pb2_grpc.CoreServicer):
             output = pd.DataFrame(data=output)
 
         if output is not None:
+            logging.info("Output = %s", output)
             uri = util.write_predictions(output, outputDir + "/predictions", solution)
             uri = 'file://{uri}'.format(uri=os.path.abspath(uri))
             result = value_pb2.Value(csv_uri=uri)
