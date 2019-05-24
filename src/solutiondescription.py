@@ -514,8 +514,8 @@ class SolutionDescription(object):
         """
         solution = arguments['solution_dict'][pipeline_id]
 
-        #inputs = []
-        inputs = primitive_arguments
+        inputs = []
+        inputs.append(primitive_arguments['inputs'])
 
         if action is ActionType.FIT: 
             return solution.fit(inputs=inputs, solution_dict=arguments['solution_dict'])
@@ -907,6 +907,8 @@ class SolutionDescription(object):
         if self.steptypes[n_step] is StepType.SUBPIPELINE:
             primitive_arguments = {}
             for argument, value in self.primitives_arguments[n_step].items():
+                logging.info("Arg = %s", argument)
+                logging.info("Value = %s", value)
                 if value['origin'] == 'steps':
                     primitive_arguments[argument] = primitives_outputs[value['source']]
                 else:
