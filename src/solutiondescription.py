@@ -644,7 +644,8 @@ class SolutionDescription(object):
                 solution = solution_dict[self.subpipelines[n_step].id]
                 inputs = []
                 inputs.append(produce_arguments['inputs'])
-                steps_outputs[n_step] = solution.produce(inputs=inputs, solution_dict=solution_dict)
+                steps_outputs[n_step] = solution.produce(inputs=inputs, solution_dict=solution_dict)[0]
+                logging.info("produce op = %s", steps_outputs[n_step])
 
         # Create output
         pipeline_output = []
