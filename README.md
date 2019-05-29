@@ -11,18 +11,82 @@ The TA3 requests take the form of a grpc protobuf call.  https://grpc.io/docs/qu
 Goals: Pipeline and API, primitives, TA3 interface, Bayes optimization.
 
 
-# Setup instructions
+# Initial Project Setup
 
-Setup virtualenv
+## Clone CMU-TA2 Source
+
+Start by git cloning the CMU-TA2 project to your machine from https://gitlab.datadrivendiscovery.org/sheath/cmu-ta2
+
+## Setup Python 3.6
+
+The project requires Python 3, and specifically Python 3.6. Earlier versions of Python 3 may work, but as of April 2019, there is an incompatibility with Python 3.7.
+
+If you do not wish to install Python 3.6 as your main Python version, you may install it in a Conda environment.
+
+## Conda setup on an Auton computing node
+```bash
+# Enable conda in the bash
+echo ". /opt/miniconda3/etc/profile.d/conda.sh" >> ~/.bashrc
+. ~/.bashrc
+
+# Create a new conda environment with Python 3.6
+/opt/miniconda3/bin/conda create --name d3m --python=3.6
+
+# Activate d3m env
+conda activate d3m
+
+# Install libcurl
+conda install libcurl
+
+# install D3M core
+pip install d3m
+
+# install D3M/common_primitives
+mkdir ~/code/d3m/
+git clone --recursive https://gitlab.com/datadrivendiscovery/common-primitives.git
+cd ~/code/d3m/common-primitives
+pip install -e .
+
+# install sklearn and JPL/sklearn_wrap
+cd ~/code/d3m
+pip install -e git+https://gitlab.com/datadrivendiscovery/sklearn-wrap.git@dist#egg=sklearn_wrap
+
+# setup CMU TA2
+cd ~/code/
+git clone https://gitlab.datadrivendiscovery.org/sheath/cmu-ta2.git
+git clone https://gitlab.com/datadrivendiscovery/ta3ta2-api.git
+
+## create a symlink to ta2ta2-api
+cd cmu-ta2
+find  ta3ta2-api-v2/ -delete
+ln -s ../ta3ta2-api ta3ta2-api-v2
+mkdir ta3ta2-api-v2/
+cd ta3ta2-api-v2/
+ln -s ../../ta3ta2-api .
+cd ~/code/ta3ta2-api
+git checkout v2019.5.23 -b v2019.5.23   # checkout a specific tag
+                                        # TODO: you must update the tag to the current version
+
+## install grpc
+cd ~/code/cmu-ta2
+pip install docker grpcio-tools grpcio
+
+### install bayesian optimization
+git clone 
+cd ~/code/d3m/bayesian_optimization/bo/utils/direct_fortran
+bash make_direct.sh
+cd ~/code/d3m/bayesian_optimization
+pip install -e .
+
+## Install SRI TA1 primitives
+pip install sri-d3m
 
 ```
-# On Centos 7:
-sudo yum install rh-python36-python rh-python36-python-pip rh-python36-python-virtualenv
-source /opt/rh/rh-python36/enable
 
-virtualenv env --python=python36
-source env/bin/activate
-pip install docker grpcio-tools grpcio d3m
+## Install Dependent Python Libraries
+
+```bash
+> pip install docker grpcio-tools grpcio d3m
 ```
 
 # Related things
