@@ -52,10 +52,7 @@ This script assumes:
 
 ```bash
 # Enable conda in the bash
-echo ". /opt/miniconda3/etc/profile.d/conda.sh" >> ~/.bashrc
-
-# Source .bashrc for the current session
-. ~/.bashrc
+. /opt/miniconda3/etc/profile.d/conda.sh
 
 # Create a new conda environment with Python 3.6
 conda create --name d3m python=3.6
