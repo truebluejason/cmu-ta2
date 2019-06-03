@@ -1,6 +1,6 @@
-TA2 implementation for CMU
+# CMU TA2 Implementation
 
-# Overview
+## Overview
 
 Our job is to take requests for analysis from the TA3, turn it into an analysis pipeline using the available library of TA1 primitives, and run it.
 
@@ -11,23 +11,108 @@ The TA3 requests take the form of a grpc protobuf call.  https://grpc.io/docs/qu
 Goals: Pipeline and API, primitives, TA3 interface, Bayes optimization.
 
 
-# Setup instructions
+## Initial Project Setup
 
-Setup virtualenv
+### Requirements & Dependencies
+
+These are the high-level requirements & dependencies. The suggested setup procedure below instructs how to install & them.
+
+* Python 3.6
+* PIP
+* Linux Libraries
+    * libcurl
+* PIP Packages
+    * docker
+    * grpcio
+    * grpcio-tools
+    * d3m
+    * sri-d3m (SRI TA1 Primitives)
+    * https://gitlab.com/datadrivendiscovery/common-primitives.git
+    * https://gitlab.com/datadrivendiscovery/sklearn-wrap.git@dist#egg=sklearn_wrap
+* Git Repos
+    * https://gitlab.datadrivendiscovery.org/sheath/cmu-ta2.git
+    * https://gitlab.com/datadrivendiscovery/ta3ta2-api.git
+
+#### Notes
+
+The project requires Python 3, and specifically Python 3.6. Earlier versions of Python 3 may work, but as of April 2019, there is an incompatibility with Python 3.7.
+
+If you do not wish to install Python 3.6 as your main Python version, you may install it in a Conda environment or a Python virtual environment.
+
+### Suggested Setup Procedure
+
+There are different ways to setup the project on a development machine. This is a suggested setup procedure based on using Conda to isolate & manage a dev environment.
+
+This procedure has been tested and verified to work on an Auton computing node as of May 30, 2019.
+
+This script assumes:
+* You have setup your public SSH key at gitlab.datadrivendiscovery.org.
+* You run the script from your desired code directory.
+
+
+```bash
+# Enable conda in the bash
+. /opt/miniconda3/etc/profile.d/conda.sh
+
+# Create a new conda environment with Python 3.6
+conda create --name d3m python=3.6
+
+# Activate the new conda d3m environment
+conda activate d3m
+
+# Install libcurl
+conda install libcurl
+
+# Install PIP dependencies
+pip install docker grpcio-tools grpcio d3m sri-d3m
+
+# Install D3M/common_primitives
+mkdir d3m
+cd d3m
+git clone --recursive https://gitlab.com/datadrivendiscovery/common-primitives.git
+cd common-primitives
+pip install -e .
+cd ../..
+
+# Install sklearn and JPL/sklearn_wrap
+cd d3m
+pip install -e git+https://gitlab.com/datadrivendiscovery/sklearn-wrap.git@dist#egg=sklearn_wrap
+cd ..
+
+# Clone CMU TA2 repo
+git clone git@gitlab.datadrivendiscovery.org:sheath/cmu-ta2.git
+
+# Clone ta3ta2-api repo
+git clone https://gitlab.com/datadrivendiscovery/ta3ta2-api.git
+
+# Switch to the latest stable tag (update this to the latest dated tag you see in the repo)
+cd ta3ta2-api
+git checkout -b v2019.5.23
+cd ..
+
+# Rebuild protocol buffers
+cd cmu-ta2
+./rebuild_grpc.sh
+cd ..
+
+### install bayesian optimization
+cd d3m
+git clone git@gitlab.datadrivendiscovery.org:sray/bayesian_optimization.git
+cd bayesian_optimization/bo/utils/direct_fortran
+bash make_direct.sh
+cd ../../..
+pip install -e .
+cd ../..
 
 ```
-# On Centos 7:
-sudo yum install rh-python36-python rh-python36-python-pip rh-python36-python-virtualenv
-source /opt/rh/rh-python36/enable
 
-virtualenv env --python=python36
-source env/bin/activate
-pip install docker grpcio-tools grpcio d3m
-```
+#### Test Your Setup
 
-# Related things
+TBD
 
-## Interfaces
+## Related things
+
+### Interfaces
 
  * https://gitlab.datadrivendiscovery.org/jpl/primitives_repo.git
  * https://gitlab.com/datadrivendiscovery/ta3ta2-api 
@@ -41,7 +126,7 @@ cd /home/sheath/projects/D3M/cmu-ta2
 
 Now we can hit "start session" in the thing and, lo and behold, it actually talks to our TA2!  Magic.
 
-# Building the docker image
+## Building the docker image
 The repository automatically builds the docker image after each commit.
 Images are stored in the [registry](https://gitlab.datadrivendiscovery.org/sheath/cmu-ta2/container_registry).
 
@@ -51,7 +136,7 @@ There are three configuration files:
 1. ```.gitmodules```
 1. ```Dockerfile```
 
-# Building the docker image manually
+## Building the docker image manually
 Prerequisites:
 1. [Install docker](https://docs.docker.com/install/).
     1. Check docker ```docker --version```
@@ -66,7 +151,7 @@ Prerequisites:
     git submodule update --init --recursive
     ```
 
-## Create a docker image
+### Create a docker image
 Run all commands as root.
 Create a docker image by running the following commands
 ```bash
@@ -92,8 +177,8 @@ Finally, push the image to the D3M registry
 docker push registry.datadrivendiscovery.org/sheath/cmu-ta2
 ```
 
-# Using the docker image
-## Pull the docker image from the D3M registry
+## Using the docker image
+### Pull the docker image from the D3M registry
 ```bash
 # pull the image with "live" tag
 # used by summer 2018 eval
@@ -103,7 +188,7 @@ docker pull registry.datadrivendiscovery.org/sheath/cmu-ta2:live
 docker pull registry.datadrivendiscovery.org/sheath/cmu-ta2:latest
 ```
 
-## Run the docker image
+### Run the docker image
 The following commands map 
 Run the docker image, mapping your machine’s port 45042 to the container’s published port 45042 using ```-p```
 
@@ -111,7 +196,7 @@ You can run TA2 image in one of three modes: ```search``` and ```ta2ta3```.
 This is controlled by the environment variable ```D3MRUN```.
 If you don't specify ```D3MRUN``` while ```docker run...```, it runs in ```ta2ta3``` mode.
 
-### Run in ta2ta3 mode
+#### Run in ta2ta3 mode
 ```bash
 docker run -i -t \
     --name d3m-cmu-ta2 \
@@ -142,7 +227,7 @@ docker run -i -t \
     registry.datadrivendiscovery.org/sheath/cmu-ta2:live
 ```
 
-### Run in search mode
+#### Run in search mode
 ```bash
 docker run -i -t \
     --rm \
@@ -174,7 +259,7 @@ docker run -i -t \
     registry.datadrivendiscovery.org/sheath/cmu-ta2:live
 ```
 
-### Run in test mode
+#### Run in test mode
 WIP
 
 ```bash
@@ -193,7 +278,7 @@ docker run -i -t \
     registry.datadrivendiscovery.org/sheath/cmu-ta2:live
 ```
 
-#### An example:
+##### An example:
 ```bash
 docker run -i -t \
     --rm \
