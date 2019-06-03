@@ -148,11 +148,8 @@ class PrimitiveDescription(object):
         z = 1.96*stderror
         logging.info("CV scores for %s = %s(%s - %s) k = %s", python_path, mean, mean-z, mean+z, len(metric_scores))
         logging.info("CV scores for %s = %s(%s - %s) k = %s", python_path, median, metric_scores[lb], metric_scores[ub], len(metric_scores))
-        #print("CV scores for ", python_path, " = ", mean, "(", mean-z, "-", mean+z, ") k = ", len(metric_scores))
-        #print("CV scores for ", python_path, " = ", median, "(", metric_scores[lb], "-", metric_scores[ub], ") k = ", len(metric_scores))
-        #print("Second last score: ", python_path, " = ", metric_scores[1])
-        #text = python_path + "," + str(mean) + "," + str(mean-z) + "," + str(median) + "," + str(metric_scores[lb]) + "," + str(metric_scores[1]) + "\n"
-        #filename = "scores.csv"
+        text = python_path + "," + str(mean) + "," + str(mean-z) + "," + str(median) + "," + str(metric_scores[lb]) + "," + str(metric_scores[1]) + "\n"
+        filename = "scores.csv"
         #with open(filename, "a") as g:
         #    g.write(text)
         return (score, optimal_params)
@@ -305,16 +302,10 @@ class PrimitiveDescription(object):
 
         python_path = self.primitive.metadata.query()['python_path']
         metric_sum = 0
-
-        if isinstance(X, pd.DataFrame):
-            Xnew = pd.DataFrame(data=X.values)
-        else:
-            Xnew = pd.DataFrame(data=X)
-
         score = 0.0
 
         # Run k-fold CV and compute mean metric score
-        print(Xnew.shape)
+        print(X.shape)
         metric_scores = []
         if 'classification' in python_path: # Classification
             frequencies = y.iloc[:,0].value_counts()
@@ -334,13 +325,11 @@ class PrimitiveDescription(object):
 
         # Do the actual k-fold CV here
         for train_index, test_index in split_indices:
-            X_train, X_test = Xnew.iloc[train_index], Xnew.iloc[test_index]
-            y_train, y_test = y.iloc[train_index], y.iloc[test_index]
-            X_train.metadata = X.metadata
-            X_test.metadata = X.metadata
+            X_train, X_test = X.iloc[train_index,:], X.iloc[test_index,:]
+            y_train, y_test = y.iloc[train_index,:], y.iloc[test_index,:]
 
+            X_test.reset_index(drop=True,inplace=True)
             prim_instance.set_training_data(inputs=X_train, outputs=y_train)
-
             prim_instance.fit()
             predictions = prim_instance.produce(inputs=X_test).value
             if len(predictions.columns) > 1:
