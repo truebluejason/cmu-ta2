@@ -460,7 +460,6 @@ class SolutionDescription(object):
                 col = (int)(numpy.random.choice(attributes, replace=False))
                 self.exclude_columns.add(col)
 
-        #if rows > 1000000: # > 1M rows
         cols = metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/FloatVector") # Found to be very expensive in ColumnParser!
         for col in cols:
             self.exclude_columns.add(col)
@@ -664,8 +663,8 @@ class SolutionDescription(object):
 
         if len(python_paths) > 5 and 'imputer' in python_paths[5] and self.ok_to_impute == False:
             python_paths.remove('d3m.primitives.data_cleaning.imputer.SKlearn')
-            if 'imputer' in python_paths[4] and self.ok_to_impute == False:
-                python_paths.remove('d3m.primitives.data_cleaning.imputer.SKlearn')
+            #if 'imputer' in python_paths[4] and self.ok_to_impute == False:
+            #    python_paths.remove('d3m.primitives.data_cleaning.imputer.SKlearn')
 
         if (taskname == 'CLASSIFICATION' or taskname == 'REGRESSION' or taskname == 'TEXT' or taskname == 'IMAGE' or taskname == 'TIMESERIES'):
             if self.categorical_atts is not None and len(self.categorical_atts) > 0:
@@ -700,6 +699,7 @@ class SolutionDescription(object):
                 self.hyperparams[i] = {}
                 self.hyperparams[i]['use_semantic_types'] = True
                 self.hyperparams[i]['return_result'] = 'replace'
+                self.hyperparams[i]['strategy'] = 'median'
 
             if python_paths[i] == 'd3m.primitives.data_transformation.one_hot_encoder.SKlearn':
                 self.hyperparams[i] = {}
@@ -720,6 +720,10 @@ class SolutionDescription(object):
                 custom_hyperparams = {}
                 custom_hyperparams['prediction_column'] = 'match'
                 self.hyperparams[i]['link_prediction_hyperparams'] = LinkPredictionHyperparams(LinkPredictionHyperparams.defaults(), **custom_hyperparams)
+
+            if python_paths[i] == 'd3m.primitives.data_preprocessing.text_reader.DataFrameCommon':
+                self.hyperparams[i] = {}
+                self.hyperparams[i]['return_result'] = 'replace'
 
             if python_paths[i] == 'd3m.primitives.natural_language_processing.lda.Fastlvm':
                 self.hyperparams[i] = {}
@@ -847,7 +851,7 @@ class SolutionDescription(object):
             hyperparam_spec = self.primitives[i].metadata.query()['primitive_code']['hyperparams']
             if 'n_estimators' in hyperparam_spec:
                 self.hyperparams[i]['n_estimators'] = 100
-            
+        
         self.execution_order.append(i)
 
         i = i + 1

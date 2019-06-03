@@ -13,6 +13,10 @@ from multiprocessing import cpu_count
 TA2_API_HOST = '[::]'
 TA2_API_PORT = 45042
 
+import warnings
+from sklearn.exceptions import UndefinedMetricWarning
+warnings.filterwarnings(action='ignore', category=UndefinedMetricWarning)
+
 def main(argv):
     mode = argv[0]
     logging.info("Running in mode %s", mode)
