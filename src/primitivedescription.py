@@ -36,6 +36,18 @@ gridsearch_estimators_parameters = {'d3m.primitives.regression.random_forest.SKl
                                                                       {'n_estimators': [100],
                                                                        'max_depth': [8, 10, 15, None],
                                                                        'min_samples_split': [2, 5, 10]}],
+              'd3m.primitives.classification.gradient_boosting.SKlearn': [GradientBoostingClassifier(),
+                                                                          {'n_estimators': [100],
+                                                                           'max_depth': [3, 5, 8, 10, 15],
+                                                                           'max_features': ['sqrt', None],
+                                                                           'min_samples_leaf': [1, 2, 5],
+                                                                           'min_samples_split': [2, 5, 10]}],
+              'd3m.primitives.regression.gradient_boosting.SKlearn': [GradientBoostingRegressor(),
+                                                                      {'n_estimators': [100],
+                                                                       'max_depth': [3, 5, 8, 10, 15],
+                                                                       'max_features': ['sqrt', None],
+                                                                       'min_samples_leaf': [1, 2, 5],
+                                                                       'min_samples_split': [2, 5, 10]}],
               'd3m.primitives.classification.linear_svc.SKlearn': [LinearSVC(),
                                                                    {'C': [0.01, 0.1, 1, 10, 100],
                                                                     'class_weight': ['balanced', None]}],
@@ -43,11 +55,9 @@ gridsearch_estimators_parameters = {'d3m.primitives.regression.random_forest.SKl
                                                                    {'C': [0.01, 0.1, 1, 10, 100]}],
               'd3m.primitives.classification.svc.SKlearn': [SVC(),
                                                             {'C': [0.01, 0.1, 1, 10, 100],
-                                                             'gamma': [0.01, 0.1, 1, 10],
                                                              'class_weight': ['balanced', None]}],
               'd3m.primitives.regression.svr.SKlearn': [SVR(),
-                                                        {'C': [0.01, 0.1, 1, 10, 100],
-                                                         'gamma': [0.01, 0.1, 1, 10]}],
+                                                        {'C': [0.01, 0.1, 1, 10, 100]}],
               'd3m.primitives.classification.logistic_regression.SKlearn': [LogisticRegression(),
                                                                             {'C': [0.1, 1, 10, 100],
                                                                              'class_weight': ['balanced', None]}],
@@ -227,7 +237,7 @@ class PrimitiveDescription(object):
             else:
                 scorer = None
 
-            rf_random = GridSearchCV(estimator = model, param_grid = search_grid, scoring = scorer, cv = splits, verbose=2, n_jobs = -1)
+            rf_random = GridSearchCV(estimator = model, param_grid = search_grid, scoring = scorer, cv = splits, verbose=0, n_jobs = -1)
 
             # Fit the random search model
             rf_random.fit(train, output)
