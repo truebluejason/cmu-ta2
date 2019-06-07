@@ -20,8 +20,8 @@ from enum import Enum
 from time import sleep
 from google.protobuf.timestamp_pb2 import Timestamp
 
-import json, numpy
-import dateutil
+import numpy as np
+import dateutil, json
 
 from d3m.metadata.pipeline import Pipeline, PrimitiveStep, SubpipelineStep
 from d3m.metadata.pipeline_run import PipelineRun, RuntimeEnvironment
@@ -56,10 +56,17 @@ def get_cols_to_encode(df):
     # use rule of thumb to exclude categorical atts with high cardinality for one-hot-encoding
     max_num_cols = math.log(rows, 2)
     tmp_cols = copy.deepcopy(cols)
+    ordinals = []
     for t in tmp_cols:
         if len(df.iloc[:,t].unique()) > max_num_cols:
             cols.remove(t)
-    return list(cols)
+            try:
+                pd.to_numeric(df.iloc[:,t])
+                ordinals.append(t)
+            except:
+                print("Att ", df.columns[t], " non-numeric")
+
+    return (list(cols), ordinals)
 
 def column_types_present(dataset):
     """
@@ -99,10 +106,13 @@ def column_types_present(dataset):
     if cols > 0:
         types.append('AUDIO')
 
-    cols = get_cols_to_encode(df)
+    (cols, ordinals) = get_cols_to_encode(df)
     if len(cols) > 0:
         types.append('Categorical')
         print("Cats = ", cols)
+    if len(ordinals) > 0:
+        types.append('Ordinals')
+        print("Ordinals = ", ordinals)
     
     privileged = metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/SuggestedPrivilegedData") 
     attcols = metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/Attribute")
@@ -114,7 +124,7 @@ def column_types_present(dataset):
             break
 
     print("Data types present: ", types)
-    return (types, len(attcols), len(df), cols, ok_to_denormalize, ok_to_impute, privileged)
+    return (types, len(attcols), len(df), cols, ordinals, ok_to_denormalize, ok_to_impute, privileged)
 
 def compute_timestamp():
     now = time.time()
@@ -200,12 +210,16 @@ class SolutionDescription(object):
         self.pipeline_description = None
         self.total_cols = 0
         self.categorical_atts = None
+        self.ordinal_atts = None
         self.ok_to_denormalize = True
         self.ok_to_impute = False
         self.privileged = None
 
     def set_categorical_atts(self, atts):
         self.categorical_atts = atts
+
+    def set_ordinal_atts(self, atts):
+        self.ordinal_atts = atts
 
     def set_denormalize(self, ok_to_denormalize):
         self.ok_to_denormalize = ok_to_denormalize
@@ -457,7 +471,7 @@ class SolutionDescription(object):
         max_num_atts = 100
         if len(attributes) > max_num_atts:
             for i in range(len(attributes)-max_num_atts):
-                col = (int)(numpy.random.choice(attributes, replace=False))
+                col = (int)(np.random.choice(attributes, replace=False))
                 self.exclude_columns.add(col)
 
         cols = metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/FloatVector") # Found to be very expensive in ColumnParser!
@@ -663,8 +677,6 @@ class SolutionDescription(object):
 
         if len(python_paths) > 5 and 'imputer' in python_paths[5] and self.ok_to_impute == False:
             python_paths.remove('d3m.primitives.data_cleaning.imputer.SKlearn')
-            #if 'imputer' in python_paths[4] and self.ok_to_impute == False:
-            #    python_paths.remove('d3m.primitives.data_cleaning.imputer.SKlearn')
 
         if (taskname == 'CLASSIFICATION' or taskname == 'REGRESSION' or taskname == 'TEXT' or taskname == 'IMAGE' or taskname == 'TIMESERIES'):
             if self.categorical_atts is not None and len(self.categorical_atts) > 0:
@@ -714,7 +726,7 @@ class SolutionDescription(object):
             if python_paths[i] == 'd3m.primitives.feature_construction.corex_text.CorexText':
                 self.hyperparams[i] = {}
                 self.hyperparams[i]['threshold'] = 500
-           
+          
             if python_paths[i] == 'd3m.primitives.link_prediction.graph_matching_link_prediction.GraphMatchingLinkPrediction':
                 self.hyperparams[i] = {}
                 custom_hyperparams = {}
@@ -748,7 +760,7 @@ class SolutionDescription(object):
                     data = 'steps.' + str(i-1) + '.produce'
 
             elif taskname == 'AUDIO':
-                if i == 0 or i == 2:# or i == num-1: # denormalize or AudioReader or TargetsReader
+                if i == 0 or i == 2: # denormalize or AudioReader or TargetsReader
                     data = 'inputs.0'
                 elif i == num-1: # extract_columns_by_semantic_types (targets)
                     data = 'steps.1.produce'
@@ -1028,15 +1040,24 @@ class SolutionDescription(object):
         for i in range(0, len(self.execution_order)):
             n_step = self.execution_order[i]
             python_path = self.primitives[n_step].metadata.query()['python_path']
-            
+        
             if python_path == 'd3m.primitives.data_transformation.one_hot_encoder.SKlearn':
-                cols = get_cols_to_encode(self.primitives_outputs[n_step-1])
+                (cols, ordinals) = get_cols_to_encode(self.primitives_outputs[n_step-1])
                 self.hyperparams[n_step]['use_columns'] = list(cols)
                 print("Cats = ", cols)
 
+            if python_path == 'd3m.primitives.data_transformation.column_parser.DataFrameCommon':
+                self.hyperparams[n_step] = {}
+                exclude_atts = []
+                if self.ordinal_atts is not None and len(self.ordinal_atts) > 0:
+                    exclude_atts += list(self.ordinal_atts)
+                if self.exclude_columns is not None and len(self.exclude_columns) > 0:
+                    exclude_atts += list(self.exclude_columns)
+                if len(exclude_atts) > 0:
+                    self.hyperparams[n_step]['exclude_columns'] = exclude_atts
+
             if self.exclude_columns is not None and len(self.exclude_columns) > 0:
-                if python_path == 'd3m.primitives.data_transformation.column_parser.DataFrameCommon' or \
-                   python_path == 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon':
+                if python_path == 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon':
                     if self.hyperparams[n_step] is None:
                         self.hyperparams[n_step] = {}
                     self.hyperparams[n_step]['exclude_columns'] = list(self.exclude_columns)

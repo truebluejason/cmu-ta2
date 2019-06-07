@@ -120,6 +120,11 @@ def write_predictions(predictions, dirname, solution):
 def write_pipeline_json(solution, primitives, dirName, rank=None):
     solution.write_pipeline_json(primitives, dirName, rank) 
 
+def write_rank_file(solution, rank, dirName):
+    outputFilePath = dirName + "/" + solution.id + ".rank"
+    with open(outputFilePath, 'w') as outputFile:
+        outputFile.write(rank)
+    
 def write_pipeline_yaml(solution, dirname, dataset, problem_description):
     run_id = str(uuid.uuid4())
     filename = dirname + "/" + run_id + ".yaml"

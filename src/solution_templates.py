@@ -11,6 +11,7 @@ task_paths = {
          'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
          'd3m.primitives.data_preprocessing.text_reader.DataFrameCommon',
          'd3m.primitives.data_cleaning.imputer.SKlearn',
+#         'd3m.primitives.feature_construction.corex_text.CorexText',
          'd3m.primitives.natural_language_processing.lda.Fastlvm',
          'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'],
 
@@ -53,6 +54,9 @@ task_paths = {
 'COLLABORATIVEFILTERING': ['d3m.primitives.link_prediction.collaborative_filtering_link_prediction.CollaborativeFilteringLinkPrediction'],
 
 'VERTEXNOMINATION': ['d3m.primitives.data_transformation.vertex_nomination_parser.VertexNominationParser',
+                     'd3m.primitives.classification.vertex_nomination.VertexNomination'],
+
+'VERTEXCLASSIFICATION': ['d3m.primitives.data_transformation.vertex_nomination_parser.VertexNominationParser',
                      'd3m.primitives.classification.vertex_nomination.VertexNomination'],
 
 'OBJECTDETECTION': ['d3m.primitives.data_transformation.denormalize.Common',
@@ -127,9 +131,10 @@ def get_solutions(task_name, dataset, primitives, problem):
 
     if task_name == 'CLASSIFICATION' or task_name == 'REGRESSION':
         try:
-            (types_present, total_cols, rows, categorical_atts, ok_to_denormalize, ok_to_impute, privileged) = solutiondescription.column_types_present(dataset)
+            (types_present, total_cols, rows, categorical_atts, ordinal_atts, ok_to_denormalize, ok_to_impute, privileged) = solutiondescription.column_types_present(dataset)
             print(types_present)
             basic_sol.set_categorical_atts(categorical_atts)
+            basic_sol.set_ordinal_atts(ordinal_atts)
             basic_sol.set_denormalize(ok_to_denormalize)
             basic_sol.set_impute(ok_to_impute)
             basic_sol.set_privileged(privileged)
@@ -138,6 +143,7 @@ def get_solutions(task_name, dataset, primitives, problem):
             logging.info(sys.exc_info()[0])
             basic_sol = solutiondescription.SolutionDescription(problem, static_dir)
             types_present = None
+            rows = 0
 
         if types_present is not None:
             try:
@@ -184,6 +190,7 @@ def get_solutions(task_name, dataset, primitives, problem):
             pipe.add_step(python_path)
             solutions.append(pipe)
     elif task_name == 'VERTEXNOMINATION' or \
+         task_name == 'VERTEXCLASSIFICATION' or \
          task_name == 'COMMUNITYDETECTION' or \
          task_name == 'GRAPHMATCHING' or \
          task_name == 'LINKPREDICTION' or \

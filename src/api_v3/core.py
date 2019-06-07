@@ -472,6 +472,7 @@ class Core(core_pb2_grpc.CoreServicer):
 
         outputDir = os.environ['D3MOUTPUTDIR'] 
         util.write_pipeline_json(solution, self._primitives, outputDir + "/pipelines_ranked", rank=solution.rank)
+        util.write_rank_file(solution, outputDir + "/pipelines_ranked", rank=solution.rank)
 
         return core_pb2.SolutionExportResponse()
 
