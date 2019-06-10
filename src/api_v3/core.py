@@ -209,7 +209,7 @@ class Core(core_pb2_grpc.CoreServicer):
             index = 1
             for (sol, score) in sorted_x:
                 self._solutions[sol].rank = index
-                print("Rank ", index)
+                logging.info("Rank %d", index)
                 print("Score ", score)
                 rank = core_pb2.Score(value=value_pb2.Value(raw=value_pb2.ValueRaw(double=index)))
                 search_rank = core_pb2.SolutionSearchScore(scoring_configuration=core_pb2.ScoringConfiguration(), scores=[rank])
