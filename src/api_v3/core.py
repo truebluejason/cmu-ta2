@@ -180,7 +180,7 @@ class Core(core_pb2_grpc.CoreServicer):
 
             # Evaluate potential solutions asynchronously and get end-result
             for r in results:
-                if 1:#try:
+                try:
                     (score, optimal_params) = r.get(timeout=timeout)
                     count = count + 1
                     id = solutions[index].id
@@ -192,16 +192,16 @@ class Core(core_pb2_grpc.CoreServicer):
                     util.write_pipeline_json(solutions[index], self._primitives, outputDir + "/pipelines_searched")
                     yield core_pb2.GetSearchSolutionsResultsResponse(progress=msg, done_ticks=count, all_ticks=len(solutions), solution_id=id,
                                         internal_score=0.0, scores=[])
-                #except TimeoutError:
-                #    logging.info(solutions[index].primitives)
-                #    logging.info(sys.exc_info()[0])
-                #    logging.info("Solution terminated: %s", solutions[index].id)
+                except TimeoutError:
+                    logging.info(solutions[index].primitives)
+                    logging.info(sys.exc_info()[0])
+                    logging.info("Solution terminated: %s", solutions[index].id)
                     #self.async_message_thread.terminate()
-                #    break
-                #except:
-                #    logging.info(solutions[index].primitives)
-                #    logging.info(sys.exc_info()[0])
-                #    logging.info("Solution terminated: %s", solutions[index].id)
+                    break
+                except:
+                    logging.info(solutions[index].primitives)
+                    logging.info(sys.exc_info()[0])
+                    logging.info("Solution terminated: %s", solutions[index].id)
                 index = index + 1
 
             # Sort solutions by their scores and rank them
@@ -211,6 +211,10 @@ class Core(core_pb2_grpc.CoreServicer):
                 self._solutions[sol].rank = index
                 print("Rank ", index)
                 print("Score ", score)
+                rank = core_pb2.Score(value=value_pb2.Value(raw=value_pb2.ValueRaw(double=index)))
+                search_rank = core_pb2.SolutionSearchScore(scoring_configuration=core_pb2.ScoringConfiguration(), scores=[rank])
+                yield core_pb2.GetSearchSolutionsResultsResponse(progress=msg, done_ticks=count, all_ticks=len(solutions), solution_id=sol,
+                                        internal_score=0.0, scores=[search_rank])
                 index = index + 1  
 
         self._solution_score_map.pop(search_id_str, None)
