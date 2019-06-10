@@ -105,6 +105,9 @@ def column_types_present(dataset):
     cols = len(metadata.get_columns_with_semantic_type("http://schema.org/AudioObject"))
     if cols > 0:
         types.append('AUDIO')
+    cols = len(metadata.get_columns_with_semantic_type("http://schema.org/VideoObject"))
+    if cols > 0:
+        types.append('VIDEO')
 
     (cols, ordinals) = get_cols_to_encode(df)
     if len(cols) > 0:
@@ -579,8 +582,13 @@ class SolutionDescription(object):
             if param in training_arguments_primitive:
                 training_arguments[param] = value
 
-        if 'ImageFeature.DSBOX' in python_path:
+        if 'image_feature.DSBOX' in python_path:
             volumes = self.static_dir + '/resnet50_weights_tf_dim_ordering_tf_kernels.h5'
+            model = primitive(hyperparams=primitive_hyperparams(
+                    primitive_hyperparams.defaults(), **custom_hyperparams), volumes=volumes)
+        elif 'resnext101_kinetics_video_features' in python_path:
+            volumes = {}
+            volumes['cmu.resnext-101-kinetics.pth'] = self.static_dir + '/resnet-101-kinetics.pth'
             model = primitive(hyperparams=primitive_hyperparams(
                     primitive_hyperparams.defaults(), **custom_hyperparams), volumes=volumes)
         else:
@@ -749,6 +757,7 @@ class SolutionDescription(object):
                  taskname == 'REGRESSION' or \
                  taskname == 'TEXT' or \
                  taskname == 'IMAGE' or \
+                 taskname == 'VIDEO' or \
                  taskname == 'TIMESERIES':
                 if i == 0: # denormalize
                     data = 'inputs.0'

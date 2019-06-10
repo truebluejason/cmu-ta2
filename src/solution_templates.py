@@ -27,6 +27,14 @@ task_paths = {
           'd3m.primitives.feature_extraction.resnet50_image_feature.DSBOX',
           'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'],
 
+'VIDEO': ['d3m.primitives.data_transformation.denormalize.Common',
+          'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
+          'd3m.primitives.data_transformation.column_parser.DataFrameCommon',
+          'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
+          'd3m.primitives.data_preprocessing.video_reader.DataFrameCommon',
+          'd3m.primitives.feature_extraction.resnext101_kinetics_video_features.VideoFeaturizer',
+          'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'],
+
 'CLASSIFICATION': ['d3m.primitives.data_transformation.denormalize.Common',
                    'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
                    'd3m.primitives.data_transformation.column_parser.DataFrameCommon',
@@ -155,6 +163,8 @@ def get_solutions(task_name, dataset, primitives, problem):
                     basic_sol.initialize_solution('TEXT')
                 elif 'AUDIO' in types_present:
                     basic_sol.initialize_solution('AUDIO')
+                elif 'VIDEO' in types_present:
+                    basic_sol.initialize_solution('VIDEO')
 
                 from timeit import default_timer as timer
                 start = timer()
@@ -206,6 +216,13 @@ def get_solutions(task_name, dataset, primitives, problem):
         pipe.id = str(uuid.uuid4())
         pipe.add_step('d3m.primitives.classification.random_forest.SKlearn')
         solutions.append(pipe)
+
+        if task_name == 'GRAPHMATCHING':
+            pipe = solutiondescription.SolutionDescription(problem, static_dir)
+            pipe.initialize_solution('GRAPHMATCHING2')
+            pipe.id = str(uuid.uuid4())
+            pipe.add_outputs()
+            solutions.append(pipe)
     elif task_name == 'COLLABORATIVEFILTERING':
         pipe = copy.deepcopy(basic_sol)
         pipe.id = str(uuid.uuid4())
