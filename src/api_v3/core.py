@@ -211,7 +211,7 @@ class Core(core_pb2_grpc.CoreServicer):
                 self._solutions[sol].rank = index
                 logging.info("Rank %d", index)
                 print("Score ", score)
-                rank = core_pb2.Score(value=value_pb2.Value(raw=value_pb2.ValueRaw(double=index)))
+                rank = core_pb2.Score(metric=problem_pb2.ProblemPerformanceMetric(metric=problem_pb2.RANK), value=value_pb2.Value(raw=value_pb2.ValueRaw(double=index)))
                 search_rank = core_pb2.SolutionSearchScore(scoring_configuration=core_pb2.ScoringConfiguration(), scores=[rank])
                 yield core_pb2.GetSearchSolutionsResultsResponse(progress=msg, done_ticks=count, all_ticks=len(solutions), solution_id=sol,
                                         internal_score=0.0, scores=[search_rank])
