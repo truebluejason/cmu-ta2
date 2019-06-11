@@ -64,8 +64,8 @@ task_paths = {
 'VERTEXNOMINATION': ['d3m.primitives.data_transformation.vertex_nomination_parser.VertexNominationParser',
                      'd3m.primitives.classification.vertex_nomination.VertexNomination'],
 
-'VERTEXCLASSIFICATION': ['d3m.primitives.data_transformation.vertex_nomination_parser.VertexNominationParser',
-                     'd3m.primitives.classification.vertex_nomination.VertexNomination'],
+'VERTEXCLASSIFICATION': ['d3m.primitives.data_transformation.vertex_classification_parser.VertexClassificationParser',
+                     'd3m.primitives.classification.vertex_nomination.VertexClassification'],
 
 'OBJECTDETECTION': ['d3m.primitives.data_transformation.denormalize.Common',
                     'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
