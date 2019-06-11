@@ -100,6 +100,7 @@ classifiers = ['d3m.primitives.classification.bernoulli_naive_bayes.SKlearn',
                'd3m.primitives.classification.gaussian_naive_bayes.SKlearn',
                'd3m.primitives.classification.sgd.SKlearn',
                'd3m.primitives.classification.svc.SKlearn',
+               'd3m.primitives.classification.xgboost_gbtree.DataFrameCommon',
                'd3m.primitives.classification.gradient_boosting.SKlearn']
 
 regressors = ['d3m.primitives.regression.ridge.SKlearn',
@@ -110,6 +111,7 @@ regressors = ['d3m.primitives.regression.ridge.SKlearn',
               'd3m.primitives.regression.random_forest.SKlearn',
               'd3m.primitives.regression.extra_trees.SKlearn',
               'd3m.primitives.regression.sgd.SKlearn',
+              'd3m.primitives.regression.xgboost_gbtree.DataFrameCommon',
               'd3m.primitives.regression.gradient_boosting.SKlearn']
 
 def get_solutions(task_name, dataset, primitives, problem):

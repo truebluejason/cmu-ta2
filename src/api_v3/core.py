@@ -167,7 +167,7 @@ class Core(core_pb2_grpc.CoreServicer):
             if timeout <= 0:
                 timeout = None
             elif timeout > 60:
-                timeout = timeout - 60
+                timeout = timeout - 120
                 timeout = timeout - time_used
                 if timeout <= 0:
                     timeout = 1
