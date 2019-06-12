@@ -118,7 +118,7 @@ class PrimitiveDescription(object):
             else:
                 return (0.0, optimal_params)
 
-        if y is None or 'graph' in python_path or 'link' in python_path or 'community' in python_path:
+        if y is None or 'graph' in python_path or 'link' in python_path or 'community' in python_path or 'iterative' in python_path:
             if util.invert_metric(metric_type) is True:
                 return (0.0, optimal_params)
             else:
@@ -150,15 +150,14 @@ class PrimitiveDescription(object):
         # Run k-fold CV and compute mean metric score
         (score, metric_scores) = self.k_fold_CV(prim_instance, X, y, metric_type, posLabel, splits)
         mean = np.mean(metric_scores)
-        metric_scores.sort()
-        median = np.median(metric_scores)
+        #metric_scores.sort()
+        #median = np.median(metric_scores)
         lb = max((int)(0.025*len(metric_scores) + 0.5)-1,0)
         ub = min((int)(0.975*len(metric_scores) + 0.5)-1, len(metric_scores)-1)
         stderror = np.std(metric_scores)/math.sqrt(len(metric_scores))
         z = 1.96*stderror
         logging.info("CV scores for %s = %s(%s - %s) k = %s", python_path, mean, mean-z, mean+z, len(metric_scores))
-        logging.info("CV scores for %s = %s(%s - %s) k = %s", python_path, median, metric_scores[lb], metric_scores[ub], len(metric_scores))
-        text = python_path + "," + str(mean) + "," + str(mean-z) + "," + str(median) + "," + str(metric_scores[lb]) + "," + str(metric_scores[1]) + "\n"
+        #text = python_path + "," + str(mean) + "," + str(mean-z) + "," + str(median) + "," + str(metric_scores[lb]) + "," + str(metric_scores[1]) + "\n"
         filename = "scores.csv"
         #with open(filename, "a") as g:
         #    g.write(text)
@@ -333,6 +332,8 @@ class PrimitiveDescription(object):
             kf = KFold(n_splits=splits, shuffle=True, random_state=9001)
             split_indices = kf.split(X)
 
+        from timeit import default_timer as timer
+        start = timer()
         # Do the actual k-fold CV here
         for train_index, test_index in split_indices:
             X_train, X_test = X.iloc[train_index,:], X.iloc[test_index,:]
@@ -342,13 +343,15 @@ class PrimitiveDescription(object):
             prim_instance.set_training_data(inputs=X_train, outputs=y_train)
             prim_instance.fit()
             predictions = prim_instance.produce(inputs=X_test).value
-            if len(predictions.columns) > 1:
+            if 'xgboost' in python_path and len(predictions.columns) > 1:
                 predictions = predictions.iloc[:,len(predictions.columns)-1]
             metric = self.evaluate_metric(predictions, y_test, metric_type, posLabel)
             metric_scores.append(metric)
             metric_sum += metric
 
         score = metric_sum/splits
+        end = timer()
+        print("Time taken for ", python_path, " = ", end-start, " secs")
         return (score, metric_scores)
 
     def optimize_hyperparams(self, train, output, lower_bounds, upper_bounds, hyperparam_types, hyperparam_semantic_types,

@@ -9,10 +9,8 @@ task_paths = {
          'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
          'd3m.primitives.data_transformation.column_parser.DataFrameCommon',
          'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
-         'd3m.primitives.data_preprocessing.text_reader.DataFrameCommon',
          'd3m.primitives.data_cleaning.imputer.SKlearn',
-#         'd3m.primitives.feature_construction.corex_text.CorexText',
-         'd3m.primitives.natural_language_processing.lda.Fastlvm',
+         'd3m.primitives.feature_construction.corex_text.DSBOX',
          'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'],
 
 'TIMESERIES': ['d3m.primitives.data_transformation.denormalize.Common',
@@ -41,6 +39,15 @@ task_paths = {
                    'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
                    'd3m.primitives.data_cleaning.imputer.SKlearn',
                    'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'],
+
+'SEMISUPERVISEDCLASSIFICATION': ['d3m.primitives.data_transformation.denormalize.Common',
+                                 'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
+                                 'd3m.primitives.data_transformation.column_parser.DataFrameCommon',
+                                 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
+                                 'd3m.primitives.data_cleaning.imputer.SKlearn',
+                                 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
+                                 'd3m.primitives.semisupervised_classification.iterative_labeling.AutonBox',
+                                 'd3m.primitives.data_transformation.construct_predictions.DataFrameCommon'],
 
 'REGRESSION': ['d3m.primitives.data_transformation.denormalize.Common',
                'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
@@ -107,7 +114,6 @@ regressors = ['d3m.primitives.regression.ridge.SKlearn',
               'd3m.primitives.regression.lasso.SKlearn',
               'd3m.primitives.regression.lasso_cv.SKlearn',
               'd3m.primitives.regression.linear_svr.SKlearn',
-              'd3m.primitives.regression.svr.SKlearn',
               'd3m.primitives.regression.random_forest.SKlearn',
               'd3m.primitives.regression.extra_trees.SKlearn',
               'd3m.primitives.regression.sgd.SKlearn',
@@ -139,7 +145,7 @@ def get_solutions(task_name, dataset, primitives, problem):
     basic_sol = solutiondescription.SolutionDescription(problem, static_dir)
     basic_sol.initialize_solution(task_name)
 
-    if task_name == 'CLASSIFICATION' or task_name == 'REGRESSION':
+    if task_name == 'CLASSIFICATION' or task_name == 'REGRESSION' or task_name == 'SEMISUPERVISEDCLASSIFICATION':
         try:
             (types_present, total_cols, rows, categorical_atts, ordinal_atts, ok_to_denormalize, ok_to_impute, privileged) = solutiondescription.column_types_present(dataset)
             print(types_present)
@@ -156,6 +162,8 @@ def get_solutions(task_name, dataset, primitives, problem):
             rows = 0
 
         if types_present is not None:
+            if len(types_present) == 1 and types_present[0] == 'FILES':
+                types_present[0] = 'TIMESERIES' 
             try:
                 if 'TIMESERIES' in types_present:
                     basic_sol.initialize_solution('TIMESERIES')
@@ -181,26 +189,32 @@ def get_solutions(task_name, dataset, primitives, problem):
                 basic_sol = None
 
         # Iterate through primitives which match task type for populative pool of solutions
+        listOfSolutions = []
         if basic_sol is not None:
-            listOfSolutions = classifiers
             if task_name == "REGRESSION":
                 listOfSolutions = regressors
-        else:
-            listOfSolutions = []
+            elif task_name == "CLASSIFICATION":
+                listOfSolutions = classifiers
 
         for python_path in listOfSolutions:
-            if 'Find_projections' in python_path and (total_cols > 20 or rows > 10000):
+            print(python_path)
+            if total_cols > 500 and 'xgboost' in python_path:
                 continue
 
             # SVM gets extremely expensive for >10k samples!!!
-            if rows > 10000:
-                if 'classification.svc.SKlearn' in python_path or 'classification.svr.SKlearn' in python_path:
+            if rows > 10000 and 'classification.svc.SKlearn':
                     continue
            
             pipe = copy.deepcopy(basic_sol) 
             pipe.id = str(uuid.uuid4())
             pipe.add_step(python_path)
             solutions.append(pipe)
+
+        if len(listOfSolutions) == 0:
+            pipe = basic_sol
+            pipe.id = str(uuid.uuid4())
+            pipe.add_outputs()
+            solutions.append(pipe)         
     elif task_name == 'VERTEXNOMINATION' or \
          task_name == 'VERTEXCLASSIFICATION' or \
          task_name == 'COMMUNITYDETECTION' or \

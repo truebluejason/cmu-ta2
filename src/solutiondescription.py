@@ -108,6 +108,9 @@ def column_types_present(dataset):
     cols = len(metadata.get_columns_with_semantic_type("http://schema.org/VideoObject"))
     if cols > 0:
         types.append('VIDEO')
+    cols = len(metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/FileName"))
+    if cols > 0:
+        types.append('FILES')
 
     (cols, ordinals) = get_cols_to_encode(df)
     if len(cols) > 0:
@@ -683,7 +686,7 @@ class SolutionDescription(object):
         if 'denormalize' in python_paths[0] and self.ok_to_denormalize == False:
             python_paths.remove('d3m.primitives.data_transformation.denormalize.Common')
 
-        if len(python_paths) > 5 and 'imputer' in python_paths[5] and self.ok_to_impute == False:
+        if len(python_paths) > 4 and 'imputer' in python_paths[4] and self.ok_to_impute == False:
             python_paths.remove('d3m.primitives.data_cleaning.imputer.SKlearn')
 
         if (taskname == 'CLASSIFICATION' or taskname == 'REGRESSION' or taskname == 'TEXT' or taskname == 'IMAGE' or taskname == 'TIMESERIES'):
@@ -715,6 +718,7 @@ class SolutionDescription(object):
         for i in range(num):
             self.add_primitive(python_paths[i], i)
 
+            # Set hyperparameters for specific primitives
             if python_paths[i] == 'd3m.primitives.data_cleaning.imputer.SKlearn':
                 self.hyperparams[i] = {}
                 self.hyperparams[i]['use_semantic_types'] = True
@@ -731,7 +735,7 @@ class SolutionDescription(object):
                 self.hyperparams[i] = {}
                 self.hyperparams[i]['return_result'] = 'replace'
 
-            if python_paths[i] == 'd3m.primitives.feature_construction.corex_text.CorexText':
+            if python_paths[i] == 'd3m.primitives.feature_construction.corex_text.DSBOX':
                 self.hyperparams[i] = {}
                 self.hyperparams[i]['threshold'] = 500
           
@@ -753,6 +757,7 @@ class SolutionDescription(object):
                 self.hyperparams[i] = {}
                 self.hyperparams[i]['exclude_columns'] = self.privileged
 
+            # Construct pipelines for different task types
             if taskname == 'CLASSIFICATION' or \
                  taskname == 'REGRESSION' or \
                  taskname == 'TEXT' or \
@@ -767,7 +772,6 @@ class SolutionDescription(object):
                     self.hyperparams[i]['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/TrueTarget']
                 else: # other steps
                     data = 'steps.' + str(i-1) + '.produce'
-
             elif taskname == 'AUDIO':
                 if i == 0 or i == 2: # denormalize or AudioReader or TargetsReader
                     data = 'inputs.0'
@@ -775,6 +779,27 @@ class SolutionDescription(object):
                     data = 'steps.1.produce'
                     self.hyperparams[i] = {}
                     self.hyperparams[i]['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/TrueTarget']
+                else: # other steps
+                    data = 'steps.' + str(i-1) + '.produce'
+            elif taskname == 'SEMISUPERVISEDCLASSIFICATION':
+                if i == 0: # denormalize
+                    data = 'inputs.0'
+                elif i == num-3: # extract_columns_by_semantic_types (targets)
+                    data = 'steps.1.produce'
+                    self.hyperparams[i] = {}
+                    self.hyperparams[i]['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/TrueTarget']
+                elif i == num-2: # SSL step
+                    data = 'steps.' + str(i - 1) + str('.produce')
+                    origin = data.split('.')[0]
+                    source = data.split('.')[1]
+                    self.primitives_arguments[i]['outputs'] = {'origin': origin, 'source': int(source), 'data': data}
+                    data = 'steps.' + str(i - 2) + str('.produce')
+                elif i == num-1: # construct_predictions
+                    data = 'steps.1.produce'
+                    origin = data.split('.')[0]
+                    source = data.split('.')[1]
+                    self.primitives_arguments[i]['reference'] = {'origin': origin, 'source': int(source), 'data': data}
+                    data = 'steps.' + str(i-1) + '.produce'
                 else: # other steps
                     data = 'steps.' + str(i-1) + '.produce'
             elif taskname == 'CLUSTERING':
