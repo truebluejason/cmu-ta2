@@ -7,6 +7,9 @@ import primitive_lib
 from multiprocessing import Pool, cpu_count
 
 def rank_solutions(valid_solution_scores, problem_metric):
+    """
+    Return sorted list of multiple solutions.
+    """
     # Sort solutions by their scores and rank them
     import operator
     sorted_x = sorted(valid_solution_scores.items(), key=operator.itemgetter(1))
@@ -135,7 +138,6 @@ def fit_solution(inputs, solution, primitives, outputDir, problem_desc):
     Runs in a separate process
     """
     logging.info("Fitting %s", solution.id)
-    #solution.fit(inputs=inputs, solution_dict=None)
 
     util.write_pipeline_json(solution, primitives, outputDir + "/pipelines_ranked", rank=solution.rank)
     #util.write_pipeline_yaml(solution, outputDir + "/pipeline_runs", inputs, problem_desc)

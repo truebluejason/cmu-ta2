@@ -14,8 +14,7 @@ TA2_API_HOST = '[::]'
 TA2_API_PORT = 45042
 
 import warnings
-from sklearn.exceptions import UndefinedMetricWarning
-warnings.filterwarnings(action='ignore', category=UndefinedMetricWarning)
+warnings.filterwarnings('ignore')
 
 def main(argv):
     mode = argv[0]
