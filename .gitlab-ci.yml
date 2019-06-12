@@ -23,7 +23,6 @@ build_image:
     - cd -
     - git status # should show that your submodule changed
     - wget https://github.com/fchollet/deep-learning-models/releases/download/v0.2/resnet50_weights_tf_dim_ordering_tf_kernels.h5
-    - wget http://public.datadrivendiscovery.org/resnext-101-kinetics.pth
 
   script:
     - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
