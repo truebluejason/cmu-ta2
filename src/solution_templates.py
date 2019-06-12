@@ -87,12 +87,12 @@ task_paths = {
 
 'AUDIO': ['d3m.primitives.data_transformation.denormalize.Common',
           'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
-          'd3m.primitives.bbn.time_series.AudioReader',
-          'd3m.primitives.bbn.time_series.ChannelAverager',
-          'd3m.primitives.bbn.time_series.SignalDither',
-          'd3m.primitives.bbn.time_series.SignalFramer',
-          'd3m.primitives.bbn.time_series.SignalMFCC',
-          'd3m.primitives.bbn.time_series.IVectorExtractor',
+          'd3m.primitives.data_preprocessing.audio_reader.AudioReader',
+          'd3m.primitives.data_preprocessing.channel_averager.ChannelAverager',
+          'd3m.primitives.data_preprocessing.signal_dither.SignalDither',
+          'd3m.primitives.time_series_segmentation.signal_framer.SignalFramer',
+          'd3m.primitives.feature_extraction.signal_mfcc.SignalMFCC',
+          'd3m.primitives.data_transformation.i_vector_extractor.IVectorExtractor',
           'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'],
 
 'FALLBACK1': ['d3m.primitives.classification.gaussian_classification.MeanBaseline']}
@@ -166,7 +166,7 @@ def get_solutions(task_name, dataset, primitives, problem):
         if types_present is not None:
             if len(types_present) == 1 and types_present[0] == 'FILES':
                 types_present[0] = 'TIMESERIES' 
-            try:
+            if 1:#try:
                 if 'TIMESERIES' in types_present:
                     basic_sol.initialize_solution('TIMESERIES')
                 elif 'IMAGE' in types_present:
@@ -186,9 +186,9 @@ def get_solutions(task_name, dataset, primitives, problem):
                 time_used = end - start
                 total_cols = basic_sol.get_total_cols()
                 print("Total cols = ", total_cols)
-            except:
-                logging.info(sys.exc_info()[0])
-                basic_sol = None
+            #except:
+            #    logging.info(sys.exc_info()[0])
+            #    basic_sol = None
 
         # Iterate through primitives which match task type for populative pool of solutions
         listOfSolutions = []
