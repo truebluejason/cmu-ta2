@@ -209,9 +209,9 @@ def get_solutions(task_name, dataset, primitives, problem):
                 continue
 
             # SVM gets extremely expensive for >10k samples!!!
-            if rows > 10000 and 'classification.svc.SKlearn':
-                    continue
-           
+            if rows > 10000 and 'classification.svc.SKlearn' in python_path:
+                continue
+          
             pipe = copy.deepcopy(basic_sol) 
             pipe.id = str(uuid.uuid4())
             pipe.add_step(python_path)
