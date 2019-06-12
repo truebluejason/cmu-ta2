@@ -130,6 +130,11 @@ class PrimitiveDescription(object):
             if min_rows < 100:
                 optimal_params['support'] = min_rows
 
+        # Lasso CV can become very expensive for large number of columns!!!
+        # Use lasso's CV score
+        if 'lasso_cv' in python_path and len(X.columns) > 500:
+            return (1.0, optimal_params)
+
         # Do grid-search to learn optimal parameters for the model
         params = None
         #try:

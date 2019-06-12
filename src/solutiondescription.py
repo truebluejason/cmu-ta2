@@ -688,7 +688,7 @@ class SolutionDescription(object):
                 index = len(python_paths)-1
                 python_paths.insert(index, 'd3m.primitives.data_transformation.one_hot_encoder.SKlearn')
 
-            if taskname is not 'IMAGE':  # Image data frame has too many dimensions (in thousands)! This step is extremely slow! 
+            if taskname is not 'IMAGE' and taskname is not 'VIDEO':  # Image data frame has too many dimensions (in thousands)! This step is extremely slow! 
                 index = len(python_paths)-1
                 python_paths.insert(index, 'd3m.primitives.data_preprocessing.robust_scaler.SKlearn')
 
