@@ -30,7 +30,6 @@ RUN pip3 install --upgrade pip==18.1 \
 # Create static dir for Image weights file
 RUN mkdir /static
 COPY resnet50_weights_tf_dim_ordering_tf_kernels.h5 /static
-COPY resnext-101-kinetics.pth /static
 
 # Install bayesian_optimiaztion
 COPY bayesian_optimization /tmp/bayesian_optimization
