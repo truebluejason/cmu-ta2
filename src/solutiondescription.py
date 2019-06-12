@@ -585,12 +585,6 @@ class SolutionDescription(object):
             if param in training_arguments_primitive:
                 training_arguments[param] = value
 
-        #if 'resnext101_kinetics_video_features' in python_path:
-        #    volumes = {}
-        #    volumes['cmu.resnext-101-kinetics.pth'] = self.static_dir + '/resnext-101-kinetics.pth'
-        #    model = primitive(hyperparams=primitive_hyperparams(
-        #            primitive_hyperparams.defaults(), **custom_hyperparams), volumes=volumes)
-        #else:
         model = primitive(hyperparams=primitive_hyperparams(primitive_hyperparams.defaults(), **custom_hyperparams))
 
         model.set_training_data(**training_arguments)
