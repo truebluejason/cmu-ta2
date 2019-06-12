@@ -585,17 +585,13 @@ class SolutionDescription(object):
             if param in training_arguments_primitive:
                 training_arguments[param] = value
 
-        #if 'image_feature.DSBOX' in python_path:
-        #    volumes = self.static_dir + '/resnet50_weights_tf_dim_ordering_tf_kernels.h5'
-        #    model = primitive(hyperparams=primitive_hyperparams(
-        #            primitive_hyperparams.defaults(), **custom_hyperparams), volumes=volumes)
-        #elif 'resnext101_kinetics_video_features' in python_path:
-        #    volumes = {}
-        #    volumes['cmu.resnext-101-kinetics.pth'] = self.static_dir + '/resnet-101-kinetics.pth'
-        #    model = primitive(hyperparams=primitive_hyperparams(
-        #            primitive_hyperparams.defaults(), **custom_hyperparams), volumes=volumes)
-        #else:
-        model = primitive(hyperparams=primitive_hyperparams(primitive_hyperparams.defaults(), **custom_hyperparams))
+        if 'resnext101_kinetics_video_features' in python_path:
+            volumes = {}
+            volumes['cmu.resnext-101-kinetics.pth'] = self.static_dir + '/resnext-101-kinetics.pth'
+            model = primitive(hyperparams=primitive_hyperparams(
+                    primitive_hyperparams.defaults(), **custom_hyperparams), volumes=volumes)
+        else:
+            model = primitive(hyperparams=primitive_hyperparams(primitive_hyperparams.defaults(), **custom_hyperparams))
 
         model.set_training_data(**training_arguments)
         model.fit()

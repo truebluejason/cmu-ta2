@@ -351,7 +351,7 @@ class PrimitiveDescription(object):
 
         score = metric_sum/splits
         end = timer()
-        print("Time taken for ", python_path, " = ", end-start, " secs")
+        logging.info("Time taken for %s = %s secs", python_path, end-start)
         return (score, metric_scores)
 
     def optimize_hyperparams(self, train, output, lower_bounds, upper_bounds, hyperparam_types, hyperparam_semantic_types,
