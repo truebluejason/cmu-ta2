@@ -74,8 +74,9 @@ task_paths = {
 
 'COLLABORATIVEFILTERING': ['d3m.primitives.link_prediction.collaborative_filtering_link_prediction.CollaborativeFilteringLinkPrediction'],
 
-'VERTEXNOMINATION': ['d3m.primitives.data_transformation.vertex_nomination_parser.VertexNominationParser',
-                     'd3m.primitives.classification.vertex_nomination.VertexNomination'],
+'VERTEXCLASSIFICATION2': ['d3m.primitives.data_preprocessing.largest_connected_component.JHU',
+                      'd3m.primitives.data_transformation.adjacency_spectral_embedding.JHU',
+                      'd3m.primitives.classification.gaussian_classification.JHU'],
 
 'VERTEXCLASSIFICATION': ['d3m.primitives.data_transformation.vertex_classification_parser.VertexClassificationParser',
                      'd3m.primitives.classification.vertex_nomination.VertexClassification'],
@@ -150,6 +151,8 @@ def get_solutions(task_name, dataset, primitives, problem):
 
     if task_name == 'TIMESERIESFORECASTING':
         task_name = 'REGRESSION'
+    if task_name == 'VERTEXNOMINATION':
+        task_name = 'VERTEXCLASSIFICATION'
     basic_sol = solutiondescription.SolutionDescription(problem, static_dir)
     basic_sol.initialize_solution(task_name)
 
@@ -172,7 +175,7 @@ def get_solutions(task_name, dataset, primitives, problem):
         if types_present is not None:
             if len(types_present) == 1 and types_present[0] == 'FILES':
                 types_present[0] = 'TIMESERIES' 
-            if 1:#try:
+            try:
                 if 'TIMESERIES' in types_present:
                     basic_sol.initialize_solution('TIMESERIES')
                 elif 'IMAGE' in types_present:
@@ -192,9 +195,9 @@ def get_solutions(task_name, dataset, primitives, problem):
                 time_used = end - start
                 total_cols = basic_sol.get_total_cols()
                 print("Total cols = ", total_cols)
-            #except:
-            #    logging.info(sys.exc_info()[0])
-            #    basic_sol = None
+            except:
+                logging.info(sys.exc_info()[0])
+                basic_sol = None
 
         # Iterate through primitives which match task type for populative pool of solutions
         listOfSolutions = []
@@ -222,8 +225,7 @@ def get_solutions(task_name, dataset, primitives, problem):
             pipe.id = str(uuid.uuid4())
             pipe.add_outputs()
             solutions.append(pipe)         
-    elif task_name == 'VERTEXNOMINATION' or \
-         task_name == 'VERTEXCLASSIFICATION' or \
+    elif task_name == 'VERTEXCLASSIFICATION' or \
          task_name == 'COMMUNITYDETECTION' or \
          task_name == 'GRAPHMATCHING' or \
          task_name == 'LINKPREDICTION' or \
@@ -243,6 +245,12 @@ def get_solutions(task_name, dataset, primitives, problem):
         if task_name == 'GRAPHMATCHING':
             pipe = solutiondescription.SolutionDescription(problem, static_dir)
             pipe.initialize_solution('GRAPHMATCHING2')
+            pipe.id = str(uuid.uuid4())
+            pipe.add_outputs()
+            solutions.append(pipe)
+        if task_name == 'VERTEXCLASSIFICATION':
+            pipe = solutiondescription.SolutionDescription(problem, static_dir)
+            pipe.initialize_solution('VERTEXCLASSIFICATION2')
             pipe.id = str(uuid.uuid4())
             pipe.add_outputs()
             solutions.append(pipe)

@@ -84,6 +84,8 @@ class PrimitiveDescription(object):
         splits = 2
         if length < 500:
             splits = 50
+            if length < splits:
+                splits = length
         elif length < 1000:
             splits = 25
         elif length < 2500:
