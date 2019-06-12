@@ -208,6 +208,7 @@ class Core(core_pb2_grpc.CoreServicer):
 
             # TEMPORARY HACK FOR SSL TO WORK!!!
             if len(results) == 0:
+                count = 1
                 index = 0
                 id = solutions[index].id
                 self._solutions[id] = solutions[index]
