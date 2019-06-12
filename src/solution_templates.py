@@ -133,12 +133,13 @@ def get_solutions(task_name, dataset, primitives, problem):
     except:
         static_dir = None
 
-    basic_sol = solutiondescription.SolutionDescription(problem, static_dir)
-    basic_sol.initialize_solution('FALLBACK1')
-    pipe = copy.deepcopy(basic_sol)
-    pipe.id = str(uuid.uuid4())
-    pipe.add_outputs()
-    solutions.append(pipe)
+    if task_name != 'SEMISUPERVISEDCLASSIFICATION':
+        basic_sol = solutiondescription.SolutionDescription(problem, static_dir)
+        basic_sol.initialize_solution('FALLBACK1')
+        pipe = copy.deepcopy(basic_sol)
+        pipe.id = str(uuid.uuid4())
+        pipe.add_outputs()
+        solutions.append(pipe)
 
     if task_name == 'TIMESERIESFORECASTING':
         task_name = 'REGRESSION'
@@ -164,7 +165,7 @@ def get_solutions(task_name, dataset, primitives, problem):
         if types_present is not None:
             if len(types_present) == 1 and types_present[0] == 'FILES':
                 types_present[0] = 'TIMESERIES' 
-            try:
+            if 1:#try:
                 if 'TIMESERIES' in types_present:
                     basic_sol.initialize_solution('TIMESERIES')
                 elif 'IMAGE' in types_present:
@@ -184,9 +185,9 @@ def get_solutions(task_name, dataset, primitives, problem):
                 time_used = end - start
                 total_cols = basic_sol.get_total_cols()
                 print("Total cols = ", total_cols)
-            except:
-                logging.info(sys.exc_info()[0])
-                basic_sol = None
+            #except:
+            #    logging.info(sys.exc_info()[0])
+            #    basic_sol = None
 
         # Iterate through primitives which match task type for populative pool of solutions
         listOfSolutions = []
@@ -197,7 +198,6 @@ def get_solutions(task_name, dataset, primitives, problem):
                 listOfSolutions = classifiers
 
         for python_path in listOfSolutions:
-            print(python_path)
             if total_cols > 500 and 'xgboost' in python_path:
                 continue
 
