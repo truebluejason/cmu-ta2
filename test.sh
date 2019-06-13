@@ -1,22 +1,29 @@
 #!/usr/bin/env bash
 
-export D3MOUTPUTDIR=/home/sray/cmu-ta2/cmu-ta2/output
-export D3MSTATICDIR=/home/sray
-export D3MDATADIR=/home/sray/DARPA_D3M
+export D3MOUTPUTDIR=/zfsauton2/home/gwelter/code/cmu-ta2/output
+export D3MSTATICDIR=/zfsauton2/home/gwelter/code/cmu-ta2/static
+export D3MDATADIR=/home/scratch/gwelter/datasets/seed_datasets_current
 
 export D3MTIMEOUT=1200
 export D3MCPU=8
 
-datasets=(SEMI_1053_jm1)
-targets=(defects)
-metrics=(F1Macro)
+#datasets=(SEMI_1053_jm1)
+#targets=(defects)
+#metrics=(F1Macro)
+
+datasets=(SEMI_155_pokerhand SEMI_1040_sylva_prior SEMI_1044_eye_movements SEMI_1053_jm1 SEMI_1217_click_prediction_small SEMI_1459_artificial_characters)
+targets=(class label label defects click Class)
+metrics=(F1Macro F1Macro F1Macro F1Macro F1Macro F1Macro)
 
 rm scores.csv
 
-for (( i=0; i<1; i++ ))
+for (( i=0; i<${#datasets[@]}; i++ ))
 do
-    rm ./output/pipelines_ranked/*
-    rm ./output/pipelines_searched/*
+
+    echo "Running D3M CMU-TA2 on ${datasets[i]}"
+
+    rm ./output/pipelines_ranked/* > /dev/null 2>&1
+    rm ./output/pipelines_searched/* > /dev/null 2>&1
 
     export D3MINPUTDIR="$D3MDATADIR/${datasets[i]}"
     export D3MPROBLEMPATH="$D3MDATADIR/${datasets[i]}/TRAIN/problem_TRAIN/problemDoc.json"
