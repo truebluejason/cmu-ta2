@@ -175,7 +175,7 @@ def get_solutions(task_name, dataset, primitives, problem):
         if types_present is not None:
             if len(types_present) == 1 and types_present[0] == 'FILES':
                 types_present[0] = 'TIMESERIES' 
-            try:
+            if 1:#try:
                 if 'TIMESERIES' in types_present:
                     basic_sol.initialize_solution('TIMESERIES')
                 elif 'IMAGE' in types_present:
@@ -195,9 +195,9 @@ def get_solutions(task_name, dataset, primitives, problem):
                 time_used = end - start
                 total_cols = basic_sol.get_total_cols()
                 print("Total cols = ", total_cols)
-            except:
-                logging.info(sys.exc_info()[0])
-                basic_sol = None
+            #except:
+            #    logging.info(sys.exc_info()[0])
+            #    basic_sol = None
 
         # Iterate through primitives which match task type for populative pool of solutions
         listOfSolutions = []
