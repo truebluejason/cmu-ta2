@@ -18,7 +18,7 @@ def list_primitives():
         
     for pc in prims:
         # Do not load expensive primitives! These ones have been reported to take very long making TA2 unavailable!
-        if 'cornell' in pc or 'Umich' in pc:
+        if 'Cornell' in pc or 'Umich' in pc:
             continue
         try:
             primitive_obj = d3m.index.get_primitive(pc)
