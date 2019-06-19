@@ -29,7 +29,6 @@ task_paths = {
           'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
           'd3m.primitives.data_transformation.column_parser.DataFrameCommon',
           'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
-          'd3m.primitives.data_preprocessing.video_reader.DataFrameCommon',
           'd3m.primitives.feature_extraction.resnext101_kinetics_video_features.VideoFeaturizer',
           'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'],
 #'VIDEO': ['d3m.primitives.data_transformation.denormalize.Common',
