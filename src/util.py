@@ -150,3 +150,14 @@ def invert_metric(metric_type):
         return True
     return False
 
+def get_distil_metric_name(metric_type):
+    metric = 'accuracy'
+    if metric_type == problem_pb2.MEAN_SQUARED_ERROR or metric_type == problem_pb2.ROOT_MEAN_SQUARED_ERROR or metric_type == problem_pb2.MEAN_ABSOLUTE_ERROR:
+        metric = 'meanSquaredError'
+    elif metric_type == problem_pb2.MEAN_ABSOLUTE_ERROR:
+        metric = 'meanAbsoluteError'
+    elif metric_type == problem_pb2.ACCURACY:
+        metric = 'accuracy'
+    elif metric_type == problem_pb2.F1_MACRO or metric_type == problem_pb2.F1_MICRO or metric_type == problem_pb2.F1:
+        metric_type == 'f1Macro'
+    return metric

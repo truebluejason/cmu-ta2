@@ -100,7 +100,6 @@ class PrimitiveDescription(object):
             splits = 2
         return splits
 
-        
     def score_primitive(self, X, y, metric_type, posLabel, custom_hyperparams, step_index=0):
         """
         Learns optimal hyperparameters for the primitive
@@ -120,7 +119,20 @@ class PrimitiveDescription(object):
             else:
                 return (0.0, optimal_params)
 
-        if y is None or 'graph' in python_path or 'link' in python_path or 'community' in python_path or 'iterative' in python_path:
+        if 'DistilEnsembleForest' in python_path:
+            optimal_params['metric'] = util.get_distil_metric_name(metric_type)
+            primitive_hyperparams = self.primitive.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
+            prim_instance = self.primitive(hyperparams=primitive_hyperparams(primitive_hyperparams.defaults(), **optimal_params))
+            prim_instance.set_training_data(inputs=X, outputs=y)
+            from timeit import default_timer as timer
+            start = timer()
+            prim_instance.fit()
+            end = timer()
+            print("Distil took secs = ", end-start)
+            score = abs(prim_instance._model.best_fitness)
+            return (score, optimal_params)
+
+        if y is None or 'graph' in python_path or 'link' in python_path or 'community' in python_path or 'iterative' in python_path or 'JHU' in python_path:
             if util.invert_metric(metric_type) is True:
                 return (0.0, optimal_params)
             else:

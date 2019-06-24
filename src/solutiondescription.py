@@ -585,11 +585,6 @@ class SolutionDescription(object):
             if param in training_arguments_primitive:
                 training_arguments[param] = value
 
-        #if 'resnext101_kinetics_video_features' in python_path:
-        #    volumes = {}
-        #    volumes['cmu.resnext-101-kinetics.pth'] = self.static_dir + '/resnext-101-kinetics.pth'
-        #    model = primitive(hyperparams=primitive_hyperparams(primitive_hyperparams.defaults(), **custom_hyperparams), volumes=volumes)
-        #else:
         model = primitive(hyperparams=primitive_hyperparams(primitive_hyperparams.defaults(), **custom_hyperparams))
 
         model.set_training_data(**training_arguments)
@@ -680,17 +675,15 @@ class SolutionDescription(object):
         if 'denormalize' in python_paths[0] and self.ok_to_denormalize == False:
             python_paths.remove('d3m.primitives.data_transformation.denormalize.Common')
 
-        if len(python_paths) > 4 and 'imputer' in python_paths[4] and self.ok_to_impute == False:
+        if len(python_paths) > 5 and 'imputer' in python_paths[5] and self.ok_to_impute == False:
             python_paths.remove('d3m.primitives.data_cleaning.imputer.SKlearn')
 
-        if (taskname == 'CLASSIFICATION' or taskname == 'REGRESSION' or taskname == 'TEXT' or taskname == 'IMAGE' or taskname == 'TIMESERIES'):
+        if (taskname == 'CLASSIFICATION' or taskname == 'REGRESSION' or taskname == 'TEXT' or taskname == 'IMAGE' or taskname == 'TIMESERIES' or taskname == 'TEXTCLASSIFICATION'):
             if self.categorical_atts is not None and len(self.categorical_atts) > 0:
-                index = len(python_paths)-1
-                python_paths.insert(index, 'd3m.primitives.data_transformation.one_hot_encoder.SKlearn')
+                python_paths.append('d3m.primitives.data_transformation.one_hot_encoder.SKlearn')
 
             if taskname is not 'IMAGE' and taskname is not 'VIDEO':  # Image data frame has too many dimensions (in thousands)! This step is extremely slow! 
-                index = len(python_paths)-1
-                python_paths.insert(index, 'd3m.primitives.data_preprocessing.robust_scaler.SKlearn')
+                python_paths.append('d3m.primitives.data_preprocessing.robust_scaler.SKlearn')
 
         num = len(python_paths)
         self.taskname = taskname
@@ -708,7 +701,7 @@ class SolutionDescription(object):
         # Constructing DAG to determine the execution order
         execution_graph = nx.DiGraph()
 
-        # Iterate through steps 
+        # Iterate through steps of the pipeline 
         for i in range(num):
             self.add_primitive(python_paths[i], i)
 
@@ -760,16 +753,36 @@ class SolutionDescription(object):
                  taskname == 'TIMESERIES':
                 if i == 0: # denormalize
                     data = 'inputs.0'
-                elif i == num-1: # extract_columns_by_semantic_types (targets)
+                elif i == 2: # extract_columns_by_semantic_types (targets)
                     data = 'steps.1.produce'
                     self.hyperparams[i] = {}
                     self.hyperparams[i]['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/TrueTarget']
+                elif i == 3: # extract_columns_by_semantic_types
+                    data = 'steps.1.produce'
                 else: # other steps
-                    data = 'steps.' + str(i-1) + '.produce'
-            elif taskname == 'AUDIO':
-                if i == 0 or i == 2: # denormalize or AudioReader or TargetsReader
+                    data = 'steps.' + str(i - 1) + '.produce'
+            elif taskname == 'TEXTCLASSIFICATION': 
+                if i == 0: # denormalize
                     data = 'inputs.0'
-                elif i == num-1: # extract_columns_by_semantic_types (targets)
+                elif i == 2: # extract_columns_by_semantic_types (targets)
+                    data = 'steps.1.produce'
+                    self.hyperparams[i] = {}
+                    self.hyperparams[i]['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/TrueTarget']
+                elif i == 3: # extract_columns_by_semantic_types
+                    data = 'steps.1.produce'
+                elif 'DistilTextEncoder' in python_paths[i]:
+                    data = 'steps.2.produce'
+                    origin = data.split('.')[0]
+                    source = data.split('.')[1]
+                    self.primitives_arguments[i]['outputs'] = {'origin': origin, 'source': int(source), 'data': data}
+                    execution_graph.add_edge(str(source), str(i))
+                    data = 'steps.' + str(i - 1) + str('.produce')
+                else: # other steps
+                    data = 'steps.' + str(i - 1) + '.produce'
+            elif taskname == 'AUDIO':
+                if i == 0 or i == 3: # denormalize or AudioReader
+                    data = 'inputs.0'
+                elif i == 2: # extract_columns_by_semantic_types (targets)
                     data = 'steps.1.produce'
                     self.hyperparams[i] = {}
                     self.hyperparams[i]['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/TrueTarget']
@@ -778,16 +791,16 @@ class SolutionDescription(object):
             elif taskname == 'SEMISUPERVISEDCLASSIFICATION':
                 if i == 0: # denormalize
                     data = 'inputs.0'
-                elif i == num-3: # extract_columns_by_semantic_types (targets)
+                elif i == 2: # extract_columns_by_semantic_types (targets)
                     data = 'steps.1.produce'
                     self.hyperparams[i] = {}
                     self.hyperparams[i]['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/TrueTarget']
-                elif i == num-2: # SSL step
-                    data = 'steps.' + str(i - 1) + str('.produce')
+                elif i == num-1: # SSL step
+                    data = 'steps.2.produce'
                     origin = data.split('.')[0]
                     source = data.split('.')[1]
                     self.primitives_arguments[i]['outputs'] = {'origin': origin, 'source': int(source), 'data': data}
-                    data = 'steps.' + str(i - 2) + str('.produce')
+                    data = 'steps.' + str(i - 1) + str('.produce')
                 elif i == num-1: # construct_predictions
                     data = 'steps.1.produce'
                     origin = data.split('.')[0]
@@ -874,12 +887,12 @@ class SolutionDescription(object):
 
         self.add_primitive(python_path, i)
 
-        data = 'steps.' + str(i-2) + str('.produce')
+        data = 'steps.' + str(i-1) + str('.produce')
         origin = data.split('.')[0]
         source = data.split('.')[1]
         self.primitives_arguments[i]['inputs'] = {'origin': origin, 'source': int(source), 'data': data}
         
-        data = 'steps.' + str(i-1) + str('.produce')
+        data = 'steps.' + str(2) + str('.produce') # extract_columns_by_semantic_types (targets)
         origin = data.split('.')[0]
         source = data.split('.')[1]
         self.primitives_arguments[i]['outputs'] = {'origin': origin, 'source': int(source), 'data': data}
@@ -889,7 +902,7 @@ class SolutionDescription(object):
             hyperparam_spec = self.primitives[i].metadata.query()['primitive_code']['hyperparams']
             if 'n_estimators' in hyperparam_spec:
                 self.hyperparams[i]['n_estimators'] = 100
-        
+       
         self.execution_order.append(i)
 
         i = i + 1
@@ -1063,6 +1076,9 @@ class SolutionDescription(object):
         from timeit import default_timer as timer
         self.primitives_outputs = [None] * len(self.execution_order)
 
+        # Execute the initial steps of a pipeline.
+        # This executes all the common data processing steps of classifier/regressor pipelines, but only once for all.
+        # Inputs and outputs for the next step (classifier/regressor) are stored.
         for i in range(0, len(self.execution_order)):
             n_step = self.execution_order[i]
             python_path = self.primitives[n_step].metadata.query()['python_path']
@@ -1088,7 +1104,7 @@ class SolutionDescription(object):
                         self.hyperparams[n_step] = {}
                     self.hyperparams[n_step]['exclude_columns'] = list(self.exclude_columns)
 
-            logging.info("Running %s", python_path) 
+            logging.info("Running %s", python_path)
             start = timer()
             self.primitives_outputs[n_step] = self.process_step(n_step, self.primitives_outputs, ActionType.FIT, arguments)
             end = timer()
@@ -1098,11 +1114,11 @@ class SolutionDescription(object):
                 self.exclude(self.primitives_outputs[n_step])
         
         # Remove other intermediate step outputs, they are not needed anymore.
-        for i in range(0, len(self.execution_order)-2):
-            if i == 1:
+        for i in range(0, len(self.execution_order)-1):
+            if i == 1 or i == 2:
                 continue
             self.primitives_outputs[i] = [None]
-        self.total_cols = len(self.primitives_outputs[len(self.execution_order)-2].columns) 
+        self.total_cols = len(self.primitives_outputs[len(self.execution_order)-1].columns) 
 
     def get_total_cols(self):
         return self.total_cols

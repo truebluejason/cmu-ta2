@@ -5,62 +5,69 @@ import logging
 logging.basicConfig(level=logging.INFO)
 
 task_paths = {
-'TEXT': ['d3m.primitives.data_transformation.denormalize.Common',
+'TEXTCLASSIFICATION': ['d3m.primitives.data_transformation.denormalize.Common',
          'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
+         'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
          'd3m.primitives.data_transformation.column_parser.DataFrameCommon',
          'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
          'd3m.primitives.data_cleaning.imputer.SKlearn',
-         'd3m.primitives.feature_construction.corex_text.DSBOX',
-         'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'],
+         'd3m.primitives.data_transformation.encoder.DistilTextEncoder'],
+
+'TEXT': ['d3m.primitives.data_transformation.denormalize.Common',
+         'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
+         'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
+         'd3m.primitives.data_transformation.column_parser.DataFrameCommon',
+         'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
+         'd3m.primitives.data_cleaning.imputer.SKlearn',
+         'd3m.primitives.feature_construction.corex_text.DSBOX'],
 
 'TIMESERIES': ['d3m.primitives.data_transformation.denormalize.Common',
                'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
+               'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
                'd3m.primitives.data_preprocessing.time_series_to_list.DSBOX',
-               'd3m.primitives.feature_extraction.random_projection_timeseries_featurization.DSBOX',
-               'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'],
+               'd3m.primitives.feature_extraction.random_projection_timeseries_featurization.DSBOX'],
 
 'IMAGE': ['d3m.primitives.data_transformation.denormalize.Common',
           'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
+          'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
           'd3m.primitives.data_preprocessing.dataframe_to_tensor.DSBOX',
-          'd3m.primitives.feature_extraction.resnet50_image_feature.DSBOX',
-          'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'],
+          'd3m.primitives.feature_extraction.resnet50_image_feature.DSBOX'],
 
 'VIDEO': ['d3m.primitives.data_transformation.denormalize.Common',
           'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
+          'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
           'd3m.primitives.data_transformation.column_parser.DataFrameCommon',
           'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
-          'd3m.primitives.data_preprocessing.video_reader.DataFrameCommon',
-          'd3m.primitives.feature_extraction.resnext101_kinetics_video_features.VideoFeaturizer',
-          'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'],
+          #'d3m.primitives.data_preprocessing.video_reader.DataFrameCommon',
+          'd3m.primitives.feature_extraction.resnext101_kinetics_video_features.VideoFeaturizer'],
 #'VIDEO': ['d3m.primitives.data_transformation.denormalize.Common',
 #          'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
 #          'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
+#          'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
 #          'd3m.primitives.data_preprocessing.video_reader.DataFrameCommon',
-#          'd3m.primitives.feature_extraction.inceptionV3_image_feature.DSBOX',
-#          'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'],
+#          'd3m.primitives.feature_extraction.inceptionV3_image_feature.DSBOX'],
 
 'CLASSIFICATION': ['d3m.primitives.data_transformation.denormalize.Common',
                    'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
+                   'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
                    'd3m.primitives.data_transformation.column_parser.DataFrameCommon',
                    'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
-                   'd3m.primitives.data_cleaning.imputer.SKlearn',
-                   'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'],
+                   'd3m.primitives.data_cleaning.imputer.SKlearn'],
 
 'SEMISUPERVISEDCLASSIFICATION': ['d3m.primitives.data_transformation.denormalize.Common',
                                  'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
+                                 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
                                  'd3m.primitives.data_transformation.column_parser.DataFrameCommon',
                                  'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
                                  'd3m.primitives.data_cleaning.imputer.SKlearn',
-                                 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
-                                 'd3m.primitives.semisupervised_classification.iterative_labeling.AutonBox',
-                                 'd3m.primitives.data_transformation.construct_predictions.DataFrameCommon'],
+                                 'd3m.primitives.semisupervised_classification.iterative_labeling.AutonBox'],
 
 'REGRESSION': ['d3m.primitives.data_transformation.denormalize.Common',
                'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
+               'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
                'd3m.primitives.data_transformation.column_parser.DataFrameCommon',
                'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
-               'd3m.primitives.data_cleaning.imputer.SKlearn',
-               'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'],
+               'd3m.primitives.data_cleaning.imputer.SKlearn'],
 
 'CLUSTERING': ['d3m.primitives.data_transformation.dataset_to_dataframe.Common',
                'd3m.primitives.data_transformation.column_parser.DataFrameCommon',
@@ -83,7 +90,10 @@ task_paths = {
 
 'OBJECTDETECTION': ['d3m.primitives.data_transformation.denormalize.Common',
                     'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
-                    'd3m.primitives.object_detection.retina_net.JPLPrimitives'],
+                    'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
+                    'd3m.primitives.data_transformation.column_parser.DataFrameCommon',
+                    'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
+                    'd3m.primitives.feature_extraction.yolo.DSBOX'],
 
 'LINKPREDICTION': ['d3m.primitives.data_transformation.graph_matching_parser.GraphMatchingParser',
                    'd3m.primitives.data_transformation.graph_transformer.GraphTransformer',
@@ -94,13 +104,13 @@ task_paths = {
 
 'AUDIO': ['d3m.primitives.data_transformation.denormalize.Common',
           'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
-          'd3m.primitives.data_preprocessing.audio_reader.AudioReader',
-          'd3m.primitives.data_preprocessing.channel_averager.ChannelAverager',
-          'd3m.primitives.data_preprocessing.signal_dither.SignalDither',
-          'd3m.primitives.time_series_segmentation.signal_framer.SignalFramer',
-          'd3m.primitives.feature_extraction.signal_mfcc.SignalMFCC',
-          'd3m.primitives.data_transformation.i_vector_extractor.IVectorExtractor',
-          'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'],
+          'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
+          'd3m.primitives.data_preprocessing.audio_reader.BBN',
+          'd3m.primitives.data_preprocessing.channel_averager.BBN',
+          'd3m.primitives.data_preprocessing.signal_dither.BBN',
+          'd3m.primitives.time_series_segmentation.signal_framer.BBN',
+          'd3m.primitives.feature_extraction.signal_mfcc.BBN',
+          'd3m.primitives.data_transformation.i_vector_extractor.BBN'],
 
 'FALLBACK1': ['d3m.primitives.classification.gaussian_classification.MeanBaseline']}
 
@@ -115,7 +125,8 @@ classifiers = ['d3m.primitives.classification.bernoulli_naive_bayes.SKlearn',
                'd3m.primitives.classification.sgd.SKlearn',
                'd3m.primitives.classification.svc.SKlearn',
                'd3m.primitives.classification.xgboost_gbtree.DataFrameCommon',
-               'd3m.primitives.classification.gradient_boosting.SKlearn']
+               'd3m.primitives.classification.gradient_boosting.SKlearn',
+               'd3m.primitives.learner.random_forest.DistilEnsembleForest']
 
 regressors = ['d3m.primitives.regression.ridge.SKlearn',
               'd3m.primitives.regression.lasso.SKlearn',
@@ -126,7 +137,8 @@ regressors = ['d3m.primitives.regression.ridge.SKlearn',
               'd3m.primitives.regression.extra_trees.SKlearn',
               'd3m.primitives.regression.sgd.SKlearn',
               'd3m.primitives.regression.xgboost_gbtree.DataFrameCommon',
-              'd3m.primitives.regression.gradient_boosting.SKlearn']
+              'd3m.primitives.regression.gradient_boosting.SKlearn',
+              'd3m.primitives.learner.random_forest.DistilEnsembleForest']
 
 def get_solutions(task_name, dataset, primitives, problem):
     """
@@ -175,13 +187,16 @@ def get_solutions(task_name, dataset, primitives, problem):
         if types_present is not None:
             if len(types_present) == 1 and types_present[0] == 'FILES':
                 types_present[0] = 'TIMESERIES' 
-            if 1:#try:
+            try:
                 if 'TIMESERIES' in types_present:
                     basic_sol.initialize_solution('TIMESERIES')
                 elif 'IMAGE' in types_present:
                     basic_sol.initialize_solution('IMAGE')
                 elif 'TEXT' in types_present:
-                    basic_sol.initialize_solution('TEXT')
+                    if task_name == 'CLASSIFICATION':
+                        basic_sol.initialize_solution('TEXTCLASSIFICATION')
+                    else:
+                        basic_sol.initialize_solution('TEXT')
                 elif 'AUDIO' in types_present:
                     basic_sol.initialize_solution('AUDIO')
                 elif 'VIDEO' in types_present:
@@ -195,9 +210,9 @@ def get_solutions(task_name, dataset, primitives, problem):
                 time_used = end - start
                 total_cols = basic_sol.get_total_cols()
                 print("Total cols = ", total_cols)
-            #except:
-            #    logging.info(sys.exc_info()[0])
-            #    basic_sol = None
+            except:
+                logging.info(sys.exc_info()[0])
+                basic_sol = None
 
         # Iterate through primitives which match task type for populative pool of solutions
         listOfSolutions = []
@@ -212,7 +227,7 @@ def get_solutions(task_name, dataset, primitives, problem):
                 continue
 
             # SVM gets extremely expensive for >10k samples!!!
-            if rows > 10000 and 'classification.svc.SKlearn' in python_path:
+            if rows > 10000 and ('classification.svc.SKlearn' in python_path or 'DistilEnsembleForest' in python_path):
                 continue
           
             pipe = copy.deepcopy(basic_sol) 
@@ -220,8 +235,8 @@ def get_solutions(task_name, dataset, primitives, problem):
             pipe.add_step(python_path)
             solutions.append(pipe)
 
-        if len(listOfSolutions) == 0: # Currently hack for SSL to work
-            pipe = basic_sol
+        if task_name == 'SEMISUPERVISEDCLASSIFICATION':
+            pipe = copy.deepcopy(basic_sol)
             pipe.id = str(uuid.uuid4())
             pipe.add_outputs()
             solutions.append(pipe)         
