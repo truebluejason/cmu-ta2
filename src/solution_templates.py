@@ -38,14 +38,7 @@ task_paths = {
           'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
           'd3m.primitives.data_transformation.column_parser.DataFrameCommon',
           'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
-          #'d3m.primitives.data_preprocessing.video_reader.DataFrameCommon',
           'd3m.primitives.feature_extraction.resnext101_kinetics_video_features.VideoFeaturizer'],
-#'VIDEO': ['d3m.primitives.data_transformation.denormalize.Common',
-#          'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
-#          'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
-#          'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
-#          'd3m.primitives.data_preprocessing.video_reader.DataFrameCommon',
-#          'd3m.primitives.feature_extraction.inceptionV3_image_feature.DSBOX'],
 
 'CLASSIFICATION': ['d3m.primitives.data_transformation.denormalize.Common',
                    'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
@@ -68,6 +61,12 @@ task_paths = {
                'd3m.primitives.data_transformation.column_parser.DataFrameCommon',
                'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
                'd3m.primitives.data_cleaning.imputer.SKlearn'],
+
+'PIPELINE_RPI': ['d3m.primitives.data_transformation.denormalize.Common',
+                 'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
+                 'd3m.primitives.data_transformation.column_parser.DataFrameCommon',
+                 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
+                 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'],
 
 'CLUSTERING': ['d3m.primitives.data_transformation.dataset_to_dataframe.Common',
                'd3m.primitives.data_transformation.column_parser.DataFrameCommon',
@@ -125,8 +124,7 @@ classifiers = ['d3m.primitives.classification.bernoulli_naive_bayes.SKlearn',
                'd3m.primitives.classification.sgd.SKlearn',
                'd3m.primitives.classification.svc.SKlearn',
                'd3m.primitives.classification.xgboost_gbtree.DataFrameCommon',
-               'd3m.primitives.classification.gradient_boosting.SKlearn',
-               'd3m.primitives.learner.random_forest.DistilEnsembleForest']
+               'd3m.primitives.classification.gradient_boosting.SKlearn']
 
 regressors = ['d3m.primitives.regression.ridge.SKlearn',
               'd3m.primitives.regression.lasso.SKlearn',
@@ -137,10 +135,18 @@ regressors = ['d3m.primitives.regression.ridge.SKlearn',
               'd3m.primitives.regression.extra_trees.SKlearn',
               'd3m.primitives.regression.sgd.SKlearn',
               'd3m.primitives.regression.xgboost_gbtree.DataFrameCommon',
-              'd3m.primitives.regression.gradient_boosting.SKlearn',
-              'd3m.primitives.learner.random_forest.DistilEnsembleForest']
+              'd3m.primitives.regression.gradient_boosting.SKlearn']
 
-def get_solutions(task_name, dataset, primitives, problem):
+regressors_rpi = ['d3m.primitives.regression.random_forest.SKlearn',
+                  'd3m.primitives.regression.extra_trees.SKlearn',
+                  'd3m.primitives.regression.gradient_boosting.SKlearn']
+
+classifiers_rpi = ['d3m.primitives.classification.random_forest.SKlearn',
+                   'd3m.primitives.classification.extra_trees.SKlearn',
+                   'd3m.primitives.classification.bagging.SKlearn',
+                   'd3m.primitives.classification.gradient_boosting.SKlearn']
+
+def get_solutions(task_name, dataset, primitives, problem_metric, posLabel):
     """
     Get a list of available solutions(pipelines) for the specified task
     Used by both TA2 in "search" phase and TA2-TA3
@@ -154,7 +160,7 @@ def get_solutions(task_name, dataset, primitives, problem):
         static_dir = None
 
     if task_name != 'SEMISUPERVISEDCLASSIFICATION':
-        basic_sol = solutiondescription.SolutionDescription(problem, static_dir)
+        basic_sol = solutiondescription.SolutionDescription(None, static_dir)
         basic_sol.initialize_solution('FALLBACK1')
         pipe = copy.deepcopy(basic_sol)
         pipe.id = str(uuid.uuid4())
@@ -165,7 +171,7 @@ def get_solutions(task_name, dataset, primitives, problem):
         task_name = 'REGRESSION'
     if task_name == 'VERTEXNOMINATION':
         task_name = 'VERTEXCLASSIFICATION'
-    basic_sol = solutiondescription.SolutionDescription(problem, static_dir)
+    basic_sol = solutiondescription.SolutionDescription(None, static_dir)
     basic_sol.initialize_solution(task_name)
 
     if task_name == 'CLASSIFICATION' or task_name == 'REGRESSION' or task_name == 'SEMISUPERVISEDCLASSIFICATION':
@@ -180,7 +186,7 @@ def get_solutions(task_name, dataset, primitives, problem):
             basic_sol.initialize_solution(task_name)
         except:
             logging.info(sys.exc_info()[0])
-            basic_sol = solutiondescription.SolutionDescription(problem, static_dir)
+            basic_sol = solutiondescription.SolutionDescription(None, static_dir)
             types_present = None
             rows = 0
 
@@ -190,21 +196,26 @@ def get_solutions(task_name, dataset, primitives, problem):
             try:
                 if 'TIMESERIES' in types_present:
                     basic_sol.initialize_solution('TIMESERIES')
+                    return None
                 elif 'IMAGE' in types_present:
                     basic_sol.initialize_solution('IMAGE')
+                    return None
                 elif 'TEXT' in types_present:
                     if task_name == 'CLASSIFICATION':
                         basic_sol.initialize_solution('TEXTCLASSIFICATION')
                     else:
                         basic_sol.initialize_solution('TEXT')
+                    return None
                 elif 'AUDIO' in types_present:
                     basic_sol.initialize_solution('AUDIO')
+                    return None
                 elif 'VIDEO' in types_present:
                     basic_sol.initialize_solution('VIDEO')
+                    return None
 
                 from timeit import default_timer as timer
                 start = timer()
-                basic_sol.run_basic_solution(inputs=[dataset])
+                basic_sol.run_basic_solution(inputs=[dataset], output_step=2)
                 end = timer()
                 logging.info("Time taken to run basic solution: %s seconds", end - start)
                 time_used = end - start
@@ -232,8 +243,43 @@ def get_solutions(task_name, dataset, primitives, problem):
           
             pipe = copy.deepcopy(basic_sol) 
             pipe.id = str(uuid.uuid4())
-            pipe.add_step(python_path)
+            pipe.add_step(python_path, 2)
             solutions.append(pipe)
+
+        # Try RPI primitives for tabular datasets
+        if (task_name == "REGRESSION" or task_name == "CLASSIFICATION") and \
+            ('AUDIO' not in types_present and \
+             'VIDEO' not in types_present and \
+             'TEXT' not in types_present and \
+             'TIMESERIES' not in types_present and \
+             'IMAGE' not in types_present):
+            print("Trying RPI primitives")
+            basic_sol = solutiondescription.SolutionDescription(None, static_dir)
+            basic_sol.initialize_RPI_solution(task_name)
+            try:
+                from timeit import default_timer as timer
+                start = timer()
+                basic_sol.run_basic_solution(inputs=[dataset], output_step=3, primitive_dict=primitives, metric_type=problem_metric, posLabel=posLabel)
+                end = timer()
+                logging.info("Time taken to run basic solution: %s seconds", end - start)
+                time_used = end - start
+                total_cols = basic_sol.get_total_cols()
+                print("Total cols = ", total_cols)
+            except:
+                logging.info(sys.exc_info()[0])
+                basic_sol = None
+
+            if basic_sol is not None and (total_cols > 5 and total_cols < 100):
+                if task_name == "REGRESSION":
+                    listOfSolutions = regressors_rpi
+                elif task_name == "CLASSIFICATION":
+                    listOfSolutions = classifiers_rpi
+
+            for python_path in listOfSolutions:
+                pipe = copy.deepcopy(basic_sol)
+                pipe.id = str(uuid.uuid4())
+                pipe.add_RPI_step(python_path, 3)
+                solutions.append(pipe)
 
         if task_name == 'SEMISUPERVISEDCLASSIFICATION':
             pipe = copy.deepcopy(basic_sol)

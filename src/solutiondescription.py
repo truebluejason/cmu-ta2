@@ -665,6 +665,84 @@ class SolutionDescription(object):
                 pipeline_output.append(arguments[output[0][output[1]]])
         return pipeline_output
 
+    def initialize_RPI_solution(self, taskname):
+        """
+        Initialize a solution from scratch consisting of predefined steps
+        Leave last step for filling in primitive (for classification/regression problems)
+        """
+        python_paths = copy.deepcopy(solution_templates.task_paths['PIPELINE_RPI'])
+
+        if 'denormalize' in python_paths[0] and self.ok_to_denormalize == False:
+            python_paths.remove('d3m.primitives.data_transformation.denormalize.Common')
+
+        num = len(python_paths)
+        self.taskname = taskname
+        self.primitives_arguments = {}
+        self.subpipelines = {}
+        self.primitives = {}
+        self.hyperparams = {}
+        self.steptypes = []
+        self.pipeline = []
+        self.execution_order = None
+    
+        self.inputs = []
+        self.inputs.append({"name": "dataset inputs"})
+
+        # Constructing DAG to determine the execution order
+        execution_graph = nx.DiGraph()
+
+        # Iterate through steps of the pipeline 
+        for i in range(num):
+            self.add_primitive(python_paths[i], i)
+
+            # Set hyperparameters for specific primitives
+            if python_paths[i] == 'd3m.primitives.feature_selection.joint_mutual_information.AutoRPI':
+                self.hyperparams[i] = {}
+                #self.hyperparams[i]['method'] = 'pseudoBayesian'
+                self.hyperparams[i]['nbins'] = 4
+
+            if python_paths[i] == 'd3m.primitives.data_cleaning.imputer.SKlearn':
+                self.hyperparams[i] = {}
+                self.hyperparams[i]['strategy'] = 'most_frequent'
+
+            if self.privileged is not None and len(self.privileged) > 0 and python_paths[i] == 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon':
+                self.hyperparams[i] = {}
+                self.hyperparams[i]['exclude_columns'] = self.privileged
+
+            # Construct pipelines for different task types
+            if i == 0: # denormalize
+                data = 'inputs.0'
+            elif i == 3: # extract_columns_by_semantic_types (targets)
+                data = 'steps.2.produce'
+                self.hyperparams[i] = {}
+                self.hyperparams[i]['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/TrueTarget']
+            elif i == 4: # extract_columns_by_semantic_types
+                data = 'steps.2.produce'
+            elif 'RPI' in python_paths[i]:
+                data = 'steps.3.produce'
+                origin = data.split('.')[0]
+                source = data.split('.')[1]
+                self.primitives_arguments[i]['outputs'] = {'origin': origin, 'source': int(source), 'data': data}
+                execution_graph.add_edge(str(source), str(i))
+                data = 'steps.' + str(i - 1) + str('.produce')
+            else: # other steps
+                data = 'steps.' + str(i - 1) + '.produce'
+
+            origin = data.split('.')[0]
+            source = data.split('.')[1]
+            self.primitives_arguments[i]['inputs'] = {'origin': origin, 'source': int(source), 'data': data}
+
+            if i == 0:
+                execution_graph.add_edge(origin, str(i))
+            else:
+                execution_graph.add_edge(str(source), str(i))
+
+        execution_order = list(nx.topological_sort(execution_graph))
+
+        # Removing non-step inputs from the order
+        execution_order = list(filter(lambda x: x.isdigit(), execution_order))
+        self.execution_order = [int(x) for x in execution_order]
+
     def initialize_solution(self, taskname):
         """
         Initialize a solution from scratch consisting of predefined steps
@@ -731,14 +809,6 @@ class SolutionDescription(object):
                 custom_hyperparams = {}
                 custom_hyperparams['prediction_column'] = 'match'
                 self.hyperparams[i]['link_prediction_hyperparams'] = LinkPredictionHyperparams(LinkPredictionHyperparams.defaults(), **custom_hyperparams)
-
-            if python_paths[i] == 'd3m.primitives.data_preprocessing.text_reader.DataFrameCommon':
-                self.hyperparams[i] = {}
-                self.hyperparams[i]['return_result'] = 'replace'
-
-            if python_paths[i] == 'd3m.primitives.natural_language_processing.lda.Fastlvm':
-                self.hyperparams[i] = {}
-                self.hyperparams[i]['k'] = 200
 
             if self.privileged is not None and len(self.privileged) > 0 and python_paths[i] == 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon':
                 self.hyperparams[i] = {}
@@ -877,7 +947,7 @@ class SolutionDescription(object):
         self.outputs = []
         self.outputs.append((origin, int(source), data, "output predictions"))
  
-    def add_step(self, python_path):
+    def add_step(self, python_path, output_step):
         """
         Add new primitive
         This is currently for classification/regression pipelines
@@ -892,7 +962,7 @@ class SolutionDescription(object):
         source = data.split('.')[1]
         self.primitives_arguments[i]['inputs'] = {'origin': origin, 'source': int(source), 'data': data}
         
-        data = 'steps.' + str(2) + str('.produce') # extract_columns_by_semantic_types (targets)
+        data = 'steps.' + str(output_step) + str('.produce') # extract_columns_by_semantic_types (targets)
         origin = data.split('.')[0]
         source = data.split('.')[1]
         self.primitives_arguments[i]['outputs'] = {'origin': origin, 'source': int(source), 'data': data}
@@ -902,7 +972,7 @@ class SolutionDescription(object):
             hyperparam_spec = self.primitives[i].metadata.query()['primitive_code']['hyperparams']
             if 'n_estimators' in hyperparam_spec:
                 self.hyperparams[i]['n_estimators'] = 100
-       
+
         self.execution_order.append(i)
 
         i = i + 1
@@ -921,6 +991,84 @@ class SolutionDescription(object):
         self.execution_order.append(i)
 
         self.add_outputs()
+
+    def complete_solution(self, optimal_params):
+        i = 5
+        self.hyperparams[i] = {}
+        self.hyperparams[i]['method'] = optimal_params[1]
+        self.hyperparams[i]['nbins'] = optimal_params[0]
+
+        i = i + 1
+        self.add_primitive('d3m.primitives.data_cleaning.imputer.SKlearn', i)
+        data = 'steps.' + str(i-1) + str('.produce')
+        origin = data.split('.')[0]
+        source = data.split('.')[1]
+        self.primitives_arguments[i]['inputs'] = {'origin': origin, 'source': int(source), 'data': data}
+        self.hyperparams[i] = {}
+        self.hyperparams[i]['strategy'] = 'most_frequent'
+        self.execution_order.append(i)
+
+        i = i + 1
+        python_path = self.primitives[i].metadata.query()['python_path'] 
+        self.add_primitive(python_path, i)
+        data = 'steps.' + str(i-1) + str('.produce')
+        origin = data.split('.')[0]
+        source = data.split('.')[1]
+        self.primitives_arguments[i]['inputs'] = {'origin': origin, 'source': int(source), 'data': data}
+        data = 'steps.' + str(3) + str('.produce') # extract_columns_by_semantic_types (targets)
+        origin = data.split('.')[0]
+        source = data.split('.')[1]
+        self.primitives_arguments[i]['outputs'] = {'origin': origin, 'source': int(source), 'data': data}
+        self.execution_order.append(i)
+        self.hyperparams[i] = {}
+        self.hyperparams[i]['n_estimators'] = optimal_params[2]
+        if 'gradient_boosting' in python_path:
+            self.hyperparams[i]['learning_rate'] = 10/optimal_params[2]
+
+        i = i + 1
+        self.add_primitive('d3m.primitives.data_transformation.construct_predictions.DataFrameCommon', i)
+
+        data = 'steps.' + str(i-1) + str('.produce')
+        origin = data.split('.')[0]
+        source = data.split('.')[1]
+        self.primitives_arguments[i]['inputs'] = {'origin': origin, 'source': int(source), 'data': data}
+        data = 'steps.' + str(1) + str('.produce')
+        origin = data.split('.')[0]
+        source = data.split('.')[1]
+        self.primitives_arguments[i]['reference'] = {'origin': origin, 'source': int(source), 'data': data}
+        self.execution_order.append(i)
+
+        self.add_outputs()
+ 
+    def add_RPI_step(self, python_path, output_step):
+        """
+        Add new primitive
+        This is currently for classification/regression pipelines
+        """
+        n_steps = len(self.primitives_arguments) + 1
+        i = n_steps-1
+
+        self.add_primitive('d3m.primitives.feature_selection.joint_mutual_information.AutoRPI', i)
+
+        data = 'steps.' + str(i-1) + str('.produce')
+        origin = data.split('.')[0]
+        source = data.split('.')[1]
+        self.primitives_arguments[i]['inputs'] = {'origin': origin, 'source': int(source), 'data': data}
+
+        data = 'steps.' + str(output_step) + str('.produce') # extract_columns_by_semantic_types (targets)
+        origin = data.split('.')[0]
+        source = data.split('.')[1]
+        self.primitives_arguments[i]['outputs'] = {'origin': origin, 'source': int(source), 'data': data}
+
+        self.execution_order.append(i)
+
+        i = i + 1
+        prim = d3m.index.get_primitive('d3m.primitives.data_cleaning.imputer.SKlearn')
+        self.primitives[i] = prim
+
+        i = i + 1
+        prim = d3m.index.get_primitive(python_path)
+        self.primitives[i] = prim
 
     def add_outputs(self): 
         """
@@ -1042,7 +1190,12 @@ class SolutionDescription(object):
         Set hyperparameters for the primtiive at the "last" step.
         """
         n_step = self.get_last_step()
-        self.hyperparams[n_step] = hp
+        
+        if 'RPI' in self.primitives[n_step].metadata.query()['python_path']:
+            self.complete_solution(hp)
+        else:
+            self.hyperparams[n_step] = hp
+
         self.pipeline_description = None #Recreate it again
 
     def validate_solution(self,**arguments):
@@ -1075,6 +1228,8 @@ class SolutionDescription(object):
         """
         from timeit import default_timer as timer
         self.primitives_outputs = [None] * len(self.execution_order)
+
+        output_step = arguments['output_step']
 
         # Execute the initial steps of a pipeline.
         # This executes all the common data processing steps of classifier/regressor pipelines, but only once for all.
@@ -1115,7 +1270,7 @@ class SolutionDescription(object):
         
         # Remove other intermediate step outputs, they are not needed anymore.
         for i in range(0, len(self.execution_order)-1):
-            if i == 1 or i == 2:
+            if i == 1 or i == output_step:
                 continue
             self.primitives_outputs[i] = [None]
         self.total_cols = len(self.primitives_outputs[len(self.execution_order)-1].columns) 
@@ -1144,10 +1299,17 @@ class SolutionDescription(object):
         if 'outputs' in training_arguments:
             outputs = training_arguments['outputs']
 
+        python_path = primitive.metadata.query()['python_path']
         if len(training_arguments) == 0:
             training_arguments['inputs'] = primitive_arguments['inputs']
 
-        (score, optimal_params) = primitive_desc.score_primitive(training_arguments['inputs'], outputs, metric, posLabel, custom_hyperparams, step_index)
+        if 'RPI' in python_path:    
+            ml_python_path = self.primitives[step_index+2].metadata.query()['python_path'] 
+            (optimal_params, score) = primitive_desc.optimize_RPI_bins(training_arguments['inputs'], outputs, ml_python_path, metric, posLabel)
+            return (score, optimal_params)
+        else:    
+            (score, optimal_params) = primitive_desc.score_primitive(training_arguments['inputs'], outputs, metric, posLabel, custom_hyperparams, step_index)
+        
         return (score, optimal_params) 
 
     def validate_step(self, primitive: PrimitiveBaseMeta, primitive_arguments):

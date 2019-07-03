@@ -12,6 +12,7 @@ import d3m.index
 logging.basicConfig(level=logging.INFO)
 
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor, ExtraTreesClassifier, ExtraTreesRegressor, GradientBoostingClassifier, GradientBoostingRegressor
+from sklearn.ensemble.bagging import BaggingClassifier
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.linear_model import LogisticRegression, Lasso, Ridge
 from sklearn.linear_model.stochastic_gradient import SGDClassifier
@@ -66,7 +67,7 @@ gridsearch_estimators_parameters = {'d3m.primitives.regression.random_forest.SKl
               'd3m.primitives.regression.lasso.SKlearn': [Lasso(),
                                                           {'alpha': [0.001, 0.01, 0.1, 1, 5]}]
 }
-             
+
 def rmse(y_true, y_pred):
     return math.sqrt(metrics.mean_squared_error(y_true, y_pred))
 
@@ -119,7 +120,7 @@ class PrimitiveDescription(object):
             else:
                 return (0.0, optimal_params)
 
-        if 'DistilEnsembleForest' in python_path:
+        if 'DistilEnsembleForest' in python_path or 'DistilTextClassifier' in python_path:
             optimal_params['metric'] = util.get_distil_metric_name(metric_type)
             primitive_hyperparams = self.primitive.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
             prim_instance = self.primitive(hyperparams=primitive_hyperparams(primitive_hyperparams.defaults(), **optimal_params))
@@ -233,14 +234,6 @@ class PrimitiveDescription(object):
             (model, search_grid) = gridsearch_estimators_parameters[python_path]
             splits = self.get_num_splits(len(train), len(train.columns))
 
-            if 'k_neighbors' in python_path:
-                training_samples = len(train)*(splits-1)/splits
-                import copy
-                n_neighbors = copy.deepcopy(search_grid['n_neighbors'])
-                for n in n_neighbors:
-                    if n >= training_samples:
-                        search_grid['n_neighbors'].remove(n)
-
             from sklearn.metrics import make_scorer
             if metric is problem_pb2.ACCURACY:
                 scorer = make_scorer(metrics.accuracy_score)
@@ -267,59 +260,70 @@ class PrimitiveDescription(object):
             print("No grid search done for ", python_path)
             return None
 
-    def optimize_corex(self, train, y, python_path, metric_type, posLabel):
-        corex_hp = {'n_hidden': [5, 10],
-                    'threshold': [0, 500],
-                    'n_grams': [1, 3]
-                   }
+    def optimize_RPI_bins(self, train, y, python_path, metric_type, posLabel):
+        corex_hp = {'nbins': [2, 3, 4], # 5, 10, 12, 15, 20],
+                    'method': ['counting', 'pseudoBayesian'],
+                    'n_estimators': [5, 6, 10, 15, 20, 25, 26, 30]}
+        
+        prim = d3m.index.get_primitive(python_path)
+        model_hyperparams = prim.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
 
         primitive_hyperparams = self.primitive.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
+
+        sklearn_prim = d3m.index.get_primitive('d3m.primitives.data_cleaning.imputer.SKlearn')
+        sklearn_hyperparams = sklearn_prim.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
         custom_hyperparams = dict()
-        custom_hyperparams['use_semantic_types'] = True
-        custom_hyperparams['n_estimators'] = 10
-        rf_model = self.primitive(hyperparams=primitive_hyperparams(
-                    primitive_hyperparams.defaults(), **custom_hyperparams))
+        custom_hyperparams['strategy'] = 'most_frequent'
+        sklearn_primitive = sklearn_prim(hyperparams=sklearn_hyperparams(sklearn_hyperparams.defaults(), **custom_hyperparams))
 
-        prim = d3m.index.get_primitive(python_path)
-        primitive_hyperparams = prim.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
-        for i in corex_hp['n_hidden']:
-            for j in corex_hp['threshold']:
-                for k in corex_hp['n_grams']:
-                    custom_hyperparams = dict()
-                    custom_hyperparams['n_hidden'] = i
-                    custom_hyperparams['threshold'] = j
-                    custom_hyperparams['n_grams'] = k
-                    model = prim(hyperparams=primitive_hyperparams(primitive_hyperparams.defaults(), **custom_hyperparams))
+        splits = self.get_num_splits(len(train), len(train.columns))
+        scores = {}
 
-                    model.set_training_data(inputs=train)
-                    model.fit()
-                    output = model.produce(inputs=train).value
+        from timeit import default_timer as timer
+        start = timer()
 
-                    (score, metric_scores) = self.k_fold_CV(rf_model, output, y, metric_type, posLabel, 5)
+        for i in corex_hp['nbins']:
+            custom_hyperparams = dict()
+            custom_hyperparams['nbins'] = i
+
+            for j in corex_hp['method']:
+                custom_hyperparams['method'] = j
+                model = self.primitive(hyperparams=primitive_hyperparams(primitive_hyperparams.defaults(), **custom_hyperparams))
+
+                model.set_training_data(inputs=train, outputs=y)
+                model.fit()
+                output = model.produce(inputs=train).value
+
+                sklearn_primitive.set_training_data(inputs=output)
+                sklearn_primitive.fit()
+                output = sklearn_primitive.produce(inputs=output).value
+
+                for k in corex_hp['n_estimators']:
+                    model_hp = dict()
+                    model_hp['n_estimators'] = k
+                    if 'gradient_boosting' in python_path:
+                        model_hp['learning_rate'] = 10/k
+                    rf_model = prim(hyperparams=model_hyperparams(model_hyperparams.defaults(), **model_hp))
+                    (score, metric_scores) = self.k_fold_CV(rf_model, output, y, metric_type, posLabel, splits)
                     mean = np.mean(metric_scores)
-                    print("n_hidden = ", i, " threshold = ", j, " n_grams = ", k, " score = ", mean)
-            
+                    median = np.median(metric_scores)
+                    stderror = np.std(metric_scores)/math.sqrt(len(metric_scores))
+                    z = 1.96*stderror
+                    # print("Mean = ", mean, " Median = ", median, " LB = ", mean-z, " diff = ", mean-median, " ratio = ", mean/(mean-median))
+                    if util.invert_metric(metric_type) is True:
+                        scores[(i,j,k)] = mean-z
+                    else:
+                        scores[(i,j,k)] = mean/(mean-median)
 
-    def optimize_primitive(self, train, output, inputs, primitive_hyperparams, optimal_params, hyperparam_types, metric_type, posLabel):
-        """
-        Function to evaluate each input point in the hyper parameter space.
-        This is called for every input sample being evaluated by the bayesian optimization package.
-        Return value from this function is used to decide on function optimality.
-        """
-        custom_hyperparams=dict()
-        for index,name in optimal_params.items():
-            value = inputs[index]
-            if hyperparam_types[name] is int:
-                value = (int)(inputs[index]+0.5)
-            custom_hyperparams[name] = value
-
-        prim_instance = self.primitive(hyperparams=primitive_hyperparams(primitive_hyperparams.defaults(), **custom_hyperparams))
-
-        metric = self.k_fold_CV(prim_instance, train, output, metric_type, posLabel, 2)
-        if util.invert_metric(metric_type) is True:
-            metric = metric * (-1)
-        print('Metric: %f' %(metric))
-        return metric
+        import operator
+        sorted_x = sorted(scores.items(), key=operator.itemgetter(1))
+        if util.invert_metric(metric_type) is False:
+            sorted_x.reverse()
+        (key, value) = sorted_x[0]
+        end = timer()
+        print(sorted_x)
+        print("Time taken for ", python_path, " = ", end-start, " secs")
+        return (key, value)
 
     def k_fold_CV(self, prim_instance, X, y, metric_type, posLabel, splits):
         """
@@ -333,7 +337,6 @@ class PrimitiveDescription(object):
         score = 0.0
 
         # Run k-fold CV and compute mean metric score
-        print(X.shape)
         metric_scores = []
         if 'classification' in python_path: # Classification
             frequencies = y.iloc[:,0].value_counts()
@@ -370,76 +373,5 @@ class PrimitiveDescription(object):
 
         score = metric_sum/splits
         end = timer()
-        logging.info("Time taken for %s = %s secs", python_path, end-start)
+        # logging.info("Time taken for %s = %s secs", python_path, end-start)
         return (score, metric_scores)
-
-    def optimize_hyperparams(self, train, output, lower_bounds, upper_bounds, hyperparam_types, hyperparam_semantic_types,
-     metric_type, custom_hyperparams):
-        """
-        Optimize primitive's hyper parameters using Bayesian Optimization package 'bo'.
-        Optimization is done for the numerical parameters with specified range(lower - upper).
-        """
-        domain_bounds = []
-        optimal_params = {}
-        index = 0
-        optimal_found_params = {}
-
-        # Create parameter ranges in domain_bounds. 
-        # Map parameter names to indices in optimal_params
-        for name,value in lower_bounds.items():
-            if custom_hyperparams is not None and name in custom_hyperparams.keys():
-                continue
-            sem = hyperparam_semantic_types[name]
-            if "https://metadata.datadrivendiscovery.org/types/TuningParameter" not in sem:
-                continue
-            lower = lower_bounds[name]
-            upper = upper_bounds[name]
-            if lower is None or upper is None:
-                continue
-            domain_bounds.append([lower,upper])
-            optimal_params[index] = name
-            index =index+1
-
-        python_path = self.primitive.metadata.query()['python_path']
-        if python_path == 'd3m.primitives.sri.psl.RelationalTimeseries':
-            optimal_params[0] = 'period'
-            index =index+1
-            domain_bounds.append([1,20])
-
-        if index == 0:
-            return optimal_found_params
-
-        primitive_hyperparams = self.primitive.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
-        func = lambda inputs : self.optimize_primitive(train, output, inputs, primitive_hyperparams, optimal_params, hyperparam_types, metric_type)
-
-        try:
-            (curr_opt_val, curr_opt_pt) = bo.gp_call.fmax(func, domain_bounds, 50)
-        except:
-            print("optimize_hyperparams: ", sys.exc_info()[0])
-            print(self.primitive)
-            optimal_params = None
-
-        # Map optimal parameter values found
-        if optimal_params != None:
-            for index,name in optimal_params.items():
-                value = curr_opt_pt[index]
-                if hyperparam_types[name] is int:
-                    value = (int)(curr_opt_pt[index]+0.5)
-                optimal_found_params[name] = value
-
-        return optimal_found_params
-
-    def find_optimal_hyperparams(self, train, output, hyperparam_spec, metric, custom_hyperparams):
-        filter_hyperparam = lambda vl: None if vl == 'None' else vl
-        hyperparam_lower_ranges = {name:filter_hyperparam(vl['lower']) for name,vl in hyperparam_spec.items() if 'lower' in vl.keys()}
-        hyperparam_upper_ranges = {name:filter_hyperparam(vl['upper']) for name,vl in hyperparam_spec.items() if 'upper' in vl.keys()}
-        hyperparam_types = {name:filter_hyperparam(vl['structural_type']) for name,vl in hyperparam_spec.items() if 'structural_type' in vl.keys()}
-        hyperparam_semantic_types = {name:filter_hyperparam(vl['semantic_types']) for name,vl in hyperparam_spec.items() if 'semantic_types' in vl.keys()}
-        optimal_hyperparams = {}
-        if len(hyperparam_lower_ranges) > 0:
-            optimal_hyperparams = self.optimize_hyperparams(train, output, hyperparam_lower_ranges, hyperparam_upper_ranges,
-             hyperparam_types, hyperparam_semantic_types, metric, custom_hyperparams)
-            print("Optimals: ", optimal_hyperparams)
-
-        return optimal_hyperparams
-

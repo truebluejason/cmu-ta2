@@ -3,7 +3,8 @@
 #FROM registry.datadrivendiscovery.org/jpl/docker_images/complete:ubuntu-bionic-python36-v2019.5.8-20190602-081936
 #FROM registry.datadrivendiscovery.org/jpl/docker_images/complete:ubuntu-bionic-python36-v2019.6.7-20190611-060317
 #FROM registry.datadrivendiscovery.org/jpl/docker_images/complete:ubuntu-bionic-python36-v2019.6.7-20190611-205824
-FROM registry.datadrivendiscovery.org/jpl/docker_images/complete:ubuntu-bionic-python36-v2019.6.7
+#FROM registry.datadrivendiscovery.org/jpl/docker_images/complete:ubuntu-bionic-python36-v2019.6.7
+FROM registry.datadrivendiscovery.org/jpl/docker_images/complete:ubuntu-bionic-python36-v2019.6.7-20190622-073225
 
 maintainer "Donghan Wang<donghanw@cs.cmu.edu>"
 
@@ -31,14 +32,6 @@ RUN pip3 install --upgrade pip==18.1 \
 # Create static dir for Image weights file
 RUN mkdir /static
 COPY resnet50_weights_tf_dim_ordering_tf_kernels.h5 /static
-
-# Install bayesian_optimiaztion
-COPY bayesian_optimization /tmp/bayesian_optimization
-RUN cd /tmp/bayesian_optimization/bo/utils/direct_fortran; \
-    bash make_direct.sh; \
-    cd /tmp/bayesian_optimization; \
-    python3 setup.py bdist_wheel; \
-    pip3 install ./dist/bo*.whl
 
 EXPOSE 45042
 
