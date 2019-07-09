@@ -3,7 +3,6 @@ import numpy as np
 import math, sys
 from sklearn import metrics
 from sklearn import preprocessing
-import bo.gp_call
 import problem_pb2
 import util
 import logging
@@ -133,7 +132,7 @@ class PrimitiveDescription(object):
             score = abs(prim_instance._model.best_fitness)
             return (score, optimal_params)
 
-        if y is None or 'graph' in python_path or 'link' in python_path or 'community' in python_path or 'iterative' in python_path or 'JHU' in python_path:
+        if y is None or 'graph' in python_path or 'link' in python_path or 'community' in python_path or 'Kanine' in python_path or 'JHU' in python_path:
             if util.invert_metric(metric_type) is True:
                 return (0.0, optimal_params)
             else:
@@ -311,9 +310,9 @@ class PrimitiveDescription(object):
                     z = 1.96*stderror
                     # print("Mean = ", mean, " Median = ", median, " LB = ", mean-z, " diff = ", mean-median, " ratio = ", mean/(mean-median))
                     if util.invert_metric(metric_type) is True:
-                        scores[(i,j,k)] = mean-z
+                        scores[(i,j,k,mean)] = mean-z
                     else:
-                        scores[(i,j,k)] = mean/(mean-median)
+                        scores[(i,j,k,mean)] = mean/(mean-median)
 
         import operator
         sorted_x = sorted(scores.items(), key=operator.itemgetter(1))
@@ -321,9 +320,8 @@ class PrimitiveDescription(object):
             sorted_x.reverse()
         (key, value) = sorted_x[0]
         end = timer()
-        print(sorted_x)
         print("Time taken for ", python_path, " = ", end-start, " secs")
-        return (key, value)
+        return key
 
     def k_fold_CV(self, prim_instance, X, y, metric_type, posLabel, splits):
         """
@@ -373,5 +371,6 @@ class PrimitiveDescription(object):
 
         score = metric_sum/splits
         end = timer()
-        # logging.info("Time taken for %s = %s secs", python_path, end-start)
+        if 'RPI' not in python_path:
+            logging.info("Time taken for %s = %s secs", python_path, end-start)
         return (score, metric_scores)

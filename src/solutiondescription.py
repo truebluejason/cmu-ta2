@@ -272,7 +272,11 @@ class SolutionDescription(object):
                 pdesc['name'] = p.primitive_class.name
                 pdesc['digest'] = p.primitive_class.digest
                 step = PrimitiveStep(primitive_description=pdesc)
-                step.add_output(output_id=p.primitive_class.produce_methods[0])
+                if 'DistilSingleGraphLoader' in p.primitive_class.python_path:
+                    for op in p.primitive_class.produce_methods:
+                        step.add_output(output_id=op)
+                else:
+                    step.add_output(output_id=p.primitive_class.produce_methods[0])
                 for name, value in self.primitives_arguments[i].items():
                     origin = value['origin']
                     argument_type = ArgumentType.CONTAINER
@@ -591,7 +595,19 @@ class SolutionDescription(object):
         model.fit()
         self.pipeline[n_step] = model
 
-        return model.produce(**produce_params).value
+        final_output = None
+        if 'DistilRaggedDatasetLoader' in python_path:
+            final_output = {}
+            final_output['produce'] = model.produce(**produce_params).value
+            final_output['produce_collection'] = model.produce_collection(**produce_params).value
+        elif 'DistilSingleGraphLoader' in python_path:
+            final_output = {}
+            final_output['produce'] = model.produce(**produce_params).value
+            final_output['produce_target'] = model.produce_target(**produce_params).value
+        else:
+            final_output = model.produce(**produce_params).value
+
+        return final_output
 
     def _primitive_arguments(self, primitive, method: str) -> set:
         """
@@ -698,7 +714,6 @@ class SolutionDescription(object):
             # Set hyperparameters for specific primitives
             if python_paths[i] == 'd3m.primitives.feature_selection.joint_mutual_information.AutoRPI':
                 self.hyperparams[i] = {}
-                #self.hyperparams[i]['method'] = 'pseudoBayesian'
                 self.hyperparams[i]['nbins'] = 4
 
             if python_paths[i] == 'd3m.primitives.data_cleaning.imputer.SKlearn':
@@ -743,6 +758,24 @@ class SolutionDescription(object):
         execution_order = list(filter(lambda x: x.isdigit(), execution_order))
         self.execution_order = [int(x) for x in execution_order]
 
+    def add_ssl_variant(self, variant):
+        """
+        Add SSL blackbox model as hyperparameter.
+        Should support 'n_estimators' and predict_proba() API.
+        """
+        if variant == 'd3m.primitives.classification.gradient_boosting.SKlearn':
+            from d3m.primitives.classification.gradient_boosting import SKlearn as blackboxParam
+        elif variant == 'd3m.primitives.classification.extra_trees.SKlearn':
+            from  d3m.primitives.classification.extra_trees import SKlearn as blackboxParam
+        elif variant == 'd3m.primitives.classification.random_forest.SKlearn':
+            from d3m.primitives.classification.random_forest import SKlearn as blackboxParam
+        elif variant == 'd3m.primitives.classification.bagging.SKlearn':
+            from d3m.primitives.classification.bagging import SKlearn as blackboxParam
+        
+        numSteps = self.num_steps()
+        self.hyperparams[numSteps-2] = {}
+        self.hyperparams[numSteps-2]['blackbox'] = blackboxParam
+
     def initialize_solution(self, taskname):
         """
         Initialize a solution from scratch consisting of predefined steps
@@ -756,7 +789,13 @@ class SolutionDescription(object):
         if len(python_paths) > 5 and 'imputer' in python_paths[5] and self.ok_to_impute == False:
             python_paths.remove('d3m.primitives.data_cleaning.imputer.SKlearn')
 
-        if (taskname == 'CLASSIFICATION' or taskname == 'REGRESSION' or taskname == 'TEXT' or taskname == 'IMAGE' or taskname == 'TIMESERIES' or taskname == 'TEXTCLASSIFICATION'):
+        if (taskname == 'CLASSIFICATION' or
+            taskname == 'REGRESSION' or
+            taskname == 'TEXT' or
+            taskname == 'IMAGE' or
+            taskname == 'TIMESERIES' or
+            taskname == 'TEXTCLASSIFICATION' or
+            taskname == 'SEMISUPERVISEDCLASSIFICATION'):
             if self.categorical_atts is not None and len(self.categorical_atts) > 0:
                 python_paths.append('d3m.primitives.data_transformation.one_hot_encoder.SKlearn')
 
@@ -803,7 +842,11 @@ class SolutionDescription(object):
             if python_paths[i] == 'd3m.primitives.feature_construction.corex_text.DSBOX':
                 self.hyperparams[i] = {}
                 self.hyperparams[i]['threshold'] = 500
-          
+    
+            if python_paths[i] == 'd3m.primitives.time_series_classification.k_neighbors.Kanine':
+                self.hyperparams[i] = {}
+                self.hyperparams[i]['n_neighbors'] = 1
+     
             if python_paths[i] == 'd3m.primitives.link_prediction.graph_matching_link_prediction.GraphMatchingLinkPrediction':
                 self.hyperparams[i] = {}
                 custom_hyperparams = {}
@@ -831,6 +874,46 @@ class SolutionDescription(object):
                     data = 'steps.1.produce'
                 else: # other steps
                     data = 'steps.' + str(i - 1) + '.produce'
+            elif taskname == 'TIMESERIES2':
+                if i == 0: # denormalize
+                    data = 'inputs.0'
+                else:
+                    data = 'steps.0.produce'
+                    origin = data.split('.')[0]
+                    source = data.split('.')[1]
+                    self.primitives_arguments[i]['outputs'] = {'origin': origin, 'source': int(source), 'data': data}
+            elif taskname == 'TIMESERIES3':
+                if i == 0: # DistilRaggedDatasetLoader
+                    data = 'inputs.0'
+                elif i == 2: # extract_columns_by_semantic_types (targets)
+                    data = 'steps.0.produce'
+                    self.hyperparams[i] = {}
+                    self.hyperparams[i]['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/TrueTarget']
+                elif 'DistilTimeSeriesReshaper' in python_paths[i]:
+                    data = 'steps.0.produce_collection'
+                elif 'DistilTimeSeriesNeighbours' in python_paths[i]:
+                    data = 'steps.2.produce'
+                    origin = data.split('.')[0]
+                    source = data.split('.')[1]
+                    self.primitives_arguments[i]['outputs'] = {'origin': origin, 'source': int(source), 'data': data}
+                    data = 'steps.' + str(i - 1) + '.produce'
+                elif i == num-1: # construct_predictions
+                    data = 'steps.0.produce'
+                    origin = data.split('.')[0]
+                    source = data.split('.')[1]
+                    self.primitives_arguments[i]['reference'] = {'origin': origin, 'source': int(source), 'data': data}
+                    data = 'steps.' + str(i-1) + '.produce'
+                else: # other steps
+                    data = 'steps.' + str(i - 1) + '.produce'
+            elif taskname == 'COMMUNITYDETECTION2':
+                if i == 0: # denormalize
+                    data = 'inputs.0'
+                else:
+                    data = 'steps.0.produce_target'
+                    origin = data.split('.')[0]
+                    source = data.split('.')[1]
+                    self.primitives_arguments[i]['outputs'] = {'origin': origin, 'source': int(source), 'data': data}
+                    data = 'steps.0.produce'
             elif taskname == 'TEXTCLASSIFICATION': 
                 if i == 0: # denormalize
                     data = 'inputs.0'
@@ -865,18 +948,8 @@ class SolutionDescription(object):
                     data = 'steps.1.produce'
                     self.hyperparams[i] = {}
                     self.hyperparams[i]['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/TrueTarget']
-                elif i == num-1: # SSL step
-                    data = 'steps.2.produce'
-                    origin = data.split('.')[0]
-                    source = data.split('.')[1]
-                    self.primitives_arguments[i]['outputs'] = {'origin': origin, 'source': int(source), 'data': data}
-                    data = 'steps.' + str(i - 1) + str('.produce')
-                elif i == num-1: # construct_predictions
+                elif i == 3: # column_parser
                     data = 'steps.1.produce'
-                    origin = data.split('.')[0]
-                    source = data.split('.')[1]
-                    self.primitives_arguments[i]['reference'] = {'origin': origin, 'source': int(source), 'data': data}
-                    data = 'steps.' + str(i-1) + '.produce'
                 else: # other steps
                     data = 'steps.' + str(i-1) + '.produce'
             elif taskname == 'CLUSTERING':
@@ -993,7 +1066,7 @@ class SolutionDescription(object):
         self.add_outputs()
 
     def complete_solution(self, optimal_params):
-        i = 5
+        i = len(self.primitives_arguments)-1
         self.hyperparams[i] = {}
         self.hyperparams[i]['method'] = optimal_params[1]
         self.hyperparams[i]['nbins'] = optimal_params[0]
@@ -1117,9 +1190,14 @@ class SolutionDescription(object):
         # Primitive step
         if self.steptypes[n_step] is StepType.PRIMITIVE:
             primitive_arguments = {}
+            python_path = self.primitives[n_step].metadata.query()['python_path']
             for argument, value in self.primitives_arguments[n_step].items():
                 if value['origin'] == 'steps':
-                    primitive_arguments[argument] = primitives_outputs[value['source']]
+                    if 'DistilRaggedDatasetLoader' in python_path or 'DistilSingleGraphLoader' in python_path:
+                        method = value['data'].split('.')[2]
+                        primitive_arguments[argument] = primitives_outputs[value['source']][method]
+                    else: 
+                        primitive_arguments[argument] = primitives_outputs[value['source']]
                 else:
                     primitive_arguments[argument] = arguments['inputs'][value['source']]
             if action is ActionType.SCORE and self.is_last_step(n_step) == True:
@@ -1305,7 +1383,8 @@ class SolutionDescription(object):
 
         if 'RPI' in python_path:    
             ml_python_path = self.primitives[step_index+2].metadata.query()['python_path'] 
-            (optimal_params, score) = primitive_desc.optimize_RPI_bins(training_arguments['inputs'], outputs, ml_python_path, metric, posLabel)
+            optimal_params = primitive_desc.optimize_RPI_bins(training_arguments['inputs'], outputs, ml_python_path, metric, posLabel)
+            score = optimal_params[3]
             return (score, optimal_params)
         else:    
             (score, optimal_params) = primitive_desc.score_primitive(training_arguments['inputs'], outputs, metric, posLabel, custom_hyperparams, step_index)

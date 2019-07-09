@@ -27,6 +27,16 @@ task_paths = {
                'd3m.primitives.data_preprocessing.time_series_to_list.DSBOX',
                'd3m.primitives.feature_extraction.random_projection_timeseries_featurization.DSBOX'],
 
+'TIMESERIES2': ['d3m.primitives.data_transformation.denormalize.Common',
+                'd3m.primitives.time_series_classification.k_neighbors.Kanine'],
+
+'TIMESERIES3': ['d3m.primitives.data_transformation.data_cleaning.DistilRaggedDatasetLoader',
+                'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
+                'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
+                'd3m.primitives.data_transformation.data_cleaning.DistilTimeSeriesReshaper',
+                'd3m.primitives.learner.random_forest.DistilTimeSeriesNeighboursPrimitive',
+                'd3m.primitives.data_transformation.construct_predictions.DataFrameCommon'],
+
 'IMAGE': ['d3m.primitives.data_transformation.denormalize.Common',
           'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
           'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
@@ -52,8 +62,7 @@ task_paths = {
                                  'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
                                  'd3m.primitives.data_transformation.column_parser.DataFrameCommon',
                                  'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
-                                 'd3m.primitives.data_cleaning.imputer.SKlearn',
-                                 'd3m.primitives.semisupervised_classification.iterative_labeling.AutonBox'],
+                                 'd3m.primitives.data_cleaning.imputer.SKlearn'],
 
 'REGRESSION': ['d3m.primitives.data_transformation.denormalize.Common',
                'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
@@ -101,6 +110,9 @@ task_paths = {
 'COMMUNITYDETECTION': ['d3m.primitives.community_detection.community_detection_parser.CommunityDetectionParser',
                        'd3m.primitives.classification.community_detection.CommunityDetection'],
 
+'COMMUNITYDETECTION2': ['d3m.primitives.data_transformation.load_single_graph.DistilSingleGraphLoader',
+                       'd3m.primitives.data_transformation.community_detection.DistilCommunityDetection'],
+
 'AUDIO': ['d3m.primitives.data_transformation.denormalize.Common',
           'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
           'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
@@ -146,6 +158,11 @@ classifiers_rpi = ['d3m.primitives.classification.random_forest.SKlearn',
                    'd3m.primitives.classification.bagging.SKlearn',
                    'd3m.primitives.classification.gradient_boosting.SKlearn']
 
+sslVariants = ['d3m.primitives.classification.gradient_boosting.SKlearn',
+               'd3m.primitives.classification.extra_trees.SKlearn',
+               'd3m.primitives.classification.random_forest.SKlearn',
+               'd3m.primitives.classification.bagging.SKlearn']
+
 def get_solutions(task_name, dataset, primitives, problem_metric, posLabel):
     """
     Get a list of available solutions(pipelines) for the specified task
@@ -174,6 +191,7 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel):
     basic_sol = solutiondescription.SolutionDescription(None, static_dir)
     basic_sol.initialize_solution(task_name)
 
+    types_present = []
     if task_name == 'CLASSIFICATION' or task_name == 'REGRESSION' or task_name == 'SEMISUPERVISEDCLASSIFICATION':
         try:
             (types_present, total_cols, rows, categorical_atts, ordinal_atts, ok_to_denormalize, ok_to_impute, privileged) = solutiondescription.column_types_present(dataset)
@@ -196,22 +214,17 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel):
             try:
                 if 'TIMESERIES' in types_present:
                     basic_sol.initialize_solution('TIMESERIES')
-                    return None
                 elif 'IMAGE' in types_present:
                     basic_sol.initialize_solution('IMAGE')
-                    return None
                 elif 'TEXT' in types_present:
                     if task_name == 'CLASSIFICATION':
                         basic_sol.initialize_solution('TEXTCLASSIFICATION')
                     else:
                         basic_sol.initialize_solution('TEXT')
-                    return None
                 elif 'AUDIO' in types_present:
                     basic_sol.initialize_solution('AUDIO')
-                    return None
                 elif 'VIDEO' in types_present:
                     basic_sol.initialize_solution('VIDEO')
-                    return None
 
                 from timeit import default_timer as timer
                 start = timer()
@@ -282,10 +295,14 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel):
                 solutions.append(pipe)
 
         if task_name == 'SEMISUPERVISEDCLASSIFICATION':
-            pipe = copy.deepcopy(basic_sol)
-            pipe.id = str(uuid.uuid4())
-            pipe.add_outputs()
-            solutions.append(pipe)         
+            # Iterate through variants of possible blackbox hyperparamets.
+            for variant in sslVariants:
+                pipe = copy.deepcopy(basic_sol)
+                pipe.id = str(uuid.uuid4())
+                pipe.add_step('d3m.primitives.semisupervised_classification.iterative_labeling.AutonBox', 2)
+                pipe.add_ssl_variant(variant)
+                solutions.append(pipe)
+
     elif task_name == 'VERTEXCLASSIFICATION' or \
          task_name == 'COMMUNITYDETECTION' or \
          task_name == 'GRAPHMATCHING' or \
@@ -297,21 +314,16 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel):
         solutions.append(pipe)
         
         # Add a classification pipeline too
-        pipe = solutiondescription.SolutionDescription(problem, static_dir)
+        pipe = solutiondescription.SolutionDescription(None, static_dir)
         pipe.initialize_solution('CLASSIFICATION')
         pipe.id = str(uuid.uuid4())
-        pipe.add_step('d3m.primitives.classification.random_forest.SKlearn')
+        pipe.add_step('d3m.primitives.classification.random_forest.SKlearn', 2)
         solutions.append(pipe)
 
-        if task_name == 'GRAPHMATCHING':
-            pipe = solutiondescription.SolutionDescription(problem, static_dir)
-            pipe.initialize_solution('GRAPHMATCHING2')
-            pipe.id = str(uuid.uuid4())
-            pipe.add_outputs()
-            solutions.append(pipe)
-        if task_name == 'VERTEXCLASSIFICATION':
-            pipe = solutiondescription.SolutionDescription(problem, static_dir)
-            pipe.initialize_solution('VERTEXCLASSIFICATION2')
+        if task_name == 'GRAPHMATCHING' or task_name == 'VERTEXCLASSIFICATION' or task_name == 'COMMUNITYDETECTION':
+            pipe = solutiondescription.SolutionDescription(None, static_dir)
+            second_name = task_name + '2'
+            pipe.initialize_solution(second_name)
             pipe.id = str(uuid.uuid4())
             pipe.add_outputs()
             solutions.append(pipe)
@@ -322,13 +334,20 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel):
         solutions.append(pipe)
 
         # Add a regression pipeline too
-        pipe = solutiondescription.SolutionDescription(problem, static_dir)
+        pipe = solutiondescription.SolutionDescription(None, static_dir)
         pipe.initialize_solution('REGRESSION')
         pipe.id = str(uuid.uuid4())
-        pipe.add_step('d3m.primitives.regression.random_forest.SKlearn')
+        pipe.add_step('d3m.primitives.regression.random_forest.SKlearn', 2)
         solutions.append(pipe)
     else:
         logging.info("No matching solutions")
+
+    if task_name == 'CLASSIFICATION' and 'TIMESERIES' in types_present:
+        pipe = solutiondescription.SolutionDescription(None, static_dir)
+        pipe.initialize_solution('TIMESERIES2')
+        pipe.id = str(uuid.uuid4())
+        pipe.add_outputs()
+        solutions.append(pipe)
 
     return (solutions, time_used)
 
