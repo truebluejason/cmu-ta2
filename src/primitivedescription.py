@@ -100,6 +100,31 @@ class PrimitiveDescription(object):
             splits = 2
         return splits
 
+    def score_Kanine_primitive(self, X, metric_type, posLabel):
+        prim = d3m.index.get_primitive('d3m.primitives.data_transformation.dataset_to_dataframe.Common')
+        sklearn_hyperparams = prim.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
+        primitive = prim(hyperparams=sklearn_hyperparams(sklearn_hyperparams.defaults()))
+
+        prim = d3m.index.get_primitive('d3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon')
+        sklearn_hyperparams = prim.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
+        custom_hyperparams = dict()
+        custom_hyperparams['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/TrueTarget']
+        target_primitive = prim(hyperparams=sklearn_hyperparams(sklearn_hyperparams.defaults(), **custom_hyperparams))
+
+        dataframe = primitive.produce(inputs=X).value
+        targets = target_primitive.produce(inputs=dataframe).value 
+
+        custom_hyperparams = dict()
+        custom_hyperparams['n_neighbors'] = 3
+        primitive_hyperparams = self.primitive.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
+        model = self.primitive(hyperparams=primitive_hyperparams(primitive_hyperparams.defaults(), **custom_hyperparams))
+        model.set_training_data(inputs=X, outputs=X)
+        model.fit()
+        output = model.produce(inputs=X).value.iloc[:,1]
+       
+        metric = self.evaluate_metric(output, targets, metric_type, posLabel)
+        return metric
+
     def score_primitive(self, X, y, metric_type, posLabel, custom_hyperparams, step_index=0):
         """
         Learns optimal hyperparameters for the primitive
@@ -119,6 +144,10 @@ class PrimitiveDescription(object):
             else:
                 return (0.0, optimal_params)
 
+        if 'Kanine' in python_path:
+            metric = self.score_Kanine_primitive(X, metric_type, posLabel)
+            return (metric, optimal_params)
+
         if 'DistilEnsembleForest' in python_path or 'DistilTextClassifier' in python_path:
             optimal_params['metric'] = util.get_distil_metric_name(metric_type)
             primitive_hyperparams = self.primitive.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
@@ -132,7 +161,7 @@ class PrimitiveDescription(object):
             score = abs(prim_instance._model.best_fitness)
             return (score, optimal_params)
 
-        if y is None or 'graph' in python_path or 'link' in python_path or 'community' in python_path or 'Kanine' in python_path or 'JHU' in python_path:
+        if y is None or 'graph' in python_path or 'link' in python_path or 'community' in python_path or 'JHU' in python_path:
             if util.invert_metric(metric_type) is True:
                 return (0.0, optimal_params)
             else:
@@ -161,6 +190,13 @@ class PrimitiveDescription(object):
             for name, value in params.items():
                 optimal_params[name] = value
 
+        if 'SKlearn' in python_path:
+            hyperparam_spec = self.primitive.metadata.query()['primitive_code']['hyperparams']
+            if len(X) > 100000 and 'n_estimators' in hyperparam_spec:
+                optimal_params['n_estimators'] = 10
+            if len(X) > 100000 and ('linear_svc' in python_path or 'linear_svr' in python_path):
+                optimal_params['max_iter'] = 100
+
         primitive_hyperparams = self.primitive.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
         prim_instance = self.primitive(hyperparams=primitive_hyperparams(primitive_hyperparams.defaults(), **optimal_params))
         score = 0.0
@@ -169,17 +205,11 @@ class PrimitiveDescription(object):
         # Run k-fold CV and compute mean metric score
         (score, metric_scores) = self.k_fold_CV(prim_instance, X, y, metric_type, posLabel, splits)
         mean = np.mean(metric_scores)
-        #metric_scores.sort()
-        #median = np.median(metric_scores)
         lb = max((int)(0.025*len(metric_scores) + 0.5)-1,0)
         ub = min((int)(0.975*len(metric_scores) + 0.5)-1, len(metric_scores)-1)
         stderror = np.std(metric_scores)/math.sqrt(len(metric_scores))
         z = 1.96*stderror
         logging.info("CV scores for %s = %s(%s - %s) k = %s", python_path, mean, mean-z, mean+z, len(metric_scores))
-        #text = python_path + "," + str(mean) + "," + str(mean-z) + "," + str(median) + "," + str(metric_scores[lb]) + "," + str(metric_scores[1]) + "\n"
-        filename = "scores.csv"
-        #with open(filename, "a") as g:
-        #    g.write(text)
         return (score, optimal_params)
 
     def evaluate_metric(self, predictions, Ytest, metric, posLabel):
@@ -263,7 +293,7 @@ class PrimitiveDescription(object):
         corex_hp = {'nbins': [2, 3, 4], # 5, 10, 12, 15, 20],
                     'method': ['counting', 'pseudoBayesian'],
                     'n_estimators': [5, 6, 10, 15, 20, 25, 26, 30]}
-        
+      
         prim = d3m.index.get_primitive(python_path)
         model_hyperparams = prim.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
 

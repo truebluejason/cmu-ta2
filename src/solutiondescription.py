@@ -93,8 +93,8 @@ def column_types_present(dataset):
     metadata = df.metadata
 
     types = []
-    cols = len(metadata.get_columns_with_semantic_type("http://schema.org/Text"))
-    if cols > 0:
+    textcols = len(metadata.get_columns_with_semantic_type("http://schema.org/Text"))
+    if textcols > 0:
         types.append('TEXT')
     cols = len(metadata.get_columns_with_semantic_type("http://schema.org/ImageObject"))
     if cols > 0:
@@ -122,6 +122,7 @@ def column_types_present(dataset):
     
     privileged = metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/SuggestedPrivilegedData") 
     attcols = metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/Attribute")
+    text_prop = textcols/len(attcols)
     for t in attcols:
         column_metadata = metadata.query((metadata_base.ALL_ELEMENTS, t))
         semantic_types = column_metadata.get('semantic_types', [])
@@ -130,7 +131,7 @@ def column_types_present(dataset):
             break
 
     print("Data types present: ", types)
-    return (types, len(attcols), len(df), cols, ordinals, ok_to_denormalize, ok_to_impute, privileged)
+    return (types, len(attcols), len(df), cols, ordinals, ok_to_denormalize, ok_to_impute, privileged, text_prop)
 
 def compute_timestamp():
     now = time.time()
@@ -257,7 +258,7 @@ class SolutionDescription(object):
         """
         name = "Pipeline for evaluation"
         pipeline_id = self.id #+ "_" + str(self.rank)
-        pipeline_description = Pipeline(pipeline_id=pipeline_id, context=Context.EVALUATION, name=name)
+        pipeline_description = Pipeline(pipeline_id=pipeline_id, name=name)
         for ip in self.inputs:
             pipeline_description.add_input(name=ip['name'])
 
@@ -595,6 +596,9 @@ class SolutionDescription(object):
         model.fit()
         self.pipeline[n_step] = model
 
+        if 'splitter' in python_path:
+            model._training_inputs = None
+
         final_output = None
         if 'DistilRaggedDatasetLoader' in python_path:
             final_output = {}
@@ -853,7 +857,20 @@ class SolutionDescription(object):
                 custom_hyperparams['prediction_column'] = 'match'
                 self.hyperparams[i]['link_prediction_hyperparams'] = LinkPredictionHyperparams(LinkPredictionHyperparams.defaults(), **custom_hyperparams)
 
-            if self.privileged is not None and len(self.privileged) > 0 and python_paths[i] == 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon':
+            if 'splitter' in python_paths[i]:
+                self.hyperparams[i] = {}
+                self.hyperparams[i]['threshold_row_length'] = 25000
+
+            if 'cast_to_type' in python_paths[i]:
+                self.hyperparams[i] = {}
+                self.hyperparams[i]['type_to_cast'] = 'float'
+
+            if python_paths[i] == 'd3m.primitives.data_transformation.link_prediction.DistilLinkPrediction':
+                self.hyperparams[i] = {}
+                self.hyperparams[i]['metric'] = 'accuracy'
+
+            if self.privileged is not None and len(self.privileged) > 0 and \
+                python_paths[i] == 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon':
                 self.hyperparams[i] = {}
                 self.hyperparams[i]['exclude_columns'] = self.privileged
 
@@ -872,6 +889,17 @@ class SolutionDescription(object):
                     self.hyperparams[i]['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/TrueTarget']
                 elif i == 3: # extract_columns_by_semantic_types
                     data = 'steps.1.produce'
+                else: # other steps
+                    data = 'steps.' + str(i - 1) + '.produce'
+            elif taskname == 'GENERAL_RELATIONAL':
+                if i == 0: # splitter 
+                    data = 'inputs.0'
+                elif i == 3: # extract_columns_by_semantic_types (targets)
+                    data = 'steps.2.produce'
+                    self.hyperparams[i] = {}
+                    self.hyperparams[i]['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/TrueTarget']
+                elif i == 4: # general_relational_dataset
+                    data = 'steps.0.produce'
                 else: # other steps
                     data = 'steps.' + str(i - 1) + '.produce'
             elif taskname == 'TIMESERIES2':
@@ -906,6 +934,15 @@ class SolutionDescription(object):
                 else: # other steps
                     data = 'steps.' + str(i - 1) + '.produce'
             elif taskname == 'COMMUNITYDETECTION2':
+                if i == 0: # denormalize
+                    data = 'inputs.0'
+                else:
+                    data = 'steps.0.produce_target'
+                    origin = data.split('.')[0]
+                    source = data.split('.')[1]
+                    self.primitives_arguments[i]['outputs'] = {'origin': origin, 'source': int(source), 'data': data}
+                    data = 'steps.0.produce'
+            elif taskname == 'LINKPREDICTION2':
                 if i == 0: # denormalize
                     data = 'inputs.0'
                 else:
@@ -1020,7 +1057,7 @@ class SolutionDescription(object):
         self.outputs = []
         self.outputs.append((origin, int(source), data, "output predictions"))
  
-    def add_step(self, python_path, output_step):
+    def add_step(self, python_path, outputstep=2, dataframestep=1):
         """
         Add new primitive
         This is currently for classification/regression pipelines
@@ -1035,7 +1072,7 @@ class SolutionDescription(object):
         source = data.split('.')[1]
         self.primitives_arguments[i]['inputs'] = {'origin': origin, 'source': int(source), 'data': data}
         
-        data = 'steps.' + str(output_step) + str('.produce') # extract_columns_by_semantic_types (targets)
+        data = 'steps.' + str(outputstep) + str('.produce') # extract_columns_by_semantic_types (targets)
         origin = data.split('.')[0]
         source = data.split('.')[1]
         self.primitives_arguments[i]['outputs'] = {'origin': origin, 'source': int(source), 'data': data}
@@ -1056,7 +1093,7 @@ class SolutionDescription(object):
         source = data.split('.')[1]
         self.primitives_arguments[i]['inputs'] = {'origin': origin, 'source': int(source), 'data': data}
         
-        data = 'steps.' + str(1) + str('.produce')
+        data = 'steps.' + str(dataframestep) + str('.produce')
         origin = data.split('.')[0]
         source = data.split('.')[1]
         self.primitives_arguments[i]['reference'] = {'origin': origin, 'source': int(source), 'data': data}
@@ -1066,6 +1103,9 @@ class SolutionDescription(object):
         self.add_outputs()
 
     def complete_solution(self, optimal_params):
+        """
+        This is currently for classification/regression pipelines with d3m.primitives.feature_selection.joint_mutual_information.AutoRPI
+        """
         i = len(self.primitives_arguments)-1
         self.hyperparams[i] = {}
         self.hyperparams[i]['method'] = optimal_params[1]
@@ -1116,7 +1156,7 @@ class SolutionDescription(object):
     def add_RPI_step(self, python_path, output_step):
         """
         Add new primitive
-        This is currently for classification/regression pipelines
+        This is currently for classification/regression pipelines with d3m.primitives.feature_selection.joint_mutual_information.AutoRPI
         """
         n_steps = len(self.primitives_arguments) + 1
         i = n_steps-1

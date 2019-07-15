@@ -1,5 +1,5 @@
 
-import os, sys, logging
+import os, sys
 import util
 import solution_templates
 import problem_pb2
@@ -27,17 +27,17 @@ def search_phase():
     num_cpus = (int)(os.environ['D3MCPU'])
     problemPath = os.environ['D3MPROBLEMPATH']
 
-    logging.info("D3MINPUTDIR = %s", inputDir)
-    logging.info("D3MOUTPUTDIR = %s", outputDir)
-    logging.info("timeout = %s", timeout_env)
-    logging.info("cpus = %s", num_cpus)
+    print("D3MINPUTDIR = ", inputDir)
+    print("D3MOUTPUTDIR = ", outputDir)
+    print("timeout = ", timeout_env)
+    print("cpus = ", num_cpus)
     (dataset, task_name, problem_desc, metric, posLabel) = util.load_data_problem(inputDir, problemPath)
 
     print("Metric = ", metric, " poslabel = ", posLabel)
     timeout_in_min = (int)(timeout_env)
     primitives = primitive_lib.load_primitives()
     task_name = task_name.upper()
-    logging.info(task_name)
+    print(task_name)
 
     problem_metric = problem_pb2.F1_MACRO
     if metric == 'f1Macro':
@@ -83,9 +83,9 @@ def search_phase():
             if optimal_params is not None and len(optimal_params) > 0:
                 valid_solutions[id].set_hyperparams(optimal_params)
         except:
-            logging.info(solutions[index].primitives)
-            logging.info(sys.exc_info()[0])
-            logging.info("Solution terminated: %s", solutions[index].id)
+            print(solutions[index].primitives)
+            print(sys.exc_info()[0])
+            print("Solution terminated: ", solutions[index].id)
         index = index + 1
 
     # Sort solutions by their scores and rank them
@@ -115,9 +115,9 @@ def search_phase():
         try:
             valid=r.get(timeout=halftimeout)
         except:
-            logging.info(valid_solutions[sorted_x[index][0]].primitives)
-            logging.info(sys.exc_info()[0])
-            logging.info("Solution terminated: %s", valid_solutions[sorted_x[index][0]].id)
+            print(valid_solutions[sorted_x[index][0]].primitives)
+            print(sys.exc_info()[0])
+            print("Solution terminated: ", valid_solutions[sorted_x[index][0]].id)
         index = index + 1
 
 def evaluate_solution_score(inputs, solution, primitives, metric, posLabel, sol_dict):
@@ -125,7 +125,7 @@ def evaluate_solution_score(inputs, solution, primitives, metric, posLabel, sol_
     Scores each potential solution
     Runs in a separate process
     """
-    logging.info("Evaluating %s", solution.id)
+    print("Evaluating ", solution.id)
 
     (score, optimal_params) = solution.score_solution(inputs=inputs, metric=metric, posLabel=posLabel,
                                 primitive_dict=primitives, solution_dict=sol_dict)
@@ -137,7 +137,7 @@ def fit_solution(inputs, solution, primitives, outputDir, problem_desc):
     Fits each potential solution
     Runs in a separate process
     """
-    logging.info("Fitting %s", solution.id)
+    print("Fitting ", solution.id)
 
     util.write_pipeline_json(solution, primitives, outputDir + "/pipelines_ranked", rank=solution.rank)
     #util.write_pipeline_yaml(solution, outputDir + "/pipeline_runs", inputs, problem_desc)
