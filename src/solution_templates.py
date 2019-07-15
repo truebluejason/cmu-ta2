@@ -358,7 +358,7 @@ def get_general_relational_solutions(task_name, dataset, primitives, problem_met
     try:
         basic_sol.run_basic_solution(inputs=[dataset], output_step=3, primitive_dict=primitives, metric_type=problem_metric, posLabel=posLabel)
         total_cols = basic_sol.get_total_cols()
-        logging.info("Total cols = ", total_cols)
+        logging.info("Total cols = %s", total_cols)
 
         if basic_sol is not None:
             if task_name == "REGRESSION":
@@ -376,7 +376,7 @@ def get_general_relational_solutions(task_name, dataset, primitives, problem_met
 
     end = timer()
     time_used = end - start
-    logging.info("Time taken to run general solution: ", end - start, " secs")
+    logging.info("Time taken to run general solution: %s secs", end - start)
     return (solutions, time_used)  
 
 def get_rpi_solutions(task_name, types_present, rows, dataset, primitives, problem_metric, posLabel, static_dir):
@@ -399,7 +399,7 @@ def get_rpi_solutions(task_name, types_present, rows, dataset, primitives, probl
     try:
         basic_sol.run_basic_solution(inputs=[dataset], output_step=3, primitive_dict=primitives, metric_type=problem_metric, posLabel=posLabel)
         total_cols = basic_sol.get_total_cols()
-        logging.info("Total cols = ", total_cols)
+        logging.info("Total cols = %s", total_cols)
     except:
         logging.info(sys.exc_info()[0])
         end = timer()
