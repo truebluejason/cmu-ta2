@@ -103,7 +103,7 @@ task_paths = {
 'VERTEXCLASSIFICATION': ['d3m.primitives.data_transformation.vertex_classification_parser.VertexClassificationParser',
                      'd3m.primitives.classification.vertex_nomination.VertexClassification'],
 
-'OBJECTDETECTION': ['d3m.primitives.data_transformation.denormalize.Common',
+'OBJECT_DETECTION': ['d3m.primitives.data_transformation.denormalize.Common',
                     'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
                     'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
                     'd3m.primitives.data_transformation.column_parser.DataFrameCommon',
@@ -146,6 +146,7 @@ classifiers = ['d3m.primitives.classification.bernoulli_naive_bayes.SKlearn',
                'd3m.primitives.classification.gaussian_naive_bayes.SKlearn',
                'd3m.primitives.classification.sgd.SKlearn',
                'd3m.primitives.classification.svc.SKlearn',
+               'd3m.primitives.classification.passive_aggressive.SKlearn']
                'd3m.primitives.classification.xgboost_gbtree.DataFrameCommon',
                'd3m.primitives.classification.gradient_boosting.SKlearn']
 
@@ -167,7 +168,6 @@ regressors_rpi = ['d3m.primitives.regression.random_forest.SKlearn',
 
 classifiers_rpi = ['d3m.primitives.classification.random_forest.SKlearn',
                    'd3m.primitives.classification.extra_trees.SKlearn',
-                   'd3m.primitives.classification.bagging.SKlearn',
                    'd3m.primitives.classification.gradient_boosting.SKlearn']
 
 regressors_general_relational = ['d3m.primitives.regression.random_forest.SKlearn',
@@ -267,7 +267,10 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel):
                 listOfSolutions = classifiers
 
         for python_path in listOfSolutions:
-            if (total_cols > 500 or rows > 100000) and 'xgboost' in python_path:
+            if total_cols > 500 and ('xgboost' in python_path or 'gradient_boosting' in python_path):
+                continue
+
+            if rows > 100000 and 'xgboost' in python_path:
                 continue
 
             # SVM gets extremely expensive for >10k samples!!!
@@ -416,7 +419,7 @@ def get_rpi_solutions(task_name, types_present, rows, dataset, primitives, probl
                 continue
 
             # Avoid expensive solutions!!!
-            if ('gradient_boosting' in python_path or 'bagging' in python_path) and ((rows > 1000 and total_cols > 50) or (rows > 5000)):
+            if 'gradient_boosting' in python_path and ((rows > 1000 and total_cols > 50) or (rows > 5000)):
                 continue
 
             pipe = copy.deepcopy(basic_sol)
