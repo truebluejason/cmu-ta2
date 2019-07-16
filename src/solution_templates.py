@@ -103,7 +103,7 @@ task_paths = {
 'VERTEXCLASSIFICATION': ['d3m.primitives.data_transformation.vertex_classification_parser.VertexClassificationParser',
                      'd3m.primitives.classification.vertex_nomination.VertexClassification'],
 
-'OBJECT_DETECTION': ['d3m.primitives.data_transformation.denormalize.Common',
+'OBJECTDETECTION': ['d3m.primitives.data_transformation.denormalize.Common',
                     'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
                     'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
                     'd3m.primitives.data_transformation.column_parser.DataFrameCommon',
