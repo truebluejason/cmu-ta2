@@ -989,6 +989,25 @@ class SolutionDescription(object):
                     data = 'steps.1.produce'
                 else: # other steps
                     data = 'steps.' + str(i-1) + '.produce'
+            elif taskname == 'OBJECTDETECTION':
+                if i == 0: # denormalize
+                    data = 'inputs.0'
+                elif i == 2: # extract_columns_by_semantic_types
+                    data = 'steps.1.produce'
+                    self.hyperparams[i] = {}
+                    self.hyperparams[i]['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/PrimaryMultiKey', 'https://metadata.datadrivendiscovery.org/types/FileName']
+                elif i == 3: # extract_columns_by_semantic_types (targets)
+                    data = 'steps.1.produce'
+                    self.hyperparams[i] = {}
+                    self.hyperparams[i]['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/TrueTarget']
+                elif i == 4: # yolo
+                    data = 'steps.3.produce'
+                    origin = data.split('.')[0]
+                    source = data.split('.')[1]
+                    self.primitives_arguments[i]['outputs'] = {'origin': origin, 'source': int(source), 'data': data}
+                    data = 'steps.2.produce')
+                else: # other steps
+                    data = 'steps.' + str(i-1) + '.produce'
             elif taskname == 'CLUSTERING':
                 if i == 0: # dataset_to_dataframe
                     data = 'inputs.0'
