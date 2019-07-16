@@ -339,6 +339,8 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel):
         pipe.id = str(uuid.uuid4())
         pipe.add_step('d3m.primitives.regression.extra_trees.SKlearn')
         solutions.append(pipe)
+    elif task_name == 'OBJECTDETECTION':
+        solutions.append(basic_solution)
     else:
         logging.info("No matching solutions")
 
