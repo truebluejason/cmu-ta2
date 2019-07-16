@@ -185,7 +185,7 @@ class Core(core_pb2_grpc.CoreServicer):
             # Evaluate potential solutions asynchronously and get end-result
             for r in results:
                 try:
-                    start = timer()
+                    start_solution = timer()
                     (score, optimal_params) = r.get(timeout=timeout)
                     count = count + 1
                     id = solutions[index].id
@@ -195,8 +195,8 @@ class Core(core_pb2_grpc.CoreServicer):
                     if optimal_params is not None and len(optimal_params) > 0:
                         self._solutions[id].set_hyperparams(optimal_params)
                     util.write_pipeline_json(solutions[index], self._primitives, outputDir + "/pipelines_searched")
-                    end = timer()
-                    time_used = end - start
+                    end_solution = timer()
+                    time_used = end_solution - start_solution
                     timeout = timeout - time_used
                     if timeout <= 0:
                         timeout = 1
