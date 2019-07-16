@@ -83,7 +83,7 @@ class Core(core_pb2_grpc.CoreServicer):
                 logging.info("New datset from specified pipeline: %s", dataset)
 
         taskname = task_name.replace('_', '')
-        logging.info("taskname = ", taskname)
+        logging.info("taskname = %s", taskname)
         metric = request.problem.problem.performance_metrics[0].metric
         posLabel = request.problem.problem.performance_metrics[0].pos_label
         (solutions,time_used) = solution_templates.get_solutions(taskname, dataset, primitives, metric, posLabel)
