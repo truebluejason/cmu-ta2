@@ -1005,7 +1005,7 @@ class SolutionDescription(object):
                     origin = data.split('.')[0]
                     source = data.split('.')[1]
                     self.primitives_arguments[i]['outputs'] = {'origin': origin, 'source': int(source), 'data': data}
-                    data = 'steps.2.produce')
+                    data = 'steps.2.produce'
                 else: # other steps
                     data = 'steps.' + str(i-1) + '.produce'
             elif taskname == 'CLUSTERING':
