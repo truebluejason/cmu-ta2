@@ -114,8 +114,11 @@ class PrimitiveDescription(object):
         dataframe = primitive.produce(inputs=X).value
         targets = target_primitive.produce(inputs=dataframe).value 
 
+        neighbors = int(round(0.05 * len(X)))
+        if neighbors < 2:
+           neighbors = 2
         custom_hyperparams = dict()
-        custom_hyperparams['n_neighbors'] = 3
+        custom_hyperparams['n_neighbors'] = neighbors
         primitive_hyperparams = self.primitive.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
         model = self.primitive(hyperparams=primitive_hyperparams(primitive_hyperparams.defaults(), **custom_hyperparams))
         model.set_training_data(inputs=X, outputs=X)

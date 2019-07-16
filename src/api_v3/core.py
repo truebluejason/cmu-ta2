@@ -19,6 +19,7 @@ import solutiondescription, util, solution_templates
 from multiprocessing import Pool, cpu_count
 from multiprocessing.context import TimeoutError
 import uuid
+from timeit import default_timer as timer
 
 logging.basicConfig(level=logging.INFO)
 pd.set_option('display.max_rows', None)
@@ -183,7 +184,8 @@ class Core(core_pb2_grpc.CoreServicer):
 
             # Evaluate potential solutions asynchronously and get end-result
             for r in results:
-                if 1:#try:
+                try:
+                    start = timer()
                     (score, optimal_params) = r.get(timeout=timeout)
                     count = count + 1
                     id = solutions[index].id
@@ -193,18 +195,23 @@ class Core(core_pb2_grpc.CoreServicer):
                     if optimal_params is not None and len(optimal_params) > 0:
                         self._solutions[id].set_hyperparams(optimal_params)
                     util.write_pipeline_json(solutions[index], self._primitives, outputDir + "/pipelines_searched")
+                    end = timer()
+                    time_used = end - start
+                    timeout = timeout - time_used
+                    if timeout <= 0:
+                        timeout = 1
                     yield core_pb2.GetSearchSolutionsResultsResponse(progress=msg, done_ticks=count, all_ticks=len(solutions), solution_id=id,
                                         internal_score=0.0, scores=[])
-                #except TimeoutError:
-                #    logging.info(solutions[index].primitives)
-                #    logging.info(sys.exc_info()[0])
-                #    logging.info("Solution terminated: %s", solutions[index].id)
-                #    #self.async_message_thread.terminate()
-                #    break
-                #except:
-                #    logging.info(solutions[index].primitives)
-                #    logging.info(sys.exc_info()[0])
-                #    logging.info("Solution terminated: %s", solutions[index].id)
+                except TimeoutError:
+                    logging.info(solutions[index].primitives)
+                    logging.info(sys.exc_info()[0])
+                    logging.info("Solution terminated: %s", solutions[index].id)
+                    #self.async_message_thread.terminate()
+                    timeout = 1
+                except:
+                    logging.info(solutions[index].primitives)
+                    logging.info(sys.exc_info()[0])
+                    logging.info("Solution terminated: %s", solutions[index].id)
                 index = index + 1
 
             # Sort solutions by their scores and rank them

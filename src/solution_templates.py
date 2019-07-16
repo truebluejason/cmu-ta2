@@ -272,6 +272,9 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel):
             if rows > 100000 and 'xgboost' in python_path:
                 continue
 
+            if 'TIMESERIES' in types_present and 'xgboost' in python_path:
+                continue
+
             # SVM gets extremely expensive for >10k samples!!!
             if rows > 10000 and 'classification.svc.SKlearn' in python_path:
                 continue 
@@ -282,7 +285,7 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel):
             solutions.append(pipe)
 
         # Try general relational pipelines
-        if 'TIMESERIES' not in types_present:
+        if 'TIMESERIES' not in types_present and rows <= 100000:
             (general_solutions, general_time_used) = get_general_relational_solutions(task_name, dataset, primitives, problem_metric, posLabel, static_dir)
             solutions = solutions + general_solutions
             time_used = time_used + general_time_used
