@@ -106,7 +106,6 @@ task_paths = {
 'OBJECTDETECTION': ['d3m.primitives.data_transformation.denormalize.Common',
                     'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
                     'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
-                    'd3m.primitives.data_transformation.column_parser.DataFrameCommon',
                     'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
                     'd3m.primitives.feature_extraction.yolo.DSBOX'],
 
