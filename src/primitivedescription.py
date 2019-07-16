@@ -161,7 +161,7 @@ class PrimitiveDescription(object):
             score = abs(prim_instance._model.best_fitness)
             return (score, optimal_params)
 
-        if y is None or 'graph' in python_path or 'link' in python_path or 'community' in python_path or 'JHU' in python_path:
+        if y is None or 'graph' in python_path or 'link' in python_path or 'community' in python_path or 'JHU' in python_path or 'yolo' in python_path:
             if util.invert_metric(metric_type) is True:
                 return (0.0, optimal_params)
             else:
