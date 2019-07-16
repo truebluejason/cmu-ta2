@@ -590,6 +590,8 @@ class SolutionDescription(object):
             if param in training_arguments_primitive:
                 training_arguments[param] = value
 
+        logging.info("Path %s", python_path)
+        logging.info("%s", custom_hyperparams)
         model = primitive(hyperparams=primitive_hyperparams(primitive_hyperparams.defaults(), **custom_hyperparams))
 
         model.set_training_data(**training_arguments)

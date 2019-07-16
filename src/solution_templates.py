@@ -283,9 +283,10 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel):
             solutions.append(pipe)
 
         # Try general relational pipelines
-        (general_solutions, general_time_used) = get_general_relational_solutions(task_name, dataset, primitives, problem_metric, posLabel, static_dir)
-        solutions = solutions + general_solutions
-        time_used = time_used + general_time_used
+        if 'TIMESERIES' not in types_present:
+            (general_solutions, general_time_used) = get_general_relational_solutions(task_name, dataset, primitives, problem_metric, posLabel, static_dir)
+            solutions = solutions + general_solutions
+            time_used = time_used + general_time_used
 
         # Try RPI primitives for tabular datasets
         rpi_solutions = get_rpi_solutions(task_name, types_present, rows, dataset, primitives, problem_metric, posLabel, static_dir)
