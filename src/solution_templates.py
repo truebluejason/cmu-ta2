@@ -146,7 +146,7 @@ classifiers = ['d3m.primitives.classification.bernoulli_naive_bayes.SKlearn',
                'd3m.primitives.classification.gaussian_naive_bayes.SKlearn',
                'd3m.primitives.classification.sgd.SKlearn',
                'd3m.primitives.classification.svc.SKlearn',
-               'd3m.primitives.classification.passive_aggressive.SKlearn']
+               'd3m.primitives.classification.passive_aggressive.SKlearn',
                'd3m.primitives.classification.xgboost_gbtree.DataFrameCommon',
                'd3m.primitives.classification.gradient_boosting.SKlearn']
 
