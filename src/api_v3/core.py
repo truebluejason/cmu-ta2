@@ -183,7 +183,7 @@ class Core(core_pb2_grpc.CoreServicer):
 
             # Evaluate potential solutions asynchronously and get end-result
             for r in results:
-                try:
+                if 1:#try:
                     (score, optimal_params) = r.get(timeout=timeout)
                     count = count + 1
                     id = solutions[index].id
@@ -195,16 +195,16 @@ class Core(core_pb2_grpc.CoreServicer):
                     util.write_pipeline_json(solutions[index], self._primitives, outputDir + "/pipelines_searched")
                     yield core_pb2.GetSearchSolutionsResultsResponse(progress=msg, done_ticks=count, all_ticks=len(solutions), solution_id=id,
                                         internal_score=0.0, scores=[])
-                except TimeoutError:
-                    logging.info(solutions[index].primitives)
-                    logging.info(sys.exc_info()[0])
-                    logging.info("Solution terminated: %s", solutions[index].id)
-                    #self.async_message_thread.terminate()
-                    break
-                except:
-                    logging.info(solutions[index].primitives)
-                    logging.info(sys.exc_info()[0])
-                    logging.info("Solution terminated: %s", solutions[index].id)
+                #except TimeoutError:
+                #    logging.info(solutions[index].primitives)
+                #    logging.info(sys.exc_info()[0])
+                #    logging.info("Solution terminated: %s", solutions[index].id)
+                #    #self.async_message_thread.terminate()
+                #    break
+                #except:
+                #    logging.info(solutions[index].primitives)
+                #    logging.info(sys.exc_info()[0])
+                #    logging.info("Solution terminated: %s", solutions[index].id)
                 index = index + 1
 
             # Sort solutions by their scores and rank them

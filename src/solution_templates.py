@@ -195,7 +195,7 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel):
     except:
         static_dir = None
 
-    if task_name != 'SEMISUPERVISEDCLASSIFICATION':
+    if task_name != 'SEMISUPERVISEDCLASSIFICATION' and task_name != 'OBJECTDETECTION':
         basic_sol = solutiondescription.SolutionDescription(None, static_dir)
         basic_sol.initialize_solution('FALLBACK1')
         pipe = copy.deepcopy(basic_sol)
