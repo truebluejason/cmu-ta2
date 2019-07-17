@@ -1,6 +1,10 @@
 import os, copy, uuid, sys
 import solutiondescription
 import logging
+import util, search
+import numpy as np
+from timeit import default_timer as timer
+import signal
 
 logging.basicConfig(level=logging.INFO)
 
@@ -191,15 +195,67 @@ sslVariants = ['d3m.primitives.classification.gradient_boosting.SKlearn',
                'd3m.primitives.classification.random_forest.SKlearn',
                'd3m.primitives.classification.bagging.SKlearn']
 
-def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, problem):
+def get_augmented_solutions(task_name, dataset, primitives, problem_metric, posLabel, keywords, timeout = 15):
+    """
+    Get all augmented solution by
+        1. Search datasets relevant
+        2. Evaluate the one that improves the most the performances
+        3. Return the TA2 on this dataset
+    
+    Arguments:
+        task_name {[type]} -- [description]
+        dataset {[type]} -- [description]
+        primitives {[type]} -- [description]
+        problem_metric {[type]} -- [description]
+        posLabel {[type]} -- [description]
+        keywords {[type]} -- [description]
+    """
+    print('-' * 100)
+    start = timer()
+    # Search in datamart
+    try:
+        datasets = util.search_all_related(dataset, keywords)
+    except:
+        logging.info("DATAMART NOT AVAILABLE")
+        return ([], timer() - start)
+
+    # Evaluate one model on each
+    performances = {}
+
+    # TODO: Parallelization
+    for i, aug_dataset in enumerate(datasets):
+        try:
+            logging.info("Trying %s", aug_dataset)
+            (solution, _) = get_solutions(task_name, dataset, primitives, problem_metric, posLabel, augmentation_dataset = aug_dataset.serialize(), one_model = True)
+            performances[i] = search.evaluate_solution_score([dataset], solution[0], primitives, problem_metric, posLabel, None)[0]
+            logging.info("Augmentation with: {} => {}".format(aug_dataset.get_json_metadata()['metadata']['name'], performances[i]))
+        except:
+            logging.info("Augmentation with: {} => FAILED".format(aug_dataset.get_json_metadata()['metadata']['name']))
+
+    try:
+        sorted_x = search.rank_solutions(performances, problem_metric)
+        best = datasets[sorted_x[0][0]]
+
+        # Get all solution
+        logging.info("Best augmentation: {}".format(best.get_json_metadata()['metadata']['name']))
+        (solutions, _) = get_solutions(task_name, dataset, primitives, problem_metric, posLabel, augmentation_dataset = best.serialize())
+    except:
+        solutions = []
+
+    return (solutions, timer() - start)
+
+def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, augmentation_dataset = None, one_model = False):
     """
     Get a list of available solutions(pipelines) for the specified task
     Used by both TA2 in "search" phase and TA2-TA3
+
+    augmentation_dataset -- Serialized dataset returned by Datamart
+    one_model -- Return one extra tree model
     """
     solutions = []
     time_used = 0
 
-    if task_name != 'SEMISUPERVISEDCLASSIFICATION' and task_name != 'OBJECTDETECTION':
+    if task_name != 'SEMISUPERVISEDCLASSIFICATION' and task_name != 'OBJECTDETECTION' and not(one_model):
         basic_sol = solutiondescription.SolutionDescription(problem)
         basic_sol.initialize_solution('FALLBACK1')
         pipe = copy.deepcopy(basic_sol)
@@ -212,21 +268,26 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
     if task_name == 'VERTEXNOMINATION':
         task_name = 'VERTEXCLASSIFICATION'
     basic_sol = solutiondescription.SolutionDescription(problem)
-    basic_sol.initialize_solution(task_name)
+    basic_sol.initialize_solution(task_name, augmentation_dataset)
 
+    if augmentation_dataset:
+        basic_sol.clear_model()
+    
     types_present = []
     text_prop = 1.0
     total_cols = 0
     if task_name == 'CLASSIFICATION' or task_name == 'REGRESSION' or task_name == 'SEMISUPERVISEDCLASSIFICATION':
         try:
-            (types_present, total_cols, rows, categorical_atts, ordinal_atts, ok_to_denormalize, ok_to_impute, privileged, text_prop) = solutiondescription.column_types_present(dataset)
+            (types_present, total_cols, rows, categorical_atts, ordinal_atts, ok_to_denormalize, ok_to_impute, privileged, text_prop, ok_to_augment) = solutiondescription.column_types_present(dataset, augmentation_dataset)
             logging.info(types_present)
             basic_sol.set_categorical_atts(categorical_atts)
             basic_sol.set_ordinal_atts(ordinal_atts)
             basic_sol.set_denormalize(ok_to_denormalize)
             basic_sol.set_impute(ok_to_impute)
             basic_sol.set_privileged(privileged)
-            basic_sol.initialize_solution(task_name)
+            if ok_to_augment == False:
+                augmentation_dataset = None
+            basic_sol.initialize_solution(task_name, augmentation_dataset)
         except:
             logging.info(sys.exc_info()[0])
             basic_sol = None
@@ -238,22 +299,21 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
                 types_present[0] = 'TIMESERIES' 
             try:
                 if 'TIMESERIES' in types_present:
-                    basic_sol.initialize_solution('TIMESERIES')
+                    basic_sol.initialize_solution('TIMESERIES', augmentation_dataset)
                 elif 'IMAGE' in types_present:
-                    basic_sol.initialize_solution('IMAGE')
+                    basic_sol.initialize_solution('IMAGE', augmentation_dataset)
                 elif 'TEXT' in types_present:
                     if task_name == 'CLASSIFICATION' and text_prop < 0.2:
-                        basic_sol.initialize_solution('TEXTCLASSIFICATION')
+                        basic_sol.initialize_solution('TEXTCLASSIFICATION', augmentation_dataset)
                     else:
-                        basic_sol.initialize_solution('TEXT')
+                        basic_sol.initialize_solution('TEXT', augmentation_dataset)
                 elif 'AUDIO' in types_present:
-                    basic_sol.initialize_solution('AUDIO')
+                    basic_sol.initialize_solution('AUDIO', augmentation_dataset)
                 elif 'VIDEO' in types_present:
-                    basic_sol.initialize_solution('VIDEO')
+                    basic_sol.initialize_solution('VIDEO', augmentation_dataset)
 
-                from timeit import default_timer as timer
                 start = timer()
-                basic_sol.run_basic_solution(inputs=[dataset], output_step=2)
+                basic_sol.run_basic_solution(inputs=[dataset], output_step = basic_sol.index_denormalize + 2)
                 end = timer()
                 logging.info("Time taken to run basic solution: %s secs", end - start)
                 time_used = end - start
@@ -267,10 +327,16 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
         listOfSolutions = []
         if basic_sol is not None:
             if task_name == "REGRESSION":
-                listOfSolutions = regressors
+                if one_model:
+                    listOfSolutions = ['d3m.primitives.regression.extra_trees.SKlearn']
+                else:
+                    listOfSolutions = regressors
             elif task_name == "CLASSIFICATION":
-                listOfSolutions = classifiers
-        
+                if one_model:
+                    listOfSolutions = ['d3m.primitives.classification.extra_trees.SKlearn']
+                else:
+                    listOfSolutions = classifiers
+
         for python_path in listOfSolutions:
             if (total_cols > 500 or rows > 100000) and ('xgboost' in python_path or 'gradient_boosting' in python_path):
                 continue
@@ -287,18 +353,19 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
             
             pipe = copy.deepcopy(basic_sol) 
             pipe.id = str(uuid.uuid4())
-            pipe.add_step(python_path)
+            pipe.add_step(python_path, outputstep = pipe.index_denormalize + 2, dataframestep = pipe.index_denormalize + 1)
             solutions.append(pipe)
 
         # Try general relational pipelines
-        if types_present is not None and 'TIMESERIES' not in types_present and rows <= 100000:
+        if types_present is not None and 'TIMESERIES' not in types_present and rows <= 100000 and not one_model:
             (general_solutions, general_time_used) = get_general_relational_solutions(task_name, dataset, primitives, problem_metric, posLabel, problem)
             solutions = solutions + general_solutions
             time_used = time_used + general_time_used
 
         # Try RPI primitives for tabular datasets
-        rpi_solutions = get_rpi_solutions(task_name, types_present, rows, dataset, primitives, problem_metric, posLabel, problem)
-        solutions = solutions + rpi_solutions
+        if not one_model:
+            rpi_solutions = get_rpi_solutions(task_name, types_present, rows, dataset, primitives, problem_metric, posLabel, problem)
+            solutions = solutions + rpi_solutions
 
         if task_name == 'SEMISUPERVISEDCLASSIFICATION':
             # Iterate through variants of possible blackbox hyperparamets.

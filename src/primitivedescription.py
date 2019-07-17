@@ -362,7 +362,6 @@ class PrimitiveDescription(object):
         k = splits
         prim_instance has already been initialized with hyperparameters.
         """
-
         python_path = self.primitive.metadata.query()['python_path']
         metric_sum = 0
         score = 0.0
