@@ -189,7 +189,7 @@ class SolutionDescription(object):
     The idea is that this can be evaluated, produce a model and performance metrics,
     and the hyperparameter tuning can consume that and choose what to do next.
     """
-    def __init__(self, problem, static_dir):
+    def __init__(self):
         self.id = str(uuid.uuid4())
         self.source = None
         self.created = compute_timestamp()
@@ -208,12 +208,10 @@ class SolutionDescription(object):
         self.pipeline = None
         self.produce_order = None
         self.hyperparams = None
-        self.problem = problem
         self.steptypes = None
         self.taskname = None
         self.exclude_columns = None
         self.primitives_outputs = None
-        self.static_dir = static_dir
         self.pipeline_description = None
         self.total_cols = 0
         self.categorical_atts = None
@@ -860,6 +858,11 @@ class SolutionDescription(object):
             if 'clustering.ekss.Umich' in python_paths[i]:
                 self.hyperparams[i] = {}
                 self.hyperparams[i]['n_clusters'] = 200
+
+            if 'adjacency_spectral_embedding.JHU' in python_paths[i]:
+                self.hyperparams[i] = {}
+                self.hyperparams[i]['max_dimension'] = 5
+                self.hyperparams[i]['use_attributes'] = True
 
             if 'splitter' in python_paths[i]:
                 self.hyperparams[i] = {}

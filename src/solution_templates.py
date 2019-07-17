@@ -199,13 +199,8 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel):
     solutions = []
     time_used = 0
 
-    try:
-        static_dir = os.environ['D3MSTATICDIR']
-    except:
-        static_dir = None
-
     if task_name != 'SEMISUPERVISEDCLASSIFICATION' and task_name != 'OBJECTDETECTION':
-        basic_sol = solutiondescription.SolutionDescription(None, static_dir)
+        basic_sol = solutiondescription.SolutionDescription()
         basic_sol.initialize_solution('FALLBACK1')
         pipe = copy.deepcopy(basic_sol)
         pipe.id = str(uuid.uuid4())
@@ -216,7 +211,7 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel):
         task_name = 'REGRESSION'
     if task_name == 'VERTEXNOMINATION':
         task_name = 'VERTEXCLASSIFICATION'
-    basic_sol = solutiondescription.SolutionDescription(None, static_dir)
+    basic_sol = solutiondescription.SolutionDescription()
     basic_sol.initialize_solution(task_name)
 
     types_present = []
@@ -233,7 +228,7 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel):
             basic_sol.initialize_solution(task_name)
         except:
             logging.info(sys.exc_info()[0])
-            basic_sol = solutiondescription.SolutionDescription(None, static_dir)
+            basic_sol = solutiondescription.SolutionDescription()
             types_present = None
             rows = 0
 
@@ -296,12 +291,12 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel):
 
         # Try general relational pipelines
         if 'TIMESERIES' not in types_present and rows <= 100000:
-            (general_solutions, general_time_used) = get_general_relational_solutions(task_name, dataset, primitives, problem_metric, posLabel, static_dir)
+            (general_solutions, general_time_used) = get_general_relational_solutions(task_name, dataset, primitives, problem_metric, posLabel)
             solutions = solutions + general_solutions
             time_used = time_used + general_time_used
 
         # Try RPI primitives for tabular datasets
-        rpi_solutions = get_rpi_solutions(task_name, types_present, rows, dataset, primitives, problem_metric, posLabel, static_dir)
+        rpi_solutions = get_rpi_solutions(task_name, types_present, rows, dataset, primitives, problem_metric, posLabel)
         solutions = solutions + rpi_solutions
 
         if task_name == 'SEMISUPERVISEDCLASSIFICATION':
@@ -326,24 +321,30 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel):
         solutions.append(pipe)
         
         # Add a classification pipeline too
-        pipe = solutiondescription.SolutionDescription(None, static_dir)
+        pipe = solutiondescription.SolutionDescription()
         pipe.initialize_solution('CLASSIFICATION')
         pipe.id = str(uuid.uuid4())
         pipe.add_step('d3m.primitives.classification.random_forest.SKlearn')
+        solutions.append(pipe)
+
+        pipe = solutiondescription.SolutionDescription()
+        pipe.initialize_solution('CLASSIFICATION')
+        pipe.id = str(uuid.uuid4())
+        pipe.add_step('d3m.primitives.classification.extra_trees.SKlearn')
         solutions.append(pipe)
 
         if task_name == 'GRAPHMATCHING' or \
            task_name == 'VERTEXCLASSIFICATION' or \
            task_name == 'COMMUNITYDETECTION' or \
            task_name == 'LINKPREDICTION':
-            pipe = solutiondescription.SolutionDescription(None, static_dir)
+            pipe = solutiondescription.SolutionDescription()
             second_name = task_name + '2'
             pipe.initialize_solution(second_name)
             pipe.id = str(uuid.uuid4())
             pipe.add_outputs()
             solutions.append(pipe)
         if task_name == 'VERTEXCLASSIFICATION':
-            pipe = solutiondescription.SolutionDescription(None, static_dir)
+            pipe = solutiondescription.SolutionDescription()
             pipe.initialize_solution('VERTEXCLASSIFICATION3')
             pipe.id = str(uuid.uuid4())
             pipe.add_outputs()
@@ -355,7 +356,7 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel):
         solutions.append(pipe)
 
         # Add a regression pipeline too
-        pipe = solutiondescription.SolutionDescription(None, static_dir)
+        pipe = solutiondescription.SolutionDescription()
         pipe.initialize_solution('REGRESSION')
         pipe.id = str(uuid.uuid4())
         pipe.add_step('d3m.primitives.regression.random_forest.SKlearn')
@@ -369,7 +370,7 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel):
         logging.info("No matching solutions")
 
     if task_name == 'CLASSIFICATION' and 'TIMESERIES' in types_present:
-        pipe = solutiondescription.SolutionDescription(None, static_dir)
+        pipe = solutiondescription.SolutionDescription()
         pipe.initialize_solution('TIMESERIES2')
         pipe.id = str(uuid.uuid4())
         pipe.add_outputs()
@@ -377,9 +378,9 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel):
 
     return (solutions, time_used)
 
-def get_general_relational_solutions(task_name, dataset, primitives, problem_metric, posLabel, static_dir):
+def get_general_relational_solutions(task_name, dataset, primitives, problem_metric, posLabel):
     solutions = []
-    basic_sol = solutiondescription.SolutionDescription(None, static_dir)
+    basic_sol = solutiondescription.SolutionDescription()
     basic_sol.initialize_solution('GENERAL_RELATIONAL')
 
     from timeit import default_timer as timer
@@ -408,7 +409,7 @@ def get_general_relational_solutions(task_name, dataset, primitives, problem_met
     logging.info("Time taken to run general solution: %s secs", end - start)
     return (solutions, time_used)  
 
-def get_rpi_solutions(task_name, types_present, rows, dataset, primitives, problem_metric, posLabel, static_dir):
+def get_rpi_solutions(task_name, types_present, rows, dataset, primitives, problem_metric, posLabel):
     solutions = []
 
     if task_name != "REGRESSION" and task_name != "CLASSIFICATION":
@@ -422,7 +423,7 @@ def get_rpi_solutions(task_name, types_present, rows, dataset, primitives, probl
        rows > 100000:
        return solutions
 
-    basic_sol = solutiondescription.SolutionDescription(None, static_dir)
+    basic_sol = solutiondescription.SolutionDescription()
     basic_sol.initialize_RPI_solution(task_name)
 
     try:
