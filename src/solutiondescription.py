@@ -857,6 +857,10 @@ class SolutionDescription(object):
                 custom_hyperparams['prediction_column'] = 'match'
                 self.hyperparams[i]['link_prediction_hyperparams'] = LinkPredictionHyperparams(LinkPredictionHyperparams.defaults(), **custom_hyperparams)
 
+            if 'clustering.ekss.Umich' in python_paths[i]:
+                self.hyperparams[i] = {}
+                self.hyperparams[i]['n_clusters'] = 200
+
             if 'splitter' in python_paths[i]:
                 self.hyperparams[i] = {}
                 self.hyperparams[i]['threshold_row_length'] = 25000

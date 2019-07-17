@@ -84,10 +84,18 @@ task_paths = {
                  'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
                  'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon'],
 
+#'CLUSTERING': ['d3m.primitives.data_transformation.dataset_to_dataframe.Common',
+#               'd3m.primitives.data_transformation.column_parser.DataFrameCommon',
+#               'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
+#               'd3m.primitives.clustering.k_means.Fastlvm',
+#               'd3m.primitives.data_transformation.construct_predictions.DataFrameCommon'],
+
 'CLUSTERING': ['d3m.primitives.data_transformation.dataset_to_dataframe.Common',
                'd3m.primitives.data_transformation.column_parser.DataFrameCommon',
                'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
-               'd3m.primitives.clustering.k_means.Fastlvm',
+               'd3m.primitives.data_transformation.dataframe_to_ndarray.Common',
+               'd3m.primitives.clustering.ekss.Umich',
+               'd3m.primitives.data_transformation.ndarray_to_dataframe.Common',
                'd3m.primitives.data_transformation.construct_predictions.DataFrameCommon'],
 
 'GRAPHMATCHING': ['d3m.primitives.link_prediction.graph_matching_link_prediction.GraphMatchingLinkPrediction'],
@@ -95,6 +103,8 @@ task_paths = {
 'GRAPHMATCHING2': ['d3m.primitives.graph_matching.seeded_graph_matching.JHU'],
 
 'COLLABORATIVEFILTERING': ['d3m.primitives.link_prediction.collaborative_filtering_link_prediction.CollaborativeFilteringLinkPrediction'],
+
+'VERTEXCLASSIFICATION3': ['d3m.primitives.vertex_nomination.spectral_graph_clustering.JHU'],
 
 'VERTEXCLASSIFICATION2': ['d3m.primitives.data_preprocessing.largest_connected_component.JHU',
                       'd3m.primitives.data_transformation.adjacency_spectral_embedding.JHU',
@@ -266,10 +276,10 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel):
                 listOfSolutions = classifiers
 
         for python_path in listOfSolutions:
-            if total_cols > 500 and ('xgboost' in python_path or 'gradient_boosting' in python_path):
+            if (total_cols > 500 or rows > 100000) and ('xgboost' in python_path or 'gradient_boosting' in python_path):
                 continue
 
-            if rows > 100000 and 'xgboost' in python_path:
+            if rows > 100000 and 'linear_sv' in python_path:
                 continue
 
             if 'TIMESERIES' in types_present and 'xgboost' in python_path:
@@ -297,6 +307,8 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel):
         if task_name == 'SEMISUPERVISEDCLASSIFICATION':
             # Iterate through variants of possible blackbox hyperparamets.
             for variant in sslVariants:
+                if rows > 100000 and 'gradient_boosting' in variant:
+                    continue
                 pipe = copy.deepcopy(basic_sol)
                 pipe.id = str(uuid.uuid4())
                 pipe.add_step('d3m.primitives.semisupervised_classification.iterative_labeling.AutonBox')
@@ -317,7 +329,7 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel):
         pipe = solutiondescription.SolutionDescription(None, static_dir)
         pipe.initialize_solution('CLASSIFICATION')
         pipe.id = str(uuid.uuid4())
-        pipe.add_step('d3m.primitives.classification.extra_trees.SKlearn')
+        pipe.add_step('d3m.primitives.classification.random_forest.SKlearn')
         solutions.append(pipe)
 
         if task_name == 'GRAPHMATCHING' or \
@@ -327,6 +339,12 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel):
             pipe = solutiondescription.SolutionDescription(None, static_dir)
             second_name = task_name + '2'
             pipe.initialize_solution(second_name)
+            pipe.id = str(uuid.uuid4())
+            pipe.add_outputs()
+            solutions.append(pipe)
+        if task_name == 'VERTEXCLASSIFICATION':
+            pipe = solutiondescription.SolutionDescription(None, static_dir)
+            pipe.initialize_solution('VERTEXCLASSIFICATION3')
             pipe.id = str(uuid.uuid4())
             pipe.add_outputs()
             solutions.append(pipe)
@@ -340,7 +358,7 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel):
         pipe = solutiondescription.SolutionDescription(None, static_dir)
         pipe.initialize_solution('REGRESSION')
         pipe.id = str(uuid.uuid4())
-        pipe.add_step('d3m.primitives.regression.extra_trees.SKlearn')
+        pipe.add_step('d3m.primitives.regression.random_forest.SKlearn')
         solutions.append(pipe)
     elif task_name == 'OBJECTDETECTION':
         pipe = copy.deepcopy(basic_sol)
