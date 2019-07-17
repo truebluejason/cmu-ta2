@@ -18,7 +18,7 @@ def list_primitives():
         
     for pc in prims:
         # Do not load expensive primitives! These ones have been reported to take very long making TA2 unavailable!
-        if 'Cornell' in pc or 'Umich' in pc:
+        if 'Cornell' in pc:# or 'Umich' in pc:
             continue
         if 'GCN' in pc or 'DistilAudioTransfer' in pc or 'graph_to_edge_list.DSBOX' in pc or 'multilabel_classifier.DSBOX' in pc:
             continue
