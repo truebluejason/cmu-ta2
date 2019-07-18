@@ -291,7 +291,7 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
             solutions.append(pipe)
 
         # Try general relational pipelines
-        (general_solutions, general_time_used) = get_general_relational_solutions(task_name, types_present, dataset, primitives, problem_metric, posLabel, problem)
+        (general_solutions, general_time_used) = get_general_relational_solutions(task_name, types_present, rows, dataset, primitives, problem_metric, posLabel, problem)
         solutions = solutions + general_solutions
         time_used = time_used + general_time_used
 
@@ -372,7 +372,7 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
 
     return (solutions, time_used)
 
-def get_general_relational_solutions(task_name, types_present, dataset, primitives, problem_metric, posLabel, problem):
+def get_general_relational_solutions(task_name, types_present, rows, dataset, primitives, problem_metric, posLabel, problem):
     solutions = []
 
     if 'AUDIO' in types_present or \
