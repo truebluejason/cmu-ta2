@@ -189,7 +189,7 @@ class SolutionDescription(object):
     The idea is that this can be evaluated, produce a model and performance metrics,
     and the hyperparameter tuning can consume that and choose what to do next.
     """
-    def __init__(self):
+    def __init__(self, problem):
         self.id = str(uuid.uuid4())
         self.source = None
         self.created = compute_timestamp()
@@ -208,6 +208,7 @@ class SolutionDescription(object):
         self.pipeline = None
         self.produce_order = None
         self.hyperparams = None
+        self.problem = problem
         self.steptypes = None
         self.taskname = None
         self.exclude_columns = None

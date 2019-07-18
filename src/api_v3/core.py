@@ -87,7 +87,7 @@ class Core(core_pb2_grpc.CoreServicer):
         logging.info("taskname = %s", taskname)
         metric = request.problem.problem.performance_metrics[0].metric
         posLabel = request.problem.problem.performance_metrics[0].pos_label
-        (solutions,time_used) = solution_templates.get_solutions(taskname, dataset, primitives, metric, posLabel)
+        (solutions,time_used) = solution_templates.get_solutions(taskname, dataset, primitives, metric, posLabel, request.problem)
 
         if pipeline_placeholder_present is True:
             new_solution_set = []
