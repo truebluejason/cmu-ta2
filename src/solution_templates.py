@@ -229,7 +229,7 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
             basic_sol.initialize_solution(task_name)
         except:
             logging.info(sys.exc_info()[0])
-            basic_sol = solutiondescription.SolutionDescription(problem)
+            basic_sol = None
             types_present = None
             rows = 0
 
@@ -270,7 +270,7 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
                 listOfSolutions = regressors
             elif task_name == "CLASSIFICATION":
                 listOfSolutions = classifiers
-
+        
         for python_path in listOfSolutions:
             if (total_cols > 500 or rows > 100000) and ('xgboost' in python_path or 'gradient_boosting' in python_path):
                 continue
@@ -278,7 +278,7 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
             if rows > 100000 and 'linear_sv' in python_path:
                 continue
 
-            if 'TIMESERIES' in types_present and 'xgboost' in python_path:
+            if types_present is not None and 'TIMESERIES' in types_present and 'xgboost' in python_path:
                 continue
 
             # SVM gets extremely expensive for >10k samples!!!
@@ -291,7 +291,7 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
             solutions.append(pipe)
 
         # Try general relational pipelines
-        if 'TIMESERIES' not in types_present and rows <= 100000:
+        if types_present is not None and 'TIMESERIES' not in types_present and rows <= 100000:
             (general_solutions, general_time_used) = get_general_relational_solutions(task_name, dataset, primitives, problem_metric, posLabel, problem)
             solutions = solutions + general_solutions
             time_used = time_used + general_time_used
@@ -406,6 +406,9 @@ def get_general_relational_solutions(task_name, dataset, primitives, problem_met
 
 def get_rpi_solutions(task_name, types_present, rows, dataset, primitives, problem_metric, posLabel, problem):
     solutions = []
+    
+    if types_present is None:
+        return solutions
 
     if task_name != "REGRESSION" and task_name != "CLASSIFICATION":
         return solutions
