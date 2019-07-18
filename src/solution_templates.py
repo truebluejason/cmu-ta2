@@ -216,6 +216,7 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
 
     types_present = []
     text_prop = 1.0
+    total_cols = 0
     if task_name == 'CLASSIFICATION' or task_name == 'REGRESSION' or task_name == 'SEMISUPERVISEDCLASSIFICATION':
         try:
             (types_present, total_cols, rows, categorical_atts, ordinal_atts, ok_to_denormalize, ok_to_impute, privileged, text_prop) = solutiondescription.column_types_present(dataset)
