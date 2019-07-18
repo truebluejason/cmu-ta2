@@ -199,7 +199,7 @@ class Core(core_pb2_grpc.CoreServicer):
                     time_used = end_solution - start_solution
                     timeout = timeout - time_used
                     if timeout <= 0:
-                        timeout = 1
+                        timeout = 3
                     yield core_pb2.GetSearchSolutionsResultsResponse(progress=msg, done_ticks=count, all_ticks=len(solutions), solution_id=id,
                                         internal_score=0.0, scores=[])
                 except TimeoutError:
@@ -207,7 +207,7 @@ class Core(core_pb2_grpc.CoreServicer):
                     logging.info(sys.exc_info()[0])
                     logging.info("Solution terminated: %s", solutions[index].id)
                     #self.async_message_thread.terminate()
-                    timeout = 1
+                    timeout = 3
                 except:
                     logging.info(solutions[index].primitives)
                     logging.info(sys.exc_info()[0])
@@ -322,7 +322,11 @@ class Core(core_pb2_grpc.CoreServicer):
             #    logging.info(sys.exc_info()[0])
             score = self._solutions[solution_id].rank
             outputDir = os.environ['D3MOUTPUTDIR']
-            util.write_pipeline_json(self._solutions[solution_id], self._primitives, outputDir + "/pipelines_scored")
+            try:
+                util.write_pipeline_json(self._solutions[solution_id], self._primitives, outputDir + "/pipelines_scored")
+            except:
+                logging.info(sys.exc_info()[0])
+                logging.info(self._solutions[solution_id].primitives)
             logging.info("Score = %f", score)
             send_scores.append(core_pb2.Score(metric=request_params.performance_metrics[0],
              fold=0, value=value_pb2.Value(raw=value_pb2.ValueRaw(double=score)), random_seed=0))

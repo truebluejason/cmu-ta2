@@ -376,13 +376,12 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
             solutions.append(pipe)
 
         # Try general relational pipelines
-        if types_present is not None and 'TIMESERIES' not in types_present and rows <= 100000 and not one_model:
-            (general_solutions, general_time_used) = get_general_relational_solutions(task_name, dataset, primitives, problem_metric, posLabel, problem)
+        # TODO @Saswati : Is this applied all the time ? Even on images 
+        if not one_model:
+            (general_solutions, general_time_used) = get_general_relational_solutions(task_name, types_present, rows, dataset, primitives, problem_metric, posLabel, problem)
             solutions = solutions + general_solutions
             time_used = time_used + general_time_used
 
-        # Try RPI primitives for tabular datasets
-        if not one_model:
             rpi_solutions = get_rpi_solutions(task_name, types_present, rows, dataset, primitives, problem_metric, posLabel, problem)
             solutions = solutions + rpi_solutions
 
@@ -459,12 +458,22 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
 
     return (solutions, time_used)
 
-def get_general_relational_solutions(task_name, dataset, primitives, problem_metric, posLabel, problem):
+def get_general_relational_solutions(task_name, types_present, rows, dataset, primitives, problem_metric, posLabel, problem):
     solutions = []
+    if types_present is None:
+        return (solutions, 0)
+    
+    if 'AUDIO' in types_present or \
+       'VIDEO' in types_present or \
+       'TEXT' in types_present or \
+       'TIMESERIES' in types_present or \
+       'IMAGE' in types_present or \
+       rows > 100000:
+        return (solutions, 0)
+
     basic_sol = solutiondescription.SolutionDescription(problem)
     basic_sol.initialize_solution('GENERAL_RELATIONAL')
 
-    from timeit import default_timer as timer
     start = timer()    
     try:
         basic_sol.run_basic_solution(inputs=[dataset], output_step=3, primitive_dict=primitives, metric_type=problem_metric, posLabel=posLabel)
@@ -516,7 +525,6 @@ def get_rpi_solutions(task_name, types_present, rows, dataset, primitives, probl
         logging.info("Total cols = %s", total_cols)
     except:
         logging.info(sys.exc_info()[0])
-        end = timer()
         basic_sol = None
 
     if basic_sol is not None:
