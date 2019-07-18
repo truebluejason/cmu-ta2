@@ -6,6 +6,9 @@ import numpy as np
 from timeit import default_timer as timer
 import signal
 
+from multiprocessing import Pool, cpu_count
+from multiprocessing.context import TimeoutError
+
 logging.basicConfig(level=logging.INFO)
 
 task_paths = {
@@ -195,7 +198,7 @@ sslVariants = ['d3m.primitives.classification.gradient_boosting.SKlearn',
                'd3m.primitives.classification.random_forest.SKlearn',
                'd3m.primitives.classification.bagging.SKlearn']
 
-def get_augmented_solutions(task_name, dataset, primitives, problem_metric, posLabel, keywords, timeout = 15):
+def get_augmented_solutions(task_name, dataset, primitives, problem_metric, posLabel, keywords, timeout = 30):
     """
     Get all augmented solution by
         1. Search datasets relevant
@@ -220,20 +223,34 @@ def get_augmented_solutions(task_name, dataset, primitives, problem_metric, posL
         return ([], timer() - start)
 
     # Evaluate one model on each
-    performances = {}
+    pool = Pool(4) 
+    parallel_solutions  = [pool.apply_async(get_solutions, (task_name, dataset, primitives, problem_metric, posLabel, aug_dataset.serialize(), True)) for aug_dataset in datasets]
 
-    # TODO: Parallelization
-    for i, aug_dataset in enumerate(datasets):
+    # Creates solutions
+    solutions = {}
+    for i, process in enumerate(parallel_solutions):
         try:
-            logging.info("Trying %s", aug_dataset)
-            (solution, _) = get_solutions(task_name, dataset, primitives, problem_metric, posLabel, augmentation_dataset = aug_dataset.serialize(), one_model = True)
-            performances[i] = search.evaluate_solution_score([dataset], solution[0], primitives, problem_metric, posLabel, None)[0]
-            logging.info("Augmentation with: {} => {}".format(aug_dataset.get_json_metadata()['metadata']['name'], performances[i]))
+            (solution, _) = process.get(timeout=timeout)
+            solutions[i] = solution[0]
         except:
-            logging.info("Augmentation with: {} => FAILED".format(aug_dataset.get_json_metadata()['metadata']['name']))
+            logging.info("Augmentation with: {} => TOO SLOW".format(datasets[i].get_json_metadata()['metadata']['name']))
 
+    datasets = np.array(datasets)[list(solutions.keys())]
+
+    # Evaluates solutions
+    parallel_evaluations  = [pool.apply_async(search.evaluate_solution_score, ([dataset], solutions[i], primitives, problem_metric, posLabel, None)) for i in solutions]
+    for i, process in enumerate(parallel_evaluations):
+        try:
+            evaluation = process.get(timeout=timeout)
+            solutions[i] = evaluation[0]
+            logging.info("Augmentation with: {} => {}".format(datasets[i].get_json_metadata()['metadata']['name'], evaluation[0]))
+        except TimeoutError:
+            del solutions[i]
+            logging.info("Augmentation scoring with: {} => TOO SLOW".format(datasets[i].get_json_metadata()['metadata']['name']))
+
+    # Rank solutions
     try:
-        sorted_x = search.rank_solutions(performances, problem_metric)
+        sorted_x = search.rank_solutions(solutions, problem_metric)
         best = datasets[sorted_x[0][0]]
 
         # Get all solution
