@@ -374,7 +374,9 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
 
 def get_general_relational_solutions(task_name, types_present, rows, dataset, primitives, problem_metric, posLabel, problem):
     solutions = []
-
+    if types_present is None:
+        return (solutions, 0)
+    
     if 'AUDIO' in types_present or \
        'VIDEO' in types_present or \
        'TEXT' in types_present or \
