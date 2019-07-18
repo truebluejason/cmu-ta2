@@ -1,6 +1,7 @@
 import os, copy, uuid, sys
 import solutiondescription
 import logging
+from timeit import default_timer as timer
 
 logging.basicConfig(level=logging.INFO)
 
@@ -251,7 +252,6 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
                 elif 'VIDEO' in types_present:
                     basic_sol.initialize_solution('VIDEO')
 
-                from timeit import default_timer as timer
                 start = timer()
                 basic_sol.run_basic_solution(inputs=[dataset], output_step=2)
                 end = timer()
@@ -386,7 +386,6 @@ def get_general_relational_solutions(task_name, types_present, rows, dataset, pr
     basic_sol = solutiondescription.SolutionDescription(problem)
     basic_sol.initialize_solution('GENERAL_RELATIONAL')
 
-    from timeit import default_timer as timer
     start = timer()    
     try:
         basic_sol.run_basic_solution(inputs=[dataset], output_step=3, primitive_dict=primitives, metric_type=problem_metric, posLabel=posLabel)
@@ -438,7 +437,6 @@ def get_rpi_solutions(task_name, types_present, rows, dataset, primitives, probl
         logging.info("Total cols = %s", total_cols)
     except:
         logging.info(sys.exc_info()[0])
-        end = timer()
         basic_sol = None
 
     if basic_sol is not None:
