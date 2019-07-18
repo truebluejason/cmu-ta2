@@ -291,10 +291,9 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
             solutions.append(pipe)
 
         # Try general relational pipelines
-        if types_present is not None and 'TIMESERIES' not in types_present and rows <= 100000:
-            (general_solutions, general_time_used) = get_general_relational_solutions(task_name, dataset, primitives, problem_metric, posLabel, problem)
-            solutions = solutions + general_solutions
-            time_used = time_used + general_time_used
+        (general_solutions, general_time_used) = get_general_relational_solutions(task_name, types_present, dataset, primitives, problem_metric, posLabel, problem)
+        solutions = solutions + general_solutions
+        time_used = time_used + general_time_used
 
         # Try RPI primitives for tabular datasets
         rpi_solutions = get_rpi_solutions(task_name, types_present, rows, dataset, primitives, problem_metric, posLabel, problem)
@@ -373,8 +372,17 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
 
     return (solutions, time_used)
 
-def get_general_relational_solutions(task_name, dataset, primitives, problem_metric, posLabel, problem):
+def get_general_relational_solutions(task_name, types_present, dataset, primitives, problem_metric, posLabel, problem):
     solutions = []
+
+    if 'AUDIO' in types_present or \
+       'VIDEO' in types_present or \
+       'TEXT' in types_present or \
+       'TIMESERIES' in types_present or \
+       'IMAGE' in types_present or \
+       rows > 100000:
+        return (solutions, 0)
+
     basic_sol = solutiondescription.SolutionDescription(problem)
     basic_sol.initialize_solution('GENERAL_RELATIONAL')
 

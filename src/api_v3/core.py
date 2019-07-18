@@ -199,7 +199,7 @@ class Core(core_pb2_grpc.CoreServicer):
                     time_used = end_solution - start_solution
                     timeout = timeout - time_used
                     if timeout <= 0:
-                        timeout = 1
+                        timeout = 3
                     yield core_pb2.GetSearchSolutionsResultsResponse(progress=msg, done_ticks=count, all_ticks=len(solutions), solution_id=id,
                                         internal_score=0.0, scores=[])
                 except TimeoutError:
@@ -207,7 +207,7 @@ class Core(core_pb2_grpc.CoreServicer):
                     logging.info(sys.exc_info()[0])
                     logging.info("Solution terminated: %s", solutions[index].id)
                     #self.async_message_thread.terminate()
-                    timeout = 1
+                    timeout = 3
                 except:
                     logging.info(solutions[index].primitives)
                     logging.info(sys.exc_info()[0])
