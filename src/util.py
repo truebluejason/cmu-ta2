@@ -174,7 +174,7 @@ def get_distil_metric_name(metric_type):
         metric_type == 'f1Macro'
     return metric
 
-def search_all_related(dataset, keywords):
+def search_all_related(dataset, keywords, min_size = 5):
     """
         Search datasets related to the dataset
         
@@ -208,21 +208,16 @@ def search_all_related(dataset, keywords):
     datasets = []
     for k in keywords:
         try:
-            domain_res = search(dataset, k['domain'])
-            if domain_res:
-                datasets.extend(domain_res)
-        except Exception as e:
-            print("Search - Datamart crashed ...", e)
-
-        try:
             key_res = search(dataset, k['keywords'])
             if key_res:
                 datasets.extend(key_res)
         except Exception as e:
             print("Search - Datamart crashed ...", e)
 
-    if len(datasets) == 0:
-        datasets = search(dataset, None)
+    if len(datasets) <= min_size:
+        search_data = search(dataset, None)
+        if search_data:
+            datasets.extend(search_data)
 
     if len(datasets) == 0:
         raise Exception("No interesting datasets to use")
@@ -235,6 +230,6 @@ def search_all_related(dataset, keywords):
     datasets = np.array(datasets)[indices].tolist()
 
     # Sort by reverse score
-    datasets = sorted(datasets, key = lambda d: d.get_json_metadata()['score'], reverse = True)[:5]
+    datasets = sorted(datasets, key = lambda d: d.get_json_metadata()['score'], reverse = True)
 
     return datasets
