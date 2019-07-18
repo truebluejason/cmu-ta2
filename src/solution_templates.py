@@ -188,7 +188,7 @@ sslVariants = ['d3m.primitives.classification.gradient_boosting.SKlearn',
                'd3m.primitives.classification.random_forest.SKlearn',
                'd3m.primitives.classification.bagging.SKlearn']
 
-def get_augmented_solutions(task_name, dataset, primitives, problem_metric, posLabel, keywords, timeout = 30):
+def get_augmented_solutions(task_name, dataset, primitives, problem_metric, posLabel, keywords, timeout = 60):
     """
     Get all augmented solution by
         1. Search datasets relevant
@@ -212,41 +212,43 @@ def get_augmented_solutions(task_name, dataset, primitives, problem_metric, posL
         logging.info("DATAMART NOT AVAILABLE")
         return ([], timer() - start)
 
-    # Evaluate one model on each
-    pool = Pool(4) 
-    parallel_solutions  = [pool.apply_async(get_solutions, (task_name, dataset, primitives, problem_metric, posLabel, aug_dataset.serialize(), True)) for aug_dataset in datasets]
-
-    # Creates solutions
-    solutions = {}
-    for i, process in enumerate(parallel_solutions):
-        try:
-            (solution, _) = process.get(timeout=timeout)
-            solutions[i] = solution[0]
-        except:
-            logging.info("Augmentation with: {} => TOO SLOW".format(datasets[i].get_json_metadata()['metadata']['name']))
-
-    datasets = np.array(datasets)[list(solutions.keys())]
-
-    # Evaluates solutions
-    parallel_evaluations  = [pool.apply_async(search.evaluate_solution_score, ([dataset], solutions[i], primitives, problem_metric, posLabel, None)) for i in solutions]
-    for i, process in enumerate(parallel_evaluations):
-        try:
-            evaluation = process.get(timeout=timeout)
-            solutions[i] = evaluation[0]
-            logging.info("Augmentation with: {} => {}".format(datasets[i].get_json_metadata()['metadata']['name'], evaluation[0]))
-        except TimeoutError:
-            del solutions[i]
-            logging.info("Augmentation scoring with: {} => TOO SLOW".format(datasets[i].get_json_metadata()['metadata']['name']))
-
-    # Rank solutions
     try:
-        sorted_x = search.rank_solutions(solutions, problem_metric)
+        # Evaluate one model on each
+        pool = Pool(cpu_count()) 
+        parallel_solutions  = [pool.apply_async(get_solutions, (task_name, dataset, primitives, problem_metric, posLabel, aug_dataset.serialize(), True)) for aug_dataset in datasets]
+
+        # Creates solutions
+        solutions, time_spent = {}, 0
+        for i, process in enumerate(parallel_solutions):
+            try:
+                start_loop = timer()
+                (solution, _) = process.get(timeout=max(0, timeout - time_spent))
+                time_spent += timer() - start_loop
+                solutions[i] = solution[0]
+            except:
+                logging.info("Augmentation with: {} => TOO SLOW".format(datasets[i].get_json_metadata()['metadata']['name']))
+
+        # Evaluates solutions
+        parallel_evaluations  = [pool.apply_async(search.evaluate_solution_score, ([dataset], solutions[i], primitives, problem_metric, posLabel, None)) for i in solutions]
+        performances, time_spent = {}, 0
+        for i, process in zip(solutions.keys(), parallel_evaluations):
+            try:
+                start_loop = timer()
+                performances[i] = process.get(timeout=max(0, timeout - time_spent))[0]
+                time_spent += timer() - start_loop
+                logging.info("Augmentation with: {} => {}".format(datasets[i].get_json_metadata()['metadata']['name'], performances[i]))
+            except:
+                logging.info("Augmentation scoring with: {} => TOO SLOW".format(datasets[i].get_json_metadata()['metadata']['name']))
+
+        # Rank solutions
+        sorted_x = search.rank_solutions(performances, problem_metric)
         best = datasets[sorted_x[0][0]]
 
         # Get all solution
         logging.info("Best augmentation: {}".format(best.get_json_metadata()['metadata']['name']))
         (solutions, _) = get_solutions(task_name, dataset, primitives, problem_metric, posLabel, augmentation_dataset = best.serialize())
-    except:
+    except Exception as e:
+        logging.info("Unexpected error during creation pipeline", e)
         solutions = []
 
     return (solutions, timer() - start)
@@ -363,7 +365,7 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, augm
             solutions.append(pipe)
 
         # Try general relational pipelines
-        if 'TIMESERIES' not in types_present and rows <= 100000 and not one_model:
+        if 'TIMESERIES' not in types_present and rows <= 100000 and not(one_model):
             (general_solutions, general_time_used) = get_general_relational_solutions(task_name, dataset, primitives, problem_metric, posLabel)
             solutions = solutions + general_solutions
             time_used = time_used + general_time_used
