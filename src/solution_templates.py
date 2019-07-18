@@ -198,7 +198,7 @@ sslVariants = ['d3m.primitives.classification.gradient_boosting.SKlearn',
                'd3m.primitives.classification.random_forest.SKlearn',
                'd3m.primitives.classification.bagging.SKlearn']
 
-def get_augmented_solutions(task_name, dataset, primitives, problem_metric, posLabel, problem, keywords, timeout = 60):
+def get_augmented_solutions(task_name, dataset, primitives, problem_metric, posLabel, problem, keywords, timeout = 120):
     """
     Get all augmented solution by
         1. Search datasets relevant
@@ -235,11 +235,11 @@ def get_augmented_solutions(task_name, dataset, primitives, problem_metric, posL
                 (solution, _) = process.get(timeout=max(0, timeout - time_spent))
                 time_spent += timer() - start_loop
                 solutions[i] = solution[0]
-            except:
-                logging.info("Augmentation with: {} => TOO SLOW".format(datasets[i].get_json_metadata()['metadata']['name']))
+            except Exception as e:
+                logging.info("Augmentation with: {} => TOO SLOW".format(datasets[i].get_json_metadata()['metadata']['name']), e)
 
         # Evaluates solutions
-        parallel_evaluations  = [pool.apply_async(search.evaluate_solution_score, ([dataset], solutions[i], primitives, problem_metric, posLabel, problem, None)) for i in solutions]
+        parallel_evaluations  = [pool.apply_async(search.evaluate_solution_score, ([dataset], solutions[i], primitives, problem_metric, posLabel, None)) for i in solutions]
         performances, time_spent = {}, 0
         for i, process in zip(solutions.keys(), parallel_evaluations):
             try:
@@ -247,8 +247,8 @@ def get_augmented_solutions(task_name, dataset, primitives, problem_metric, posL
                 performances[i] = process.get(timeout=max(0, timeout - time_spent))[0]
                 time_spent += timer() - start_loop
                 logging.info("Augmentation with: {} => {}".format(datasets[i].get_json_metadata()['metadata']['name'], performances[i]))
-            except:
-                logging.info("Augmentation scoring with: {} => TOO SLOW".format(datasets[i].get_json_metadata()['metadata']['name']))
+            except Exception as e:
+                logging.info("Augmentation scoring with: {} => TOO SLOW".format(datasets[i].get_json_metadata()['metadata']['name']), e)
 
         # Rank solutions
         sorted_x = search.rank_solutions(performances, problem_metric)
