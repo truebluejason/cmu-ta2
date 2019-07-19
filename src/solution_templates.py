@@ -198,7 +198,7 @@ sslVariants = ['d3m.primitives.classification.gradient_boosting.SKlearn',
                'd3m.primitives.classification.random_forest.SKlearn',
                'd3m.primitives.classification.bagging.SKlearn']
 
-def get_augmented_solutions(task_name, dataset, primitives, problem_metric, posLabel, problem, keywords, timeout = 120):
+def get_augmented_solutions(task_name, dataset, primitives, problem_metric, posLabel, problem, keywords, timeout = 60):
     """
     Get all augmented solution by
         1. Search datasets relevant
@@ -220,6 +220,9 @@ def get_augmented_solutions(task_name, dataset, primitives, problem_metric, posL
         datasets = util.search_all_related(dataset, keywords)
     except:
         logging.info("DATAMART NOT AVAILABLE")
+        return ([], timer() - start)
+    
+    if len(datasets) == 0:
         return ([], timer() - start)
 
     try:
@@ -314,6 +317,13 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
             rows = 0
 
         if types_present is not None:
+             if one_model == True and ('AUDIO' in types_present or \
+                'VIDEO' in types_present or \
+                'TIMESERIES' in types_present or \
+                'IMAGE' in types_present or \
+                rows > 100000):
+                 return ([], 0)
+
             if len(types_present) == 1 and types_present[0] == 'FILES':
                 types_present[0] = 'TIMESERIES' 
             try:
@@ -322,7 +332,7 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
                 elif 'IMAGE' in types_present:
                     basic_sol.initialize_solution('IMAGE', augmentation_dataset)
                 elif 'TEXT' in types_present:
-                    if task_name == 'CLASSIFICATION' and text_prop < 0.2:
+                    if task_name == 'CLASSIFICATION' and text_prop < 0.33:
                         basic_sol.initialize_solution('TEXTCLASSIFICATION', augmentation_dataset)
                     else:
                         basic_sol.initialize_solution('TEXT', augmentation_dataset)
@@ -376,12 +386,12 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
             solutions.append(pipe)
 
         # Try general relational pipelines
-        # TODO @Saswati : Is this applied all the time ? Even on images 
         if not one_model:
             (general_solutions, general_time_used) = get_general_relational_solutions(task_name, types_present, rows, dataset, primitives, problem_metric, posLabel, problem)
             solutions = solutions + general_solutions
             time_used = time_used + general_time_used
-
+            
+            # Try RPI solutions
             rpi_solutions = get_rpi_solutions(task_name, types_present, rows, dataset, primitives, problem_metric, posLabel, problem)
             solutions = solutions + rpi_solutions
 
@@ -449,7 +459,7 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
     else:
         logging.info("No matching solutions")
 
-    if task_name == 'CLASSIFICATION' and 'TIMESERIES' in types_present:
+    if types_present is not None and task_name == 'CLASSIFICATION' and 'TIMESERIES' in types_present:
         pipe = solutiondescription.SolutionDescription(problem)
         pipe.initialize_solution('TIMESERIES2')
         pipe.id = str(uuid.uuid4())
@@ -461,6 +471,9 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
 def get_general_relational_solutions(task_name, types_present, rows, dataset, primitives, problem_metric, posLabel, problem):
     solutions = []
     if types_present is None:
+        return (solutions, 0)
+
+    if task_name != "REGRESSION" and task_name != "CLASSIFICATION":
         return (solutions, 0)
     
     if 'AUDIO' in types_present or \
