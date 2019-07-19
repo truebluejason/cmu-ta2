@@ -317,7 +317,7 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
             rows = 0
 
         if types_present is not None:
-             if one_model == True and ('AUDIO' in types_present or \
+            if one_model == True and ('AUDIO' in types_present or \
                 'VIDEO' in types_present or \
                 'TIMESERIES' in types_present or \
                 'IMAGE' in types_present or \
