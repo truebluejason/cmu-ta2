@@ -7,11 +7,13 @@ from d3m.container.dataset import D3MDatasetLoader, Dataset
 from d3m.metadata import base as metadata_base, problem
 from d3m.metadata.base import Metadata
 from d3m.metadata.pipeline import Pipeline, PrimitiveStep
+import datamart, datamart_nyu
 import problem_pb2 as problem_pb2
 import os, json
 import pickle
 import solutiondescription
 import pandas as pd
+import numpy as np
 
 def load_problem_doc(problem_doc_uri: str):
     """     
@@ -81,7 +83,17 @@ def load_data_problem(inputdir, problempath):
     if metric == "f1":
         posLabel = problem_doc_metadata.query(())['inputs']['performanceMetrics'][0]['posLabel']
 
-    return (dataset, taskname, problem_description, metric, posLabel)
+    # Read the data augmentation
+    keywords = getAugmentation_keywords(problem_doc_metadata)
+  
+    return (dataset, taskname, problem_description, metric, posLabel, keywords)
+
+def getAugmentation_keywords(problem_doc_metadata):
+    keywords = None
+    if "dataAugmentation" in problem_doc_metadata.query(()):
+        keywords = problem_doc_metadata.query(())["dataAugmentation"]
+    return keywords
+
 
 def get_pipeline(dirname, pipeline_name):
     newdirname = dirname + "/" + pipeline_name
@@ -161,3 +173,63 @@ def get_distil_metric_name(metric_type):
     elif metric_type == problem_pb2.F1_MACRO or metric_type == problem_pb2.F1_MICRO or metric_type == problem_pb2.F1:
         metric_type == 'f1Macro'
     return metric
+
+def search_all_related(dataset, keywords, min_size = 5):
+    """
+        Search datasets related to the dataset
+        
+        Arguments:
+            dataset {Dataset description} -- Dataset description
+            keywords {Dict of DataAugmentation} -- Contains keys "domain" and "keywords"
+
+        Returns:
+            datasets to use for augmentation
+    """
+    # Create client
+    client = datamart_nyu.RESTDatamart('https://datamart.d3m.vida-nyu.org')
+
+    # Function for search a list of keywords
+    def search(data, keywords):
+        """
+            Search the datasets linked to the given keywords
+        """
+        query = datamart.DatamartQuery(
+            keywords = keywords
+        )
+
+        cursor = client.search_with_data(
+            query = query,
+            supplied_data = data,
+        )
+        
+        return cursor.get_next_page()
+
+    # Aggregate search words
+    datasets = []
+    for k in keywords:
+        try:
+            key_res = search(dataset, k['keywords'])
+            if key_res:
+                datasets.extend(key_res)
+        except Exception as e:
+            print("Search - Datamart crashed ...", e)
+
+    if len(datasets) <= min_size:
+        search_data = search(dataset, None)
+        if search_data:
+            datasets.extend(search_data)
+
+    if len(datasets) == 0:
+        raise Exception("No interesting datasets to use")
+
+    # Limit size
+    datasets = [d for d in datasets if len(d.get_json_metadata()['metadata']['columns']) < 20]
+
+    # Delete duplicates
+    _, indices = np.unique([d.get_json_metadata()['metadata']['name'] for d in datasets], return_index=True)
+    datasets = np.array(datasets)[indices].tolist()
+
+    # Sort by reverse score
+    datasets = sorted(datasets, key = lambda d: d.get_json_metadata()['score'], reverse = True)
+
+    return datasets

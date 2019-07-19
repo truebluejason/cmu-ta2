@@ -31,9 +31,7 @@ def search_phase():
     print("D3MOUTPUTDIR = ", outputDir)
     print("timeout = ", timeout_env)
     print("cpus = ", num_cpus)
-
-    (dataset, task_name, problem_desc, metric, posLabel) = util.load_data_problem(inputDir, problemPath)
-    #(dataset, task_name, problem_desc, metric, posLabel, keywords) = util.load_data_problem(inputDir, problemPath)
+    (dataset, task_name, problem_desc, metric, posLabel, keywords) = util.load_data_problem(inputDir, problemPath)
 
     print("Metric = ", metric, " poslabel = ", posLabel)
     timeout_in_min = (int)(timeout_env)
@@ -58,9 +56,9 @@ def search_phase():
     # Still run the normal pipeline even if augmentation
     (solutions, time_used) = solution_templates.get_solutions(task_name, dataset, primitives, problem_metric, posLabel, None)
 
-    #if keywords:
-    #    (augmented_solutions, augmented_time_used) = solution_templates.get_augmented_solutions(task_name, dataset, primitives, problem_metric, posLabel, keywords)
-    #    (solutions, time_used) = (augmented_solutions + solutions, augmented_time_used + time_used)
+    if keywords:
+        (augmented_solutions, augmented_time_used) = solution_templates.get_augmented_solutions(task_name, dataset, primitives, problem_metric, posLabel, None, keywords)
+        (solutions, time_used) = (augmented_solutions + solutions, augmented_time_used + time_used)
 
     async_message_thread = Pool((int)(num_cpus))
     valid_solutions = {}

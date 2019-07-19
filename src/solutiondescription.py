@@ -68,13 +68,30 @@ def get_cols_to_encode(df):
 
     return (list(cols), ordinals)
 
-def column_types_present(dataset):
+def column_types_present(dataset, dataset_augmentation = None):
     """
     Retrieve special data types present: Text, Image, Timeseries, Audio, Categorical
     Returns ([data types], total columns, total rows, [categorical att indices], ok_to_denormalize)
     """
     ok_to_denormalize = True
     ok_to_impute = False
+    ok_to_augment = False
+
+    try:
+        # If augmentation, check which types would be produced
+        if dataset_augmentation:
+            primitive = d3m.index.get_primitive('d3m.primitives.data_augmentation.datamart_augmentation.Common')
+            primitive_hyperparams = primitive.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
+            custom_hyperparams = {
+                'system_identifier': 'NYU',
+                'search_result': dataset_augmentation}
+            model = primitive(hyperparams=primitive_hyperparams(primitive_hyperparams.defaults(), **custom_hyperparams))
+            ds = model.produce(inputs=dataset).value
+            dataset = ds
+            ok_to_augment = True
+    except:
+        print("Exception with augmentation!")
+
     try:
         primitive = d3m.index.get_primitive('d3m.primitives.data_transformation.denormalize.Common')
         primitive_hyperparams = primitive.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
@@ -131,7 +148,7 @@ def column_types_present(dataset):
             break
 
     print("Data types present: ", types)
-    return (types, len(attcols), len(df), cols, ordinals, ok_to_denormalize, ok_to_impute, privileged, text_prop)
+    return (types, len(attcols), len(df), cols, ordinals, ok_to_denormalize, ok_to_impute, privileged, text_prop, ok_to_augment)
 
 def compute_timestamp():
     now = time.time()
@@ -208,7 +225,6 @@ class SolutionDescription(object):
         self.pipeline = None
         self.produce_order = None
         self.hyperparams = None
-        self.problem = problem
         self.steptypes = None
         self.taskname = None
         self.exclude_columns = None
@@ -220,6 +236,7 @@ class SolutionDescription(object):
         self.ok_to_denormalize = True
         self.ok_to_impute = False
         self.privileged = None
+        self.index_denormalize = 0
 
     def set_categorical_atts(self, atts):
         self.categorical_atts = atts
@@ -477,11 +494,10 @@ class SolutionDescription(object):
         rows = len(df)
         attributes = metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/Attribute")
 
-        # Retain max 100 attributes
-        max_num_atts = 100
-        if len(attributes) > max_num_atts:
-            for i in range(len(attributes)-max_num_atts):
-                col = (int)(np.random.choice(attributes, replace=False))
+        # Ignore all column that have only one value
+        for att in attributes:
+            col = int(att)
+            if len(df.iloc[:, col].unique()) <= 1:
                 self.exclude_columns.add(col)
 
         cols = metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/FloatVector") # Found to be very expensive in ColumnParser!
@@ -514,7 +530,6 @@ class SolutionDescription(object):
         else:
             last_step = self.get_last_step()
             primitives_outputs[last_step] = self.process_step(last_step, self.primitives_outputs, ActionType.FIT, arguments)
-            primitives_outputs[1] = self.primitives_outputs[1]
             if last_step == len(self.execution_order) - 2:
                 primitives_outputs[last_step+1] = self.process_step(last_step+1, primitives_outputs, ActionType.FIT, arguments)
       
@@ -547,6 +562,13 @@ class SolutionDescription(object):
         else:
             return solution.validate_solution(inputs=inputs, solution_dict=arguments['solution_dict'])
  
+    def clear_model(self):
+        """
+            Relearn full model
+        """
+        for i in range(len(self.primitives)):
+            self.pipeline[i] = None
+
     def fit_step(self, n_step: int, primitive: PrimitiveBaseMeta, primitive_arguments):
         """
         Execute a primitive step
@@ -590,7 +612,6 @@ class SolutionDescription(object):
                 training_arguments[param] = value
 
         model = primitive(hyperparams=primitive_hyperparams(primitive_hyperparams.defaults(), **custom_hyperparams))
-
         model.set_training_data(**training_arguments)
         model.fit()
         self.pipeline[n_step] = model
@@ -779,17 +800,22 @@ class SolutionDescription(object):
         self.hyperparams[numSteps-2] = {}
         self.hyperparams[numSteps-2]['blackbox'] = blackboxParam
 
-    def initialize_solution(self, taskname):
+    def initialize_solution(self, taskname, augmentation_dataset = None):
         """
         Initialize a solution from scratch consisting of predefined steps
         Leave last step for filling in primitive (for classification/regression problems)
         """
         python_paths = copy.deepcopy(solution_templates.task_paths[taskname])
 
-        if 'denormalize' in python_paths[0] and self.ok_to_denormalize == False:
+        if augmentation_dataset:
+            # Augment as a first step
+            python_paths.insert(0, "d3m.primitives.data_augmentation.datamart_augmentation.Common")
+            self.index_denormalize = 1
+
+        if 'denormalize' in python_paths[self.index_denormalize] and self.ok_to_denormalize == False:
             python_paths.remove('d3m.primitives.data_transformation.denormalize.Common')
 
-        if len(python_paths) > 5 and 'imputer' in python_paths[5] and self.ok_to_impute == False:
+        if len(python_paths) > (self.index_denormalize + 5) and 'imputer' in python_paths[self.index_denormalize + 5] and self.ok_to_impute == False:
             python_paths.remove('d3m.primitives.data_cleaning.imputer.SKlearn')
 
         if (taskname == 'CLASSIFICATION' or
@@ -826,6 +852,11 @@ class SolutionDescription(object):
             self.add_primitive(python_paths[i], i)
 
             # Set hyperparameters for specific primitives
+            if python_paths[i] == 'd3m.primitives.data_augmentation.datamart_augmentation.Common':
+                self.hyperparams[i] = {}
+                self.hyperparams[i]['system_identifier'] = 'NYU'
+                self.hyperparams[i]['search_result'] = augmentation_dataset
+
             if python_paths[i] == 'd3m.primitives.data_cleaning.imputer.SKlearn':
                 self.hyperparams[i] = {}
                 self.hyperparams[i]['use_semantic_types'] = True
@@ -891,12 +922,12 @@ class SolutionDescription(object):
                  taskname == 'TIMESERIES':
                 if i == 0: # denormalize
                     data = 'inputs.0'
-                elif i == 2: # extract_columns_by_semantic_types (targets)
-                    data = 'steps.1.produce'
+                elif i == self.index_denormalize + 2: # extract_columns_by_semantic_types (targets)
+                    data = 'steps.{}.produce'.format(self.index_denormalize + 1)
                     self.hyperparams[i] = {}
                     self.hyperparams[i]['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/TrueTarget']
-                elif i == 3: # extract_columns_by_semantic_types
-                    data = 'steps.1.produce'
+                elif i == self.index_denormalize + 3: # extract_columns_by_semantic_types
+                    data = 'steps.{}.produce'.format(self.index_denormalize + 1)
                 else: # other steps
                     data = 'steps.' + str(i - 1) + '.produce'
             elif taskname == 'GENERAL_RELATIONAL':
@@ -960,16 +991,16 @@ class SolutionDescription(object):
                     self.primitives_arguments[i]['outputs'] = {'origin': origin, 'source': int(source), 'data': data}
                     data = 'steps.0.produce'
             elif taskname == 'TEXTCLASSIFICATION': 
-                if i == 0: # denormalize
+                if i == 0:
                     data = 'inputs.0'
-                elif i == 2: # extract_columns_by_semantic_types (targets)
-                    data = 'steps.1.produce'
+                elif i == self.index_denormalize + 2: # extract_columns_by_semantic_types (targets)
+                    data = 'steps.{}.produce'.format(self.index_denormalize + 1)
                     self.hyperparams[i] = {}
                     self.hyperparams[i]['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/TrueTarget']
-                elif i == 3: # extract_columns_by_semantic_types
-                    data = 'steps.1.produce'
+                elif i == self.index_denormalize + 3: # extract_columns_by_semantic_types
+                    data = 'steps.{}.produce'.format(self.index_denormalize + 1)
                 elif 'DistilTextEncoder' in python_paths[i]:
-                    data = 'steps.2.produce'
+                    data = 'steps.{}.produce'.format(self.index_denormalize + 2)
                     origin = data.split('.')[0]
                     source = data.split('.')[1]
                     self.primitives_arguments[i]['outputs'] = {'origin': origin, 'source': int(source), 'data': data}
@@ -1043,7 +1074,6 @@ class SolutionDescription(object):
                 execution_graph.add_edge(str(source), str(i))
 
         execution_order = list(nx.topological_sort(execution_graph))
-
         # Removing non-step inputs from the order
         execution_order = list(filter(lambda x: x.isdigit(), execution_order))
         self.execution_order = [int(x) for x in execution_order]
@@ -1415,7 +1445,7 @@ class SolutionDescription(object):
         
         # Remove other intermediate step outputs, they are not needed anymore.
         for i in range(0, len(self.execution_order)-1):
-            if i == 1 or i == output_step:
+            if i == self.index_denormalize + 1 or i == output_step:
                 continue
             self.primitives_outputs[i] = [None]
         self.total_cols = len(self.primitives_outputs[len(self.execution_order)-1].columns) 
