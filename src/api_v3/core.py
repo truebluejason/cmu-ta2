@@ -70,7 +70,7 @@ class Core(core_pb2_grpc.CoreServicer):
 
         # TA3 has specified a pipeline
         if template != None and isinstance(template, pipeline_pb2.PipelineDescription) and len(template.steps) > 0:
-            basic_sol = solutiondescription.SolutionDescription(request.problem, None)
+            basic_sol = solutiondescription.SolutionDescription(request.problem)
             basic_sol.create_from_pipelinedescription(pipeline_description=template)
             if basic_sol.contains_placeholder() == False:  # Fully defined
                 solutions.append(basic_sol)
