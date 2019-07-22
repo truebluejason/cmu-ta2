@@ -415,7 +415,13 @@ class SolutionDescription(object):
                         if argument.HasField("value") == True:
                             arg = argument.value.data.raw
                             value = get_values(arg)
-                        self.hyperparams[i][name] = value
+                            self.hyperparams[i][name] = value
+                        elif argument.HasField("primitive") == True:
+                            arg = int(argument.primitive.data)
+                            value = self.primitives[arg]
+                            primitive_hyperparams = value.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
+                            model = value(hyperparams=primitive_hyperparams(primitive_hyperparams.defaults()))
+                            self.hyperparams[i][name] = model
 
             # SubpipelinePipelineDescriptionStep
             elif pipeline_description.steps[i].HasField("pipeline") == True:
@@ -518,7 +524,7 @@ class SolutionDescription(object):
         arguments
             Arguments required to train the solution
         """
-        primitives_outputs = [None] * len(self.execution_order)
+        primitives_outputs = [None] * len(self.primitives) 
    
         if self.primitives_outputs is None: 
             for i in range(0, len(self.execution_order)):
