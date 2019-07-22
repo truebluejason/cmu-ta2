@@ -102,11 +102,14 @@ class Core(core_pb2_grpc.CoreServicer):
         if pipeline_placeholder_present is True:
             new_solution_set = []
             for s in solutions:
-                pipe = copy.deepcopy(basic_sol)
-                pipe.id = str(uuid.uuid4())
-                pipe.add_subpipeline(s)
-                self._solutions[s.id] = s 
-                new_solution_set.append(pipe)
+                try:
+                    pipe = copy.deepcopy(basic_sol)
+                    pipe.id = str(uuid.uuid4())
+                    pipe.add_subpipeline(s)
+                    self._solutions[s.id] = s 
+                    new_solution_set.append(pipe)
+                except:
+                    logging.info(sys.exc_info()[0])            
             logging.info("%s", new_solution_set)
             return (new_solution_set, time_used)
  
