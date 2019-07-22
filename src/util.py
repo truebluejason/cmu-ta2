@@ -208,7 +208,7 @@ def search_all_related(dataset, keywords, min_size = 5):
     datasets = []
     for k in keywords:
         try:
-            key_res = search(dataset, k['keywords'])
+            key_res = search(dataset, k.keywords)
             if key_res:
                 datasets.extend(key_res)
         except Exception as e:
