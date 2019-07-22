@@ -1347,7 +1347,7 @@ class SolutionDescription(object):
         Score a solution 
         """
         score = 0.0
-        primitives_outputs = [None] * len(self.execution_order)
+        primitives_outputs = [None] * len(self.primitives)
 
         last_step = self.get_last_step()
 
