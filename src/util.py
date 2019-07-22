@@ -186,7 +186,7 @@ def search_all_related(dataset, keywords, min_size = 5):
             datasets to use for augmentation
     """
     # Create client
-    client = datamart_nyu.RESTDatamart('https://datamart.d3m.vida-nyu.org')
+    client = datamart_nyu.RESTDatamart(os.environ['DATAMART_URL_NYU']) #'https://datamart.d3m.vida-nyu.org')
 
     # Function for search a list of keywords
     def search(data, keywords):
