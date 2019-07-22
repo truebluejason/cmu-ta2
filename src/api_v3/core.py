@@ -91,7 +91,7 @@ class Core(core_pb2_grpc.CoreServicer):
         try:
             keywords = None
             if request.problem.data_augmentation is not None and len(request.problem.data_augmentation) > 0:
-                keywords = request.problem.data_augmentation[0].keywords
+                keywords = request.problem.data_augmentation
             if keywords and len(keywords) > 0:
                 logging.info("Keywords = %s", keywords)
                 (augmented_solutions, augmented_time_used) = solution_templates.get_augmented_solutions(taskname, dataset, primitives, metric, posLabel, request.problem, keywords)
