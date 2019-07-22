@@ -1329,7 +1329,7 @@ class SolutionDescription(object):
         Typically this is the step for a classifier/regressor which can be optimized/cross-validated.
         This is the last-1 step of the pipeline, since it is followed by construct_predictions primitive to construct predictions output from d3mIndex and primitive output.
         """
-        n_steps = len(self.primitives_arguments)
+        n_steps = len(self.execution_order)
 
         if self.steptypes[n_steps-1] is StepType.SUBPIPELINE:
             return n_steps - 1
