@@ -186,12 +186,12 @@ classifiers_rpi = ['d3m.primitives.classification.random_forest.SKlearn',
                    'd3m.primitives.classification.extra_trees.SKlearn',
                    'd3m.primitives.classification.gradient_boosting.SKlearn']
 
-regressors_general_relational = ['d3m.primitives.regression.random_forest.SKlearn',
+regressors_general_relational = [#'d3m.primitives.regression.random_forest.SKlearn',
                                  'd3m.primitives.regression.extra_trees.SKlearn']
 
-classifiers_general_relational = ['d3m.primitives.classification.random_forest.SKlearn',
-                                  'd3m.primitives.classification.extra_trees.SKlearn',
-                                  'd3m.primitives.classification.linear_discriminant_analysis.SKlearn']
+classifiers_general_relational = [#'d3m.primitives.classification.random_forest.SKlearn',
+                                  'd3m.primitives.classification.extra_trees.SKlearn']
+                                  #'d3m.primitives.classification.linear_discriminant_analysis.SKlearn']
 
 sslVariants = ['d3m.primitives.classification.gradient_boosting.SKlearn',
                'd3m.primitives.classification.extra_trees.SKlearn',
