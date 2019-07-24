@@ -268,6 +268,14 @@ class SolutionDescription(object):
         else:
             return 0
 
+    def find_primitive_index(self, path):
+        index = 0
+        for id,p in self.primitives.items():
+            python_path = p.metadata.query()['python_path'] 
+            if path == python_path:
+                return index
+            index = index + 1
+
     def create_pipeline_json(self, prim_dict):
         """
         Generate pipeline.json
@@ -293,14 +301,19 @@ class SolutionDescription(object):
                     for op in p.primitive_class.produce_methods:
                         step.add_output(output_id=op)
                 else:
-                    step.add_output(output_id=p.primitive_class.produce_methods[0])
+                    if len(self.primitives_arguments[i]) > 0:
+                        step.add_output(output_id=p.primitive_class.produce_methods[0])
                 for name, value in self.primitives_arguments[i].items():
                     origin = value['origin']
                     argument_type = ArgumentType.CONTAINER
                     step.add_argument(name=name, argument_type=argument_type, data_reference=value['data'])
                 if self.hyperparams[i] is not None:
                     for name, value in self.hyperparams[i].items():
-                        step.add_hyperparameter(name=name, argument_type=ArgumentType.VALUE, data=value)
+                        if name == "primitive":
+                            index = self.find_primitive_index(value.metadata.query()['python_path'])
+                            step.add_hyperparameter(name=name, argument_type=ArgumentType.PRIMITIVE, data=int(index))
+                        else:
+                            step.add_hyperparameter(name=name, argument_type=ArgumentType.VALUE, data=value)
             else: # Subpipeline
                 pdesc = self.subpipelines[i].pipeline_description
                 if pdesc is None:
@@ -319,13 +332,19 @@ class SolutionDescription(object):
 
         self.pipeline_description = pipeline_description
    
-    def write_pipeline_json(self, prim_dict, dirName, rank=None):
+    def write_pipeline_json(self, prim_dict, dirName, subpipeline_dirName, rank=None):
         """
         Output pipeline to JSON file
         """
         filename = dirName + "/" + self.id + ".json"
         if self.pipeline_description is None:
             self.create_pipeline_json(prim_dict)
+            for step in self.pipeline_description.steps:
+                if isinstance(step, SubpipelineStep):
+                    subfilename = subpipeline_dirName + "/" + step.pipeline.id + ".json"
+                    with open(subfilename, "w") as out:
+                        parsed = json.loads(step.pipeline.to_json())
+                        json.dump(parsed, out, indent=4)
 
         with open(filename, "w") as out:
             parsed = json.loads(self.pipeline_description.to_json())
@@ -536,9 +555,15 @@ class SolutionDescription(object):
         else:
             last_step = self.get_last_step()
             primitives_outputs[last_step] = self.process_step(last_step, self.primitives_outputs, ActionType.FIT, arguments)
-            if last_step == len(self.execution_order) - 2:
-                primitives_outputs[last_step+1] = self.process_step(last_step+1, primitives_outputs, ActionType.FIT, arguments)
-      
+            i = 0
+            for op in self.primitives_outputs:
+                primitives_outputs[i] = op
+                i = i + 1
+            if last_step < len(self.execution_order) - 1:
+                for i in range(last_step+1, len(self.execution_order)):
+                     n_step = self.execution_order[i]
+                     primitives_outputs[n_step] = self.process_step(n_step, primitives_outputs, ActionType.FIT, arguments)
+            
         v = primitives_outputs[len(self.execution_order)-1]
         return v
 
@@ -661,7 +686,7 @@ class SolutionDescription(object):
         arguments
             Arguments required to execute the solution
         """
-        steps_outputs = [None] * len(self.execution_order)
+        steps_outputs = [None] * len(self.primitives)
 
         for i in range(0, len(self.execution_order)):
             n_step = self.execution_order[i]
@@ -1162,60 +1187,24 @@ class SolutionDescription(object):
         self.primitives_arguments[i]['reference'] = {'origin': origin, 'source': int(source), 'data': data}
 
         self.execution_order.append(i)
-
         self.add_outputs()
 
     def complete_solution(self, optimal_params):
         """
         This is currently for classification/regression pipelines with d3m.primitives.feature_selection.joint_mutual_information.AutoRPI
         """
-        i = len(self.primitives_arguments)-1
+        i = self.get_last_step()
         self.hyperparams[i] = {}
         self.hyperparams[i]['method'] = optimal_params[1]
         self.hyperparams[i]['nbins'] = optimal_params[0]
 
-        i = i + 1
-        self.add_primitive('d3m.primitives.data_cleaning.imputer.SKlearn', i)
-        data = 'steps.' + str(i-1) + str('.produce')
-        origin = data.split('.')[0]
-        source = data.split('.')[1]
-        self.primitives_arguments[i]['inputs'] = {'origin': origin, 'source': int(source), 'data': data}
-        self.hyperparams[i] = {}
-        self.hyperparams[i]['strategy'] = 'most_frequent'
-        self.execution_order.append(i)
-
-        i = i + 1
-        python_path = self.primitives[i].metadata.query()['python_path'] 
-        self.add_primitive(python_path, i)
-        data = 'steps.' + str(i-1) + str('.produce')
-        origin = data.split('.')[0]
-        source = data.split('.')[1]
-        self.primitives_arguments[i]['inputs'] = {'origin': origin, 'source': int(source), 'data': data}
-        data = 'steps.' + str(3) + str('.produce') # extract_columns_by_semantic_types (targets)
-        origin = data.split('.')[0]
-        source = data.split('.')[1]
-        self.primitives_arguments[i]['outputs'] = {'origin': origin, 'source': int(source), 'data': data}
-        self.execution_order.append(i)
+        i = i + 2
         self.hyperparams[i] = {}
         self.hyperparams[i]['n_estimators'] = optimal_params[2]
+        python_path = self.primitives[i].metadata.query()['python_path']
         if 'gradient_boosting' in python_path:
             self.hyperparams[i]['learning_rate'] = 10/optimal_params[2]
 
-        i = i + 1
-        self.add_primitive('d3m.primitives.data_transformation.construct_predictions.DataFrameCommon', i)
-
-        data = 'steps.' + str(i-1) + str('.produce')
-        origin = data.split('.')[0]
-        source = data.split('.')[1]
-        self.primitives_arguments[i]['inputs'] = {'origin': origin, 'source': int(source), 'data': data}
-        data = 'steps.' + str(1) + str('.produce')
-        origin = data.split('.')[0]
-        source = data.split('.')[1]
-        self.primitives_arguments[i]['reference'] = {'origin': origin, 'source': int(source), 'data': data}
-        self.execution_order.append(i)
-
-        self.add_outputs()
- 
     def add_RPI_step(self, python_path, output_step):
         """
         Add new primitive
@@ -1239,12 +1228,40 @@ class SolutionDescription(object):
         self.execution_order.append(i)
 
         i = i + 1
-        prim = d3m.index.get_primitive('d3m.primitives.data_cleaning.imputer.SKlearn')
-        self.primitives[i] = prim
+        self.add_primitive('d3m.primitives.data_cleaning.imputer.SKlearn', i)
+        data = 'steps.' + str(i-1) + str('.produce')
+        origin = data.split('.')[0]
+        source = data.split('.')[1]
+        self.primitives_arguments[i]['inputs'] = {'origin': origin, 'source': int(source), 'data': data}
+        self.hyperparams[i] = {}
+        self.hyperparams[i]['strategy'] = 'most_frequent'
+        self.execution_order.append(i)
 
         i = i + 1
-        prim = d3m.index.get_primitive(python_path)
-        self.primitives[i] = prim
+        self.add_primitive(python_path, i)
+        data = 'steps.' + str(i-1) + str('.produce')
+        origin = data.split('.')[0]
+        source = data.split('.')[1]
+        self.primitives_arguments[i]['inputs'] = {'origin': origin, 'source': int(source), 'data': data}
+        data = 'steps.' + str(3) + str('.produce') # extract_columns_by_semantic_types (targets)
+        origin = data.split('.')[0]
+        source = data.split('.')[1]
+        self.primitives_arguments[i]['outputs'] = {'origin': origin, 'source': int(source), 'data': data}
+        self.execution_order.append(i)
+
+        i = i + 1
+        self.add_primitive('d3m.primitives.data_transformation.construct_predictions.DataFrameCommon', i)
+        data = 'steps.' + str(i-1) + str('.produce')
+        origin = data.split('.')[0]
+        source = data.split('.')[1]
+        self.primitives_arguments[i]['inputs'] = {'origin': origin, 'source': int(source), 'data': data}
+        data = 'steps.' + str(1) + str('.produce')
+        origin = data.split('.')[0]
+        source = data.split('.')[1]
+        self.primitives_arguments[i]['reference'] = {'origin': origin, 'source': int(source), 'data': data}
+        self.execution_order.append(i)
+
+        self.add_outputs()
 
     def add_outputs(self): 
         """
@@ -1255,7 +1272,7 @@ class SolutionDescription(object):
         
         self.outputs = []
 
-        data = 'steps.' + str(n_steps-1) + '.produce'
+        data = 'steps.' + str(self.execution_order[n_steps-1]) + '.produce'
 
         origin = data.split('.')[0]
         source = data.split('.')[1]
@@ -1270,10 +1287,33 @@ class SolutionDescription(object):
             step_origin = self.primitives_arguments[current_step]['inputs']['origin']
             step_source = self.primitives_arguments[current_step]['inputs']['source']
             if step_origin != 'steps':
-                 break
+                break
             else:
                 self.produce_order.add(step_source)
                 current_step = step_source
+
+        data = 'steps.' + str(self.execution_order[n_steps-1]) + '.produce'
+        origin = data.split('.')[0]
+        source = data.split('.')[1]
+        current_step = int(source)
+        for i in range(0, len(self.execution_order)):
+            if 'reference' in self.primitives_arguments[current_step]:
+                step_origin = self.primitives_arguments[current_step]['reference']['origin']
+                step_source = self.primitives_arguments[current_step]['reference']['source']
+                if step_source in self.produce_order:
+                    break
+                else:
+                    self.produce_order.add(step_source)
+                    current_step = step_source
+
+                    for j in range(0, len(self.execution_order)):
+                        step_origin = self.primitives_arguments[current_step]['inputs']['origin']
+                        step_source = self.primitives_arguments[current_step]['inputs']['source']
+                        if step_origin != 'steps':
+                            break
+                        else:
+                            self.produce_order.add(step_source)
+                            current_step = step_source
 
     def process_step(self, n_step, primitives_outputs, action, arguments):
         """
@@ -1319,7 +1359,7 @@ class SolutionDescription(object):
  
     def is_last_step(self, n):
         last_step = self.get_last_step()
-        if n == last_step:
+        if n == self.execution_order[last_step]:
             return True
         return False
 
@@ -1330,17 +1370,28 @@ class SolutionDescription(object):
         This is the last-1 step of the pipeline, since it is followed by construct_predictions primitive to construct predictions output from d3mIndex and primitive output.
         """
         n_steps = len(self.execution_order)
+        last_step = self.execution_order[n_steps-1]
 
-        if self.steptypes[n_steps-1] is StepType.SUBPIPELINE:
-            return n_steps - 1
+        if self.steptypes[last_step] is StepType.SUBPIPELINE:
+            return n_steps-1
 
-        if self.primitives[n_steps-1] is None:
-            return n_steps - 1
+        if self.primitives[last_step] is None:
+            return n_steps-1
 
-        if 'construct_predictions' in self.primitives[n_steps-1].metadata.query()['python_path']:
-            return n_steps - 2
+        index = 0
+        for p in self.primitives:
+            python_path = None
+            if self.primitives[index] is not None:
+                python_path = self.primitives[index].metadata.query()['python_path'] 
+                if 'RPI' in python_path:
+                    return index
+            index = index + 1
+ 
+        last_step = len(self.primitives)-1
+        if 'construct_predictions' in self.primitives[last_step].metadata.query()['python_path']:
+            return last_step-1
         else:
-            return n_steps - 1
+            return last_step
 
     def score_solution(self, **arguments):
         """
@@ -1352,7 +1403,7 @@ class SolutionDescription(object):
         last_step = self.get_last_step()
 
         if self.primitives_outputs is None:
-            for i in range(0, last_step+1): 
+            for i in range(0, last_step+1):
                 n_step = self.execution_order[i]
                 primitives_outputs[n_step] = self.process_step(n_step, primitives_outputs, ActionType.SCORE, arguments)
 
@@ -1361,9 +1412,10 @@ class SolutionDescription(object):
         else:
             primitives_outputs[last_step] = self.process_step(last_step, self.primitives_outputs, ActionType.SCORE, arguments)
 
-        (score, optimal_params) = primitives_outputs[last_step]
-        self.hyperparams[last_step] = optimal_params
-
+        (score, optimal_params) = primitives_outputs[self.execution_order[last_step]]
+        if self.steptypes[self.execution_order[last_step]] != StepType.SUBPIPELINE:
+            self.hyperparams[last_step] = optimal_params
+        
         return (score, optimal_params)
 
     def set_hyperparams(self, hp):
@@ -1371,11 +1423,14 @@ class SolutionDescription(object):
         Set hyperparameters for the primtiive at the "last" step.
         """
         n_step = self.get_last_step()
-        
-        if 'RPI' in self.primitives[n_step].metadata.query()['python_path']:
-            self.complete_solution(hp)
+
+        if self.primitives[self.execution_order[n_step]] is not None: 
+            if 'RPI' in self.primitives[self.execution_order[n_step]].metadata.query()['python_path']:
+                self.complete_solution(hp)
+            else:
+                self.hyperparams[self.execution_order[n_step]] = hp
         else:
-            self.hyperparams[n_step] = hp
+            self.subpipelines[self.execution_order[n_step]].set_hyperparams(hp)
 
         self.pipeline_description = None #Recreate it again
 
@@ -1411,6 +1466,7 @@ class SolutionDescription(object):
         self.primitives_outputs = [None] * len(self.execution_order)
 
         output_step = arguments['output_step']
+        dataframe_step = arguments['dataframe_step']
 
         # Execute the initial steps of a pipeline.
         # This executes all the common data processing steps of classifier/regressor pipelines, but only once for all.
@@ -1451,9 +1507,10 @@ class SolutionDescription(object):
         
         # Remove other intermediate step outputs, they are not needed anymore.
         for i in range(0, len(self.execution_order)-1):
-            if i == self.index_denormalize + 1 or i == output_step:
+            if i == dataframe_step or i == output_step:
                 continue
             self.primitives_outputs[i] = [None]
+
         self.total_cols = len(self.primitives_outputs[len(self.execution_order)-1].columns) 
 
     def get_total_cols(self):

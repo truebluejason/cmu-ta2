@@ -342,7 +342,7 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
                     basic_sol.initialize_solution('VIDEO', augmentation_dataset)
 
                 start = timer()
-                basic_sol.run_basic_solution(inputs=[dataset], output_step = basic_sol.index_denormalize + 2)
+                basic_sol.run_basic_solution(inputs=[dataset], output_step = basic_sol.index_denormalize + 2, dataframe_step = basic_sol.index_denormalize + 1)
                 end = timer()
                 logging.info("Time taken to run basic solution: %s secs", end - start)
                 time_used = end - start
@@ -489,7 +489,7 @@ def get_general_relational_solutions(task_name, types_present, rows, dataset, pr
 
     start = timer()    
     try:
-        basic_sol.run_basic_solution(inputs=[dataset], output_step=3, primitive_dict=primitives, metric_type=problem_metric, posLabel=posLabel)
+        basic_sol.run_basic_solution(inputs=[dataset], output_step=3, dataframe_step=2, primitive_dict=primitives, metric_type=problem_metric, posLabel=posLabel)
         total_cols = basic_sol.get_total_cols()
         logging.info("Total cols = %s", total_cols)
 
@@ -533,7 +533,7 @@ def get_rpi_solutions(task_name, types_present, rows, dataset, primitives, probl
     basic_sol.initialize_RPI_solution(task_name)
 
     try:
-        basic_sol.run_basic_solution(inputs=[dataset], output_step=3, primitive_dict=primitives, metric_type=problem_metric, posLabel=posLabel)
+        basic_sol.run_basic_solution(inputs=[dataset], output_step=3, dataframe_step=1, pprimitive_dict=primitives, metric_type=problem_metric, posLabel=posLabel)
         total_cols = basic_sol.get_total_cols()
         logging.info("Total cols = %s", total_cols)
     except:
