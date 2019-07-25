@@ -217,6 +217,7 @@ class SolutionDescription(object):
         self.inputs = []
         self.rank = 1
         
+        self.problem = problem
         self.outputs = None
         self.execution_order = None
         self.primitives_arguments = None
