@@ -546,7 +546,6 @@ class SolutionDescription(object):
         """
         primitives_outputs = [None] * len(self.primitives) 
    
-        logging.info("Running fit on %s", self.primitives)
         if self.primitives_outputs is None: 
             for i in range(0, len(self.execution_order)):
                 n_step = self.execution_order[i]
@@ -567,7 +566,6 @@ class SolutionDescription(object):
                      primitives_outputs[n_step] = self.process_step(n_step, primitives_outputs, ActionType.FIT, arguments)
             
         v = primitives_outputs[self.execution_order[len(self.execution_order)-1]]
-        logging.info("Type = %s", type(v))
         return v
 
     def _pipeline_step_fit(self, n_step: int, pipeline_id: str, primitive_arguments, arguments, action):
@@ -625,7 +623,6 @@ class SolutionDescription(object):
                 produce_params[param] = value
 
         python_path = primitive.metadata.query()['python_path']
-
         if model is not None:  # Use pre-learnt model
             return model.produce(**produce_params).value
         
@@ -1339,7 +1336,7 @@ class SolutionDescription(object):
             python_path = self.primitives[n_step].metadata.query()['python_path']
             for argument, value in self.primitives_arguments[n_step].items():
                 if value['origin'] == 'steps':
-                    if 'DistilRaggedDatasetLoader' in python_path or 'DistilSingleGraphLoader' in python_path:
+                    if 'DistilLinkPrediction' in python_path:
                         method = value['data'].split('.')[2]
                         primitive_arguments[argument] = primitives_outputs[value['source']][method]
                     else: 
