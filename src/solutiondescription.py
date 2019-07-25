@@ -566,7 +566,7 @@ class SolutionDescription(object):
                      n_step = self.execution_order[i]
                      primitives_outputs[n_step] = self.process_step(n_step, primitives_outputs, ActionType.FIT, arguments)
             
-        v = primitives_outputs[len(self.execution_order)-1]
+        v = primitives_outputs[self.execution_order[len(self.execution_order)-1]]
         logging.info("Type = %s", type(v))
         return v
 
