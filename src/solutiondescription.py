@@ -546,6 +546,7 @@ class SolutionDescription(object):
         """
         primitives_outputs = [None] * len(self.primitives) 
    
+        logging.info("Running fit on %s", self.primitives)
         if self.primitives_outputs is None: 
             for i in range(0, len(self.execution_order)):
                 n_step = self.execution_order[i]
@@ -566,6 +567,7 @@ class SolutionDescription(object):
                      primitives_outputs[n_step] = self.process_step(n_step, primitives_outputs, ActionType.FIT, arguments)
             
         v = primitives_outputs[len(self.execution_order)-1]
+        logging.info("Type = %s", type(v))
         return v
 
     def _pipeline_step_fit(self, n_step: int, pipeline_id: str, primitive_arguments, arguments, action):
