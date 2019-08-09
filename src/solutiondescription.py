@@ -440,7 +440,7 @@ class SolutionDescription(object):
                             arg = int(argument.primitive.data)
                             value = self.primitives[arg]
                             primitive_hyperparams = value.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
-                            model = value(hyperparams=primitive_hyperparams(primitive_hyperparams.defaults()))
+                            model = value(hyperparams=primitive_hyperparams(primitive_hyperparams.defaults(), **self.hyperparams[arg]))
                             self.hyperparams[i][name] = model
 
             # SubpipelinePipelineDescriptionStep
