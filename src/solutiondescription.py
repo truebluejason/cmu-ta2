@@ -65,6 +65,8 @@ def get_cols_to_encode(df):
                 ordinals.append(t)
             except:
                 print("Att ", df.columns[t], " non-numeric")
+        elif len(df.iloc[:,t].unique()) == 1:
+            cols.remove(t)
 
     return (list(cols), ordinals)
 
