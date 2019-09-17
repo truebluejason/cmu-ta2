@@ -37,12 +37,8 @@ task_paths = {
 'TIMESERIES2': ['d3m.primitives.data_transformation.denormalize.Common',
                 'd3m.primitives.time_series_classification.k_neighbors.Kanine'],
 
-'TIMESERIES3': ['d3m.primitives.data_transformation.data_cleaning.DistilRaggedDatasetLoader',
-                'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
-                'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon',
-                'd3m.primitives.data_transformation.data_cleaning.DistilTimeSeriesReshaper',
-                'd3m.primitives.learner.random_forest.DistilTimeSeriesNeighboursPrimitive',
-                'd3m.primitives.data_transformation.construct_predictions.DataFrameCommon'],
+'TIMESERIES3': ['d3m.primitives.data_transformation.denormalize.Common',
+                'd3m.primitives.time_series_classification.convolutional_neural_net.LSTM_FCN'],
 
 'IMAGE': ['d3m.primitives.data_transformation.denormalize.Common',
           'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
@@ -465,6 +461,12 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
         pipe.id = str(uuid.uuid4())
         pipe.add_outputs()
         solutions.append(pipe)
+        pipe = solutiondescription.SolutionDescription(problem)
+        pipe.initialize_solution('TIMESERIES3')
+        pipe.id = str(uuid.uuid4())
+        pipe.add_outputs()
+        solutions.append(pipe)
+
 
     return (solutions, time_used)
 

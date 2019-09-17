@@ -7,13 +7,13 @@ export D3MDATADIR=/home/scratch/gwelter/datasets/seed_datasets_current
 export D3MTIMEOUT=1200
 export D3MCPU=8
 
-#datasets=(SEMI_1053_jm1)
-#targets=(defects)
-#metrics=(F1Macro)
-
 datasets=(SEMI_155_pokerhand SEMI_1040_sylva_prior SEMI_1044_eye_movements SEMI_1053_jm1 SEMI_1217_click_prediction_small SEMI_1459_artificial_characters)
 targets=(class label label defects click Class)
 metrics=(F1Macro F1Macro F1Macro F1Macro F1Macro F1Macro)
+
+datasets=(LL1_50words LL1_Adiac LL1_ArrowHead LL1_CinC_ECG_torso LL1_Cricket_Y LL1_ECG200 LL1_ElectricDevices LL1_FISH LL1_FaceFour LL1_FordA LL1_HandOutlines LL1_Haptics LL1_ItalyPowerDemand LL1_Meat LL1_OSULeaf)
+targets=(label label label label label label label label label label label label label label label)
+metrics=(F1Macro F1Macro F1Macro F1Macro F1Macro F1 F1Macro F1Macro F1Macro F1 F1 F1Macro F1 F1Macro F1Macro)
 
 rm scores.csv
 
@@ -43,8 +43,9 @@ do
         grep "pipeline_rank" ${jsonfile} >> scores.csv
         grep "classification" ${jsonfile} | awk -F':' '{print $2}' >> scores.csv
         grep "regression" ${jsonfile} | awk -F':' '{print $2}' >> scores.csv
-        python sample.py $D3MDATADIR/${datasets[i]}/TRAIN/problem_TRAIN/problemDoc.json $D3MDATADIR/${datasets[i]}/TRAIN/dataset_TRAIN/datasetDoc.json ${jsonfile} $D3MDATADIR/${datasets[i]}/TEST/dataset_TEST/datasetDoc.json
+        grep "RPI" ${jsonfile} | awk -F':' '{print $2}' >> scores.csv
 
+        python -m d3m.runtime fit-produce -p ${jsonfile} -r $D3MDATADIR/${datasets[i]}/TRAIN/problem_TRAIN/problemDoc.json -i $D3MDATADIR/${datasets[i]}/TRAIN/dataset_TRAIN/datasetDoc.json -t $D3MDATADIR/${datasets[i]}/TEST/dataset_TEST/datasetDoc.json -o results.csv
         python evaluate_score.py $FILE results.csv ${targets[i]} ${metrics[i]} >> scores.csv
 
 	done

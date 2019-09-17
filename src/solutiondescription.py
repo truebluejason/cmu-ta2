@@ -55,19 +55,35 @@ def get_cols_to_encode(df):
     rows = len(df)
     # use rule of thumb to exclude categorical atts with high cardinality for one-hot-encoding
     max_num_cols = math.log(rows, 2)
+
+    if rows > 100000:
+        max_num_cols = max_num_cols/4
+
     tmp_cols = copy.deepcopy(cols)
     ordinals = []
     for t in tmp_cols:
-        if len(df.iloc[:,t].unique()) > max_num_cols:
+        arity = len(df.iloc[:,t].unique())
+        if arity == 1:
             cols.remove(t)
-            try:
-                pd.to_numeric(df.iloc[:,t])
-                ordinals.append(t)
-            except:
-                print("Att ", df.columns[t], " non-numeric")
-        elif len(df.iloc[:,t].unique()) == 1:
-            cols.remove(t)
+            continue
 
+        if arity > max_num_cols:
+            cols.remove(t)
+            missing = 0
+            if df.dtypes[t] == 'object':
+                missing = len(np.where(df.iloc[:,t] == '')[0])
+            if missing == 0:
+                try:
+                    pd.to_numeric(df.iloc[:,t])
+                    ordinals.append(t)
+                except:
+                    print("Att ", df.columns[t], " non-numeric")
+
+    if rows > 100000 and len(cols) > 5:
+        import random
+        cols = random.sample(cols, 5)
+
+    print("No. of cats = ", len(cols))
     return (list(cols), ordinals)
 
 def column_types_present(dataset, dataset_augmentation = None):
@@ -532,6 +548,11 @@ class SolutionDescription(object):
         for col in cols:
             self.exclude_columns.add(col)
 
+        if rows > 100000 and (len(attributes) - len(self.exclude_columns) > 25):
+            import random
+            remove = random.sample(attributes, len(attributes) - len(self.exclude_columns) - 25)
+            self.exclude_columns.update(remove)
+
         targets = metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/TrueTarget")
         for t in targets:
             if t in self.exclude_columns:
@@ -983,27 +1004,13 @@ class SolutionDescription(object):
                     source = data.split('.')[1]
                     self.primitives_arguments[i]['outputs'] = {'origin': origin, 'source': int(source), 'data': data}
             elif taskname == 'TIMESERIES3':
-                if i == 0: # DistilRaggedDatasetLoader
+                if i == 0: 
                     data = 'inputs.0'
-                elif i == 2: # extract_columns_by_semantic_types (targets)
+                else: # other steps
                     data = 'steps.0.produce'
-                    self.hyperparams[i] = {}
-                    self.hyperparams[i]['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/TrueTarget']
-                elif 'DistilTimeSeriesReshaper' in python_paths[i]:
-                    data = 'steps.0.produce_collection'
-                elif 'DistilTimeSeriesNeighbours' in python_paths[i]:
-                    data = 'steps.2.produce'
                     origin = data.split('.')[0]
                     source = data.split('.')[1]
                     self.primitives_arguments[i]['outputs'] = {'origin': origin, 'source': int(source), 'data': data}
-                    data = 'steps.' + str(i - 1) + '.produce'
-                elif i == num-1: # construct_predictions
-                    data = 'steps.0.produce'
-                    origin = data.split('.')[0]
-                    source = data.split('.')[1]
-                    self.primitives_arguments[i]['reference'] = {'origin': origin, 'source': int(source), 'data': data}
-                    data = 'steps.' + str(i-1) + '.produce'
-                else: # other steps
                     data = 'steps.' + str(i - 1) + '.produce'
             elif taskname == 'COMMUNITYDETECTION2':
                 if i == 0: # denormalize
@@ -1059,6 +1066,10 @@ class SolutionDescription(object):
                     self.hyperparams[i]['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/TrueTarget']
                 elif i == 3: # column_parser
                     data = 'steps.1.produce'
+                elif i == 4:
+                    data = 'steps.3.produce'
+                    self.hyperparams[i] = {}
+                    self.hyperparams[i]['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/Attribute', 'https://metadata.datadrivendiscovery.org/types/PrimaryKey']
                 else: # other steps
                     data = 'steps.' + str(i-1) + '.produce'
             elif taskname == 'OBJECTDETECTION':
@@ -1484,13 +1495,13 @@ class SolutionDescription(object):
 
             if python_path == 'd3m.primitives.data_transformation.column_parser.DataFrameCommon':
                 self.hyperparams[n_step] = {}
-                exclude_atts = []
+                exclude_atts = set() #
                 if self.ordinal_atts is not None and len(self.ordinal_atts) > 0:
-                    exclude_atts += list(self.ordinal_atts)
+                    exclude_atts.update(list(self.ordinal_atts))
                 if self.exclude_columns is not None and len(self.exclude_columns) > 0:
-                    exclude_atts += list(self.exclude_columns)
+                    exclude_atts.update(list(self.exclude_columns))
                 if len(exclude_atts) > 0:
-                    self.hyperparams[n_step]['exclude_columns'] = exclude_atts
+                    self.hyperparams[n_step]['exclude_columns'] = list(exclude_atts)
 
             if self.exclude_columns is not None and len(self.exclude_columns) > 0:
                 if python_path == 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon':
