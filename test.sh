@@ -44,7 +44,7 @@ do
         grep "classification" ${jsonfile} | awk -F':' '{print $2}' >> scores.csv
         grep "regression" ${jsonfile} | awk -F':' '{print $2}' >> scores.csv
         grep "RPI" ${jsonfile} | awk -F':' '{print $2}' >> scores.csv
-
+        grep "FCN" ${jsonfile} | awk -F':' '{print $2}' >> scores.csv
         python -m d3m.runtime fit-produce -p ${jsonfile} -r $D3MDATADIR/${datasets[i]}/TRAIN/problem_TRAIN/problemDoc.json -i $D3MDATADIR/${datasets[i]}/TRAIN/dataset_TRAIN/datasetDoc.json -t $D3MDATADIR/${datasets[i]}/TEST/dataset_TEST/datasetDoc.json -o results.csv
         python evaluate_score.py $FILE results.csv ${targets[i]} ${metrics[i]} >> scores.csv
 
