@@ -296,7 +296,12 @@ class PrimitiveDescription(object):
         corex_hp = {'nbins': [2, 3, 4], # 5, 10, 12, 15, 20],
                     'method': ['counting', 'pseudoBayesian'],
                     'n_estimators': [5, 6, 10, 15, 20, 25, 26, 30]}
-      
+     
+        if(len(train) > 100000): # Use defaults. No tuning
+            corex_hp = {'nbins': [10],
+                        'method': ['counting'],
+                        'n_estimators': [10]}
+ 
         prim = d3m.index.get_primitive(python_path)
         model_hyperparams = prim.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
 

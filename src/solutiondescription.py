@@ -30,6 +30,7 @@ from d3m.metadata import base as metadata_base
 from d3m.primitive_interfaces.base import PrimitiveBaseMeta
 from d3m.container import DataFrame as d3m_dataframe
 from d3m.runtime import Runtime
+from d3m import container
 from sri.psl.link_prediction import LinkPredictionHyperparams
 import d3m.index
 
@@ -798,7 +799,7 @@ class SolutionDescription(object):
                 self.hyperparams[i] = {}
                 self.hyperparams[i]['strategy'] = 'most_frequent'
 
-            if self.privileged is not None and len(self.privileged) > 0 and python_paths[i] == 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon':
+            if self.privileged is not None and len(self.privileged) > 0 and python_paths[i] == 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common':
                 self.hyperparams[i] = {}
                 self.hyperparams[i]['exclude_columns'] = self.privileged
 
@@ -963,9 +964,28 @@ class SolutionDescription(object):
                 self.hyperparams[i]['metric'] = 'accuracy'
 
             if self.privileged is not None and len(self.privileged) > 0 and \
-                python_paths[i] == 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon':
+                python_paths[i] == 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common':
                 self.hyperparams[i] = {}
                 self.hyperparams[i]['exclude_columns'] = self.privileged
+            
+            if 'signal_framer' in python_paths[i]:
+                self.hyperparams[i] = {}
+                self.hyperparams[i]['frame_length_s'] = 100
+                self.hyperparams[i]['frame_shift_s'] = 0.2
+
+            if 'signal_mfcc' in python_paths[i]:
+                self.hyperparams[i] = {}
+                self.hyperparams[i]['num_ceps'] = 6
+                self.hyperparams[i]['num_chans'] = 10
+
+            if 'kmeans' in python_paths[i]:
+                self.hyperparams[i] = {}
+                self.hyperparams[i]['n_init'] = 15
+                self.hyperparams[i]['n_clusters'] = 64
+
+            if 'tfidf_vectorizer' in python_paths[i]:
+                self.hyperparams[i] = {}
+                self.hyperparams[i]['sublinear_tf'] = True
 
             # Construct pipelines for different task types
             if taskname == 'CLASSIFICATION' or \
@@ -1011,6 +1031,20 @@ class SolutionDescription(object):
                     origin = data.split('.')[0]
                     source = data.split('.')[1]
                     self.primitives_arguments[i]['outputs'] = {'origin': origin, 'source': int(source), 'data': data}
+                    data = 'steps.' + str(i - 1) + '.produce'
+            elif taskname == 'TIMESERIES4':
+                if i == 0 or i == 3:
+                    data = 'inputs.0'
+                elif i == self.index_denormalize + 2: # extract_columns_by_semantic_types (targets)
+                    data = 'steps.{}.produce'.format(self.index_denormalize + 1)
+                    self.hyperparams[i] = {}
+                    self.hyperparams[i]['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/TrueTarget']
+                elif i == 11:
+                    data = 'steps.' + str(i - 1) + '.produce'
+                    self.hyperparams[i] = {}
+                    self.hyperparams[i]['frame_length_s'] = 1
+                    self.hyperparams[i]['frame_shift_s'] = 1
+                else: # other steps
                     data = 'steps.' + str(i - 1) + '.produce'
             elif taskname == 'COMMUNITYDETECTION2':
                 if i == 0: # denormalize
@@ -1068,8 +1102,6 @@ class SolutionDescription(object):
                     data = 'steps.1.produce'
                 elif i == 4:
                     data = 'steps.3.produce'
-                    self.hyperparams[i] = {}
-                    self.hyperparams[i]['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/Attribute', 'https://metadata.datadrivendiscovery.org/types/PrimaryKey']
                 else: # other steps
                     data = 'steps.' + str(i-1) + '.produce'
             elif taskname == 'OBJECTDETECTION':
@@ -1183,11 +1215,17 @@ class SolutionDescription(object):
             hyperparam_spec = self.primitives[i].metadata.query()['primitive_code']['hyperparams']
             if 'n_estimators' in hyperparam_spec:
                 self.hyperparams[i]['n_estimators'] = 100
-
+        elif 'mlp' in python_path:
+            self.hyperparams[i] = {}
+            self.hyperparams[i]['early_stopping'] = True
+            self.hyperparams[i]['learning_rate_init'] = 0.01
+            self.hyperparams[i]['shuffle'] = False
+            sizes = container.List([300,300], generate_metadata=True)
+            self.hyperparams[i]['hidden_layer_sizes'] = sizes
         self.execution_order.append(i)
 
         i = i + 1
-        self.add_primitive('d3m.primitives.data_transformation.construct_predictions.DataFrameCommon', i)
+        self.add_primitive('d3m.primitives.data_transformation.construct_predictions.Common', i)
 
         data = 'steps.' + str(i-1) + str('.produce')
         origin = data.split('.')[0]
@@ -1263,7 +1301,7 @@ class SolutionDescription(object):
         self.execution_order.append(i)
 
         i = i + 1
-        self.add_primitive('d3m.primitives.data_transformation.construct_predictions.DataFrameCommon', i)
+        self.add_primitive('d3m.primitives.data_transformation.construct_predictions.Common', i)
         data = 'steps.' + str(i-1) + str('.produce')
         origin = data.split('.')[0]
         source = data.split('.')[1]
@@ -1493,7 +1531,7 @@ class SolutionDescription(object):
                 self.hyperparams[n_step]['use_columns'] = list(cols)
                 print("Cats = ", cols)
 
-            if python_path == 'd3m.primitives.data_transformation.column_parser.DataFrameCommon':
+            if python_path == 'd3m.primitives.data_transformation.column_parser.Common':
                 self.hyperparams[n_step] = {}
                 exclude_atts = set() #
                 if self.ordinal_atts is not None and len(self.ordinal_atts) > 0:
@@ -1504,7 +1542,7 @@ class SolutionDescription(object):
                     self.hyperparams[n_step]['exclude_columns'] = list(exclude_atts)
 
             if self.exclude_columns is not None and len(self.exclude_columns) > 0:
-                if python_path == 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon':
+                if python_path == 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common':
                     if self.hyperparams[n_step] is None:
                         self.hyperparams[n_step] = {}
                     self.hyperparams[n_step]['exclude_columns'] = list(self.exclude_columns)

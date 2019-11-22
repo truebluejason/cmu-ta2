@@ -64,9 +64,9 @@ def load_data_problem(inputdir, problempath):
     with open(problempath) as file:
         problem_schema =  json.load(file)
 
-    filename = "scores.csv"
-    with open(filename, "a") as g:
-        g.write(inputdir + "\n")
+    #filename = "scores.csv"
+    #with open(filename, "a") as g:
+    #    g.write(inputdir + "\n")
  
     datasetId = problempath[:-29]
     dataset_schema = datasetId + "dataset_TRAIN/datasetDoc.json"
