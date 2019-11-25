@@ -34,8 +34,12 @@ task_paths = {
                'd3m.primitives.data_preprocessing.time_series_to_list.DSBOX',
                'd3m.primitives.feature_extraction.random_projection_timeseries_featurization.DSBOX'],
 
-'TIMESERIES2': ['d3m.primitives.data_transformation.denormalize.Common',
-                'd3m.primitives.time_series_classification.k_neighbors.Kanine'],
+'TIMESERIES2': ['d3m.primitives.data_preprocessing.data_cleaning.DistilTimeSeriesFormatter',
+                'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
+                'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
+                'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common',
+                'd3m.primitives.time_series_classification.k_neighbors.Kanine',
+                'd3m.primitives.data_transformation.construct_predictions.Common'],
 
 'TIMESERIES3': ['d3m.primitives.data_transformation.denormalize.Common',
                 'd3m.primitives.time_series_classification.convolutional_neural_net.LSTM_FCN'],
@@ -163,16 +167,16 @@ task_paths = {
 'FALLBACK1': ['d3m.primitives.classification.gaussian_classification.MeanBaseline']}
 
 classifiers = ['d3m.primitives.classification.bernoulli_naive_bayes.SKlearn',
-               #'d3m.primitives.classification.linear_discriminant_analysis.SKlearn',
-               #'d3m.primitives.classification.logistic_regression.SKlearn',
-               #'d3m.primitives.classification.ada_boost.SKlearn',
-               #'d3m.primitives.classification.linear_svc.SKlearn',
-               #'d3m.primitives.classification.extra_trees.SKlearn',
-               #'d3m.primitives.classification.random_forest.SKlearn',
-               #'d3m.primitives.classification.bagging.SKlearn',
-               #'d3m.primitives.classification.svc.SKlearn',
-               #'d3m.primitives.classification.passive_aggressive.SKlearn',
-               #'d3m.primitives.classification.xgboost_gbtree.Common',
+               'd3m.primitives.classification.linear_discriminant_analysis.SKlearn',
+               'd3m.primitives.classification.logistic_regression.SKlearn',
+               'd3m.primitives.classification.ada_boost.SKlearn',
+               'd3m.primitives.classification.linear_svc.SKlearn',
+               'd3m.primitives.classification.extra_trees.SKlearn',
+               'd3m.primitives.classification.random_forest.SKlearn',
+               'd3m.primitives.classification.bagging.SKlearn',
+               'd3m.primitives.classification.svc.SKlearn',
+               'd3m.primitives.classification.passive_aggressive.SKlearn',
+               'd3m.primitives.classification.xgboost_gbtree.Common',
                'd3m.primitives.classification.gradient_boosting.SKlearn']
 
 regressors = ['d3m.primitives.regression.ridge.SKlearn',
@@ -334,7 +338,7 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
 
             if len(types_present) == 1 and types_present[0] == 'FILES':
                 types_present[0] = 'TIMESERIES' 
-            if 1:#try:
+            try:
                 if 'TIMESERIES' in types_present:
                     basic_sol.initialize_solution('TIMESERIES', augmentation_dataset)
                 elif 'IMAGE' in types_present:
@@ -356,9 +360,9 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
                 time_used = end - start
                 total_cols = basic_sol.get_total_cols()
                 logging.info("Total cols = %s", total_cols)
-            #except:
-            #    logging.info(sys.exc_info()[0])
-            #    basic_sol = None
+            except:
+                logging.info(sys.exc_info()[0])
+                basic_sol = None
 
         # Iterate through primitives which match task type for populative pool of solutions
         listOfSolutions = []
@@ -468,11 +472,11 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
         logging.info("No matching solutions")
 
     if types_present is not None and task_name == 'CLASSIFICATION' and 'TIMESERIES' in types_present:
-        pipe = solutiondescription.SolutionDescription(problem)
-        pipe.initialize_solution('TIMESERIES2')
-        pipe.id = str(uuid.uuid4())
-        pipe.add_outputs()
-        solutions.append(pipe)
+        #pipe = solutiondescription.SolutionDescription(problem)
+        #pipe.initialize_solution('TIMESERIES2')
+        #pipe.id = str(uuid.uuid4())
+        #pipe.add_outputs()
+        #solutions.append(pipe)
         pipe = solutiondescription.SolutionDescription(problem)
         pipe.initialize_solution('TIMESERIES3')
         pipe.id = str(uuid.uuid4())

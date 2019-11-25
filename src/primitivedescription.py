@@ -105,7 +105,7 @@ class PrimitiveDescription(object):
         sklearn_hyperparams = prim.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
         primitive = prim(hyperparams=sklearn_hyperparams(sklearn_hyperparams.defaults()))
 
-        prim = d3m.index.get_primitive('d3m.primitives.data_transformation.extract_columns_by_semantic_types.DataFrameCommon')
+        prim = d3m.index.get_primitive('d3m.primitives.data_transformation.extract_columns_by_semantic_types.Common')
         sklearn_hyperparams = prim.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
         custom_hyperparams = dict()
         custom_hyperparams['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/TrueTarget']
@@ -147,9 +147,9 @@ class PrimitiveDescription(object):
             else:
                 return (0.0, optimal_params)
 
-        if 'Kanine' in python_path:
-            metric = self.score_Kanine_primitive(X, metric_type, posLabel)
-            return (metric, optimal_params)
+        #if 'Kanine' in python_path:
+        #    metric = self.score_Kanine_primitive(X, y, metric_type, posLabel)
+        #    return (metric, optimal_params)
 
         if 'DistilEnsembleForest' in python_path or 'DistilTextClassifier' in python_path:
             optimal_params['metric'] = util.get_distil_metric_name(metric_type)

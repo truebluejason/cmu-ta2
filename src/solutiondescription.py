@@ -1016,13 +1016,27 @@ class SolutionDescription(object):
                 else: # other steps
                     data = 'steps.' + str(i - 1) + '.produce'
             elif taskname == 'TIMESERIES2':
-                if i == 0: # denormalize
+                if i == 0 or i == 2: # denormalize
                     data = 'inputs.0'
-                else:
-                    data = 'steps.0.produce'
+                elif i == 3: # extract_columns_by_semantic_types (targets)
+                    data = 'steps.2.produce'
+                    self.hyperparams[i] = {}
+                    self.hyperparams[i]['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/TrueTarget']
+                elif i == num-1: # construct_predictions
+                    data = 'steps.2.produce'
+                    origin = data.split('.')[0]
+                    source = data.split('.')[1]
+                    self.primitives_arguments[i]['reference'] = {'origin': origin, 'source': int(source), 'data': data}
+                    data = 'steps.' + str(i-1) + '.produce'
+                elif i == num-2:
+                    data = 'steps.3.produce'
                     origin = data.split('.')[0]
                     source = data.split('.')[1]
                     self.primitives_arguments[i]['outputs'] = {'origin': origin, 'source': int(source), 'data': data}
+                    data = 'steps.1.produce'
+                    execution_graph.add_edge(str(source), str(i))
+                else: # other steps
+                    data = 'steps.' + str(i - 1) + '.produce'
             elif taskname == 'TIMESERIES3':
                 if i == 0: 
                     data = 'inputs.0'
@@ -1550,6 +1564,8 @@ class SolutionDescription(object):
             logging.info("Running %s", python_path)
             start = timer()
             self.primitives_outputs[n_step] = self.process_step(n_step, self.primitives_outputs, ActionType.FIT, arguments)
+            #if n_step > 1:
+            #    print(self.primitives_outputs[n_step].iloc[0:5,:])
             end = timer()
             logging.info("Time taken : %s seconds", end - start)
 
