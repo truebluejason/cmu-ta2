@@ -7,7 +7,6 @@ from d3m.container.dataset import D3MDatasetLoader, Dataset
 from d3m.metadata import base as metadata_base, problem
 from d3m.metadata.base import Metadata
 from d3m.metadata.pipeline import Pipeline, PrimitiveStep
-import datamart, datamart_nyu
 import problem_pb2 as problem_pb2
 import os, json
 import pickle
@@ -185,6 +184,11 @@ def search_all_related(dataset, keywords, min_size = 5):
         Returns:
             datasets to use for augmentation
     """
+
+    # Do the import inside this function so that the exception can be caught if
+    # the import fails.
+    import datamart, datamart_nyu
+    
     # Create client
     client = datamart_nyu.RESTDatamart(os.environ['DATAMART_URL_NYU']) #'https://datamart.d3m.vida-nyu.org')
 
