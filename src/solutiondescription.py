@@ -156,7 +156,7 @@ def column_types_present(dataset, dataset_augmentation = None):
         types.append('Ordinals')
         print("Ordinals = ", ordinals)
     
-    privileged = metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/SuggestedPrivilegedData") 
+    privileged = metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/SuggestedPrivilegedData")
     attcols = metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/Attribute")
     text_prop = textcols/len(attcols)
     for t in attcols:
@@ -1022,19 +1022,6 @@ class SolutionDescription(object):
                     data = 'steps.2.produce'
                     self.hyperparams[i] = {}
                     self.hyperparams[i]['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/TrueTarget']
-                elif i == num-1: # construct_predictions
-                    data = 'steps.2.produce'
-                    origin = data.split('.')[0]
-                    source = data.split('.')[1]
-                    self.primitives_arguments[i]['reference'] = {'origin': origin, 'source': int(source), 'data': data}
-                    data = 'steps.' + str(i-1) + '.produce'
-                elif i == num-2:
-                    data = 'steps.3.produce'
-                    origin = data.split('.')[0]
-                    source = data.split('.')[1]
-                    self.primitives_arguments[i]['outputs'] = {'origin': origin, 'source': int(source), 'data': data}
-                    data = 'steps.1.produce'
-                    execution_graph.add_edge(str(source), str(i))
                 else: # other steps
                     data = 'steps.' + str(i - 1) + '.produce'
             elif taskname == 'TIMESERIES3':
@@ -1204,7 +1191,7 @@ class SolutionDescription(object):
         self.outputs = []
         self.outputs.append((origin, int(source), data, "output predictions"))
  
-    def add_step(self, python_path, outputstep=2, dataframestep=1):
+    def add_step(self, python_path, inputstep=-1, outputstep=2, dataframestep=1):
         """
         Add new primitive
         This is currently for classification/regression pipelines
@@ -1214,7 +1201,9 @@ class SolutionDescription(object):
 
         self.add_primitive(python_path, i)
 
-        data = 'steps.' + str(i-1) + str('.produce')
+        if inputstep == -1:
+            inputstep = i-1
+        data = 'steps.' + str(inputstep) + str('.produce')
         origin = data.split('.')[0]
         source = data.split('.')[1]
         self.primitives_arguments[i]['inputs'] = {'origin': origin, 'source': int(source), 'data': data}
@@ -1532,6 +1521,10 @@ class SolutionDescription(object):
 
         output_step = arguments['output_step']
         dataframe_step = arguments['dataframe_step']
+        if 'input_step' in arguments:
+            input_step = arguments['input_step']
+        else:
+            input_step = len(self.execution_order)-1
 
         # Execute the initial steps of a pipeline.
         # This executes all the common data processing steps of classifier/regressor pipelines, but only once for all.
@@ -1564,7 +1557,7 @@ class SolutionDescription(object):
             logging.info("Running %s", python_path)
             start = timer()
             self.primitives_outputs[n_step] = self.process_step(n_step, self.primitives_outputs, ActionType.FIT, arguments)
-            #if n_step > 1:
+            #if n_step > 0:
             #    print(self.primitives_outputs[n_step].iloc[0:5,:])
             end = timer()
             logging.info("Time taken : %s seconds", end - start)
@@ -1573,8 +1566,8 @@ class SolutionDescription(object):
                 self.exclude(self.primitives_outputs[n_step])
         
         # Remove other intermediate step outputs, they are not needed anymore.
-        for i in range(0, len(self.execution_order)-1):
-            if i == dataframe_step or i == output_step:
+        for i in range(0, len(self.execution_order)):
+            if i == dataframe_step or i == output_step or i == input_step:
                 continue
             self.primitives_outputs[i] = [None]
 

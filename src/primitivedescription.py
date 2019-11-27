@@ -100,19 +100,8 @@ class PrimitiveDescription(object):
             splits = 2
         return splits
 
-    def score_Kanine_primitive(self, X, metric_type, posLabel):
-        prim = d3m.index.get_primitive('d3m.primitives.data_transformation.dataset_to_dataframe.Common')
-        sklearn_hyperparams = prim.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
-        primitive = prim(hyperparams=sklearn_hyperparams(sklearn_hyperparams.defaults()))
-
-        prim = d3m.index.get_primitive('d3m.primitives.data_transformation.extract_columns_by_semantic_types.Common')
-        sklearn_hyperparams = prim.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
-        custom_hyperparams = dict()
-        custom_hyperparams['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/TrueTarget']
-        target_primitive = prim(hyperparams=sklearn_hyperparams(sklearn_hyperparams.defaults(), **custom_hyperparams))
-
-        dataframe = primitive.produce(inputs=X).value
-        targets = target_primitive.produce(inputs=dataframe).value 
+    def score_Kanine_primitive(self, X, y, metric_type, posLabel):
+        targets = y 
 
         neighbors = int(round(0.05 * len(X)))
         if neighbors < 2:
@@ -121,9 +110,9 @@ class PrimitiveDescription(object):
         custom_hyperparams['n_neighbors'] = neighbors
         primitive_hyperparams = self.primitive.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
         model = self.primitive(hyperparams=primitive_hyperparams(primitive_hyperparams.defaults(), **custom_hyperparams))
-        model.set_training_data(inputs=X, outputs=X)
+        model.set_training_data(inputs=X, outputs=y)
         model.fit()
-        output = model.produce(inputs=X).value.iloc[:,1]
+        output = model.produce(inputs=X).value
        
         metric = self.evaluate_metric(output, targets, metric_type, posLabel)
         return metric
@@ -147,9 +136,9 @@ class PrimitiveDescription(object):
             else:
                 return (0.0, optimal_params)
 
-        #if 'Kanine' in python_path:
-        #    metric = self.score_Kanine_primitive(X, y, metric_type, posLabel)
-        #    return (metric, optimal_params)
+        if 'Kanine' in python_path:
+            score = self.score_Kanine_primitive(X, y, metric_type, posLabel)
+            return (score, optimal_params)
 
         if 'DistilEnsembleForest' in python_path or 'DistilTextClassifier' in python_path:
             optimal_params['metric'] = util.get_distil_metric_name(metric_type)

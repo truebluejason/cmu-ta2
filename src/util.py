@@ -77,7 +77,7 @@ def load_data_problem(inputdir, problempath):
     problem_description = problem.parse_problem_description(problempath)
     dataset = add_target_columns_metadata(dataset, problem_description)
 
-    taskname = problem_doc_metadata.query(())['about']['taskType']
+    taskname = problem_doc_metadata.query(())['about']['taskKeywords'][0]
     metric = problem_doc_metadata.query(())['inputs']['performanceMetrics'][0]['metric']
     posLabel = None
     if metric == "f1":

@@ -4,6 +4,7 @@ import util
 import solution_templates
 import problem_pb2
 import primitive_lib
+import logging
 from multiprocessing import Pool, cpu_count
 
 def rank_solutions(valid_solution_scores, problem_metric):
@@ -27,6 +28,8 @@ def search_phase():
     num_cpus = (int)(os.environ['D3MCPU'])
     problemPath = os.environ['D3MPROBLEMPATH']
 
+    logger = logging.getLogger()
+    logger.setLevel(level=logging.ERROR)
     print("D3MINPUTDIR = ", inputDir)
     print("D3MOUTPUTDIR = ", outputDir)
     print("timeout = ", timeout_env)
@@ -38,6 +41,9 @@ def search_phase():
     primitives = primitive_lib.load_primitives()
     task_name = task_name.upper()
     print(task_name)
+
+    if task_name == "TIMESERIES":
+        task_name = "TIMESERIESFORECASTING"
 
     problem_metric = problem_pb2.F1_MACRO
     if metric == 'f1Macro':
@@ -145,8 +151,8 @@ def fit_solution(inputs, solution, primitives, outputDir, problem_desc):
     """
     print("Fitting ", solution.id)
 
-    output = solution.fit(inputs=inputs, solution_dict=None)
-    output = solution.produce(inputs=inputs, solution_dict=None)
+    #output = solution.fit(inputs=inputs, solution_dict=None)
+    #output = solution.produce(inputs=inputs, solution_dict=None)
     util.write_pipeline_json(solution, primitives, outputDir + "/pipelines_ranked", outputDir + "/subpipelines", rank=solution.rank)
     #util.write_pipeline_yaml(solution, outputDir + "/pipeline_runs", inputs, problem_desc)
     return True

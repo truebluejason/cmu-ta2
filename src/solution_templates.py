@@ -37,9 +37,7 @@ task_paths = {
 'TIMESERIES2': ['d3m.primitives.data_preprocessing.data_cleaning.DistilTimeSeriesFormatter',
                 'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
                 'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
-                'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common',
-                'd3m.primitives.time_series_classification.k_neighbors.Kanine',
-                'd3m.primitives.data_transformation.construct_predictions.Common'],
+                'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common'],
 
 'TIMESERIES3': ['d3m.primitives.data_transformation.denormalize.Common',
                 'd3m.primitives.time_series_classification.convolutional_neural_net.LSTM_FCN'],
@@ -404,7 +402,7 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
             time_used = time_used + general_time_used
            
             # Try RPI solutions
-            rpi_solutions = get_rpi_solutions(task_name, types_present, rows, dataset, primitives, problem_metric, posLabel, problem)
+            rpi_solutions = get_rpi_solutions(task_name, types_present, privileged, rows, dataset, primitives, problem_metric, posLabel, problem)
             solutions = solutions + rpi_solutions
 
         if task_name == 'SEMISUPERVISEDCLASSIFICATION':
@@ -472,16 +470,17 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
         logging.info("No matching solutions")
 
     if types_present is not None and task_name == 'CLASSIFICATION' and 'TIMESERIES' in types_present:
+        pipe = solutiondescription.SolutionDescription(problem)
+        pipe.initialize_solution('TIMESERIES2')
+        pipe.id = str(uuid.uuid4())
+        pipe.run_basic_solution(inputs=[dataset], input_step=1, output_step = 3, dataframe_step = 2)
+        pipe.add_step('d3m.primitives.time_series_classification.k_neighbors.Kanine', inputstep=1, outputstep=3, dataframestep=2)
+        solutions.append(pipe)
         #pipe = solutiondescription.SolutionDescription(problem)
-        #pipe.initialize_solution('TIMESERIES2')
+        #pipe.initialize_solution('TIMESERIES3')
         #pipe.id = str(uuid.uuid4())
         #pipe.add_outputs()
         #solutions.append(pipe)
-        pipe = solutiondescription.SolutionDescription(problem)
-        pipe.initialize_solution('TIMESERIES3')
-        pipe.id = str(uuid.uuid4())
-        pipe.add_outputs()
-        solutions.append(pipe)
 
     return (solutions, time_used)
 
@@ -529,7 +528,7 @@ def get_general_relational_solutions(task_name, types_present, rows, dataset, pr
     logging.info("Time taken to run general solution: %s secs", end - start)
     return (solutions, time_used)  
 
-def get_rpi_solutions(task_name, types_present, rows, dataset, primitives, problem_metric, posLabel, problem):
+def get_rpi_solutions(task_name, types_present, privileged, rows, dataset, primitives, problem_metric, posLabel, problem):
     solutions = []
     
     if types_present is None:
@@ -546,6 +545,7 @@ def get_rpi_solutions(task_name, types_present, rows, dataset, primitives, probl
        return solutions
 
     basic_sol = solutiondescription.SolutionDescription(problem)
+    basic_sol.set_privileged(privileged)
     basic_sol.initialize_RPI_solution(task_name)
 
     try:
