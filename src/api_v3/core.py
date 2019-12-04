@@ -54,6 +54,9 @@ class Core(core_pb2_grpc.CoreServicer):
         outputDir = os.environ['D3MOUTPUTDIR']
         util.initialize_for_search(outputDir)
 
+    def get_task_name(self, keywords):
+        return problem_pb2.TaskKeyword.Name(keywords[0])
+
     def search_solutions(self, request, dataset):
         """
         Populate potential solutions for TA3
@@ -61,7 +64,7 @@ class Core(core_pb2_grpc.CoreServicer):
         primitives = self._primitives
         problem = request.problem.problem
         template = request.template
-        task_name = problem_pb2.TaskType.Name(problem.task_type)
+        task_name = self.get_task_name(problem.task_keywords)
         logging.info(task_name)
 
         solutions = []
