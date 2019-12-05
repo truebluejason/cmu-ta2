@@ -669,10 +669,9 @@ class SolutionDescription(object):
         model = primitive(hyperparams=primitive_hyperparams(primitive_hyperparams.defaults(), **custom_hyperparams))
         model.set_training_data(**training_arguments)
         model.fit()
-        self.pipeline[n_step] = model
-
         if 'splitter' in python_path:
             model._training_inputs = None
+        self.pipeline[n_step] = model
 
         final_output = None
         if 'DistilRaggedDatasetLoader' in python_path:
@@ -879,7 +878,8 @@ class SolutionDescription(object):
             taskname == 'IMAGE' or
             taskname == 'TIMESERIES' or
             taskname == 'TEXTCLASSIFICATION' or
-            taskname == 'SEMISUPERVISEDCLASSIFICATION'):
+            taskname == 'IMVADIO' or
+            taskname == 'SEMISUPERVISED'):
             if self.categorical_atts is not None and len(self.categorical_atts) > 0:
                 python_paths.append('d3m.primitives.data_transformation.one_hot_encoder.SKlearn')
 
@@ -959,33 +959,31 @@ class SolutionDescription(object):
                 self.hyperparams[i] = {}
                 self.hyperparams[i]['type_to_cast'] = 'float'
 
-            if python_paths[i] == 'd3m.primitives.data_transformation.link_prediction.DistilLinkPrediction':
+            if python_paths[i] == 'd3m.primitives.link_prediction.link_prediction.DistilLinkPrediction':
                 self.hyperparams[i] = {}
                 self.hyperparams[i]['metric'] = 'accuracy'
+
+            if python_paths[i] == 'd3m.primitives.community_detection.community_detection.DistilCommunityDetection':
+                self.hyperparams[i] = {}
+                self.hyperparams[i]['metric'] = 'normalizedMutualInformation'
+
+            if python_paths[i] == 'd3m.primitives.vertex_nomination.vertex_nomination.DistilVertexNomination':
+                self.hyperparams[i] = {}
+                self.hyperparams[i]['metric'] = 'accuracy'
+
+            if python_paths[i] == 'd3m.primitives.data_preprocessing.image_reader.Common':
+                self.hyperparams[i] = {}
+                self.hyperparams[i]['use_columns'] = [0,1]
+                self.hyperparams[i]['return_result'] = 'replace'
 
             if self.privileged is not None and len(self.privileged) > 0 and \
                 python_paths[i] == 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common':
                 self.hyperparams[i] = {}
                 self.hyperparams[i]['exclude_columns'] = self.privileged
             
-            if 'signal_framer' in python_paths[i]:
-                self.hyperparams[i] = {}
-                self.hyperparams[i]['frame_length_s'] = 100
-                self.hyperparams[i]['frame_shift_s'] = 0.2
-
-            if 'signal_mfcc' in python_paths[i]:
-                self.hyperparams[i] = {}
-                self.hyperparams[i]['num_ceps'] = 6
-                self.hyperparams[i]['num_chans'] = 10
-
-            if 'kmeans' in python_paths[i]:
-                self.hyperparams[i] = {}
-                self.hyperparams[i]['n_init'] = 15
-                self.hyperparams[i]['n_clusters'] = 64
-
-            if 'tfidf_vectorizer' in python_paths[i]:
-                self.hyperparams[i] = {}
-                self.hyperparams[i]['sublinear_tf'] = True
+            #if 'column_parser' in python_paths[i]:
+            #    self.hyperparams[i] = {}
+            #    self.hyperparams[i]['parse_semantic_types'] = ["http://schema.org/Boolean", "http://schema.org/Integer", "http://schema.org/Float", "https://metadata.datadrivendiscovery.org/types/FloatVector", "http://schema.org/DateTime",'https://metadata.datadrivendiscovery.org/types/CategoricalData']
 
             # Construct pipelines for different task types
             if taskname == 'CLASSIFICATION' or \
@@ -993,7 +991,8 @@ class SolutionDescription(object):
                  taskname == 'TEXT' or \
                  taskname == 'IMAGE' or \
                  taskname == 'VIDEO' or \
-                 taskname == 'TIMESERIES':
+                 taskname == 'TIMESERIES' or \
+                 taskname == 'IMVADIO':
                 if i == 0: # denormalize
                     data = 'inputs.0'
                 elif i == self.index_denormalize + 2: # extract_columns_by_semantic_types (targets)
@@ -1002,6 +1001,21 @@ class SolutionDescription(object):
                     self.hyperparams[i]['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/TrueTarget']
                 elif i == self.index_denormalize + 3: # extract_columns_by_semantic_types
                     data = 'steps.{}.produce'.format(self.index_denormalize + 1)
+                else: # other steps
+                    data = 'steps.' + str(i - 1) + '.produce'
+                    if taskname == 'IMVADIO' and 'one_hot' in python_paths[i]:
+                        self.hyperparams[i]['use_semantic_types'] = False
+            elif taskname == 'LARGETEXT':
+                if i == 0: # splitter 
+                    data = 'inputs.0'
+                    self.hyperparams[i] = {}
+                    self.hyperparams[i]['threshold_row_length'] = 50000
+                elif i == 3: # extract_columns_by_semantic_types (targets)
+                    data = 'steps.2.produce'
+                    self.hyperparams[i] = {}
+                    self.hyperparams[i]['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/TrueTarget']
+                elif i == 4: # extract_columns_by_semantic_types
+                    data = 'steps.2.produce'
                 else: # other steps
                     data = 'steps.' + str(i - 1) + '.produce'
             elif taskname == 'GENERAL_RELATIONAL':
@@ -1033,21 +1047,7 @@ class SolutionDescription(object):
                     source = data.split('.')[1]
                     self.primitives_arguments[i]['outputs'] = {'origin': origin, 'source': int(source), 'data': data}
                     data = 'steps.' + str(i - 1) + '.produce'
-            elif taskname == 'TIMESERIES4':
-                if i == 0 or i == 3:
-                    data = 'inputs.0'
-                elif i == self.index_denormalize + 2: # extract_columns_by_semantic_types (targets)
-                    data = 'steps.{}.produce'.format(self.index_denormalize + 1)
-                    self.hyperparams[i] = {}
-                    self.hyperparams[i]['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/TrueTarget']
-                elif i == 11:
-                    data = 'steps.' + str(i - 1) + '.produce'
-                    self.hyperparams[i] = {}
-                    self.hyperparams[i]['frame_length_s'] = 1
-                    self.hyperparams[i]['frame_shift_s'] = 1
-                else: # other steps
-                    data = 'steps.' + str(i - 1) + '.produce'
-            elif taskname == 'COMMUNITYDETECTION2':
+            elif taskname == 'COMMUNITYDETECTION':
                 if i == 0: # denormalize
                     data = 'inputs.0'
                 else:
@@ -1056,7 +1056,16 @@ class SolutionDescription(object):
                     source = data.split('.')[1]
                     self.primitives_arguments[i]['outputs'] = {'origin': origin, 'source': int(source), 'data': data}
                     data = 'steps.0.produce'
-            elif taskname == 'LINKPREDICTION2':
+            elif taskname == 'LINKPREDICTION':
+                if i == 0: # denormalize
+                    data = 'inputs.0'
+                else:
+                    data = 'steps.0.produce_target'
+                    origin = data.split('.')[0]
+                    source = data.split('.')[1]
+                    self.primitives_arguments[i]['outputs'] = {'origin': origin, 'source': int(source), 'data': data}
+                    data = 'steps.0.produce'
+            elif taskname == 'VERTEXCLASSIFICATION':
                 if i == 0: # denormalize
                     data = 'inputs.0'
                 else:
@@ -1083,16 +1092,27 @@ class SolutionDescription(object):
                     data = 'steps.' + str(i - 1) + str('.produce')
                 else: # other steps
                     data = 'steps.' + str(i - 1) + '.produce'
+            #elif taskname == 'AUDIO':
+            #    if i == 0 or i == 3: # denormalize or AudioReader
+            #        data = 'inputs.0'
+            #    elif i == 2: # extract_columns_by_semantic_types (targets)
+            #        data = 'steps.1.produce'
+            #        self.hyperparams[i] = {}
+            #        self.hyperparams[i]['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/TrueTarget']
+            #    else: # other steps
+            #        data = 'steps.' + str(i-1) + '.produce'
             elif taskname == 'AUDIO':
-                if i == 0 or i == 3: # denormalize or AudioReader
+                if i == 0: # AudioDatasetLoader
                     data = 'inputs.0'
                 elif i == 2: # extract_columns_by_semantic_types (targets)
                     data = 'steps.1.produce'
                     self.hyperparams[i] = {}
                     self.hyperparams[i]['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/TrueTarget']
+                elif i == 3: # DistilAudioTransfer
+                    data = 'steps.0.produce_collection'
                 else: # other steps
                     data = 'steps.' + str(i-1) + '.produce'
-            elif taskname == 'SEMISUPERVISEDCLASSIFICATION':
+            elif taskname == 'SEMISUPERVISED':
                 if i == 0: # denormalize
                     data = 'inputs.0'
                 elif i == 2: # extract_columns_by_semantic_types (targets)
@@ -1144,7 +1164,7 @@ class SolutionDescription(object):
             origin = data.split('.')[0]
             source = data.split('.')[1]
             self.primitives_arguments[i]['inputs'] = {'origin': origin, 'source': int(source), 'data': data}
-
+            
             if i == 0:
                 execution_graph.add_edge(origin, str(i))
             else:
@@ -1242,6 +1262,12 @@ class SolutionDescription(object):
 
         self.execution_order.append(i)
         self.add_outputs()
+
+    def splitter_present(self):
+        python_path = self.primitives[0].metadata.query()['python_path']
+        if 'splitter' in python_path:
+            return True
+        return False
 
     def complete_solution(self, optimal_params):
         """
@@ -1557,7 +1583,7 @@ class SolutionDescription(object):
             logging.info("Running %s", python_path)
             start = timer()
             self.primitives_outputs[n_step] = self.process_step(n_step, self.primitives_outputs, ActionType.FIT, arguments)
-            #if n_step > 0:
+            #if n_step > 1:
             #    print(self.primitives_outputs[n_step].iloc[0:5,:])
             end = timer()
             logging.info("Time taken : %s seconds", end - start)
@@ -1571,7 +1597,7 @@ class SolutionDescription(object):
                 continue
             self.primitives_outputs[i] = [None]
 
-        self.total_cols = len(self.primitives_outputs[len(self.execution_order)-1].columns) 
+        self.total_cols = len(self.primitives_outputs[input_step].columns) 
 
     def get_total_cols(self):
         return self.total_cols

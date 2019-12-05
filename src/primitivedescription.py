@@ -153,7 +153,7 @@ class PrimitiveDescription(object):
             score = abs(prim_instance._model.best_fitness)
             return (score, optimal_params)
 
-        if y is None or 'graph' in python_path or 'link' in python_path or 'community' in python_path or 'JHU' in python_path or 'yolo' in python_path or 'FCN' in python_path:
+        if y is None or 'graph' in python_path or 'vertex' in python_path or 'link' in python_path or 'community' in python_path or 'JHU' in python_path or 'yolo' in python_path or 'FCN' in python_path:
             if util.invert_metric(metric_type) is True:
                 return (0.0, optimal_params)
             else:
@@ -182,12 +182,19 @@ class PrimitiveDescription(object):
             for name, value in params.items():
                 optimal_params[name] = value
 
+        # Put constraints on primitive hyperparameters to avoid excessive time-complexity!
         if 'SKlearn' in python_path:
             hyperparam_spec = self.primitive.metadata.query()['primitive_code']['hyperparams']
-            if len(X) > 100000 and 'n_estimators' in hyperparam_spec:
+            if len(X) >= 50000 and 'n_estimators' in hyperparam_spec:
+                optimal_params['n_estimators'] = 50
+            if len(X) >= 100000 and 'n_estimators' in hyperparam_spec:
                 optimal_params['n_estimators'] = 10
-            if len(X) > 100000 and ('linear_svc' in python_path or 'linear_svr' in python_path):
+            if len(X) >= 100000 and ('linear_svc' in python_path or 'linear_svr' in python_path):
                 optimal_params['max_iter'] = 100
+            if len(X.columns) > 500 and 'random_forest' in python_path:
+                optimal_params['max_features'] = 15
+            if len(X.columns) > 50 and 'gradient_boosting' in python_path:
+                optimal_params['max_features'] = 7
 
         primitive_hyperparams = self.primitive.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
         prim_instance = self.primitive(hyperparams=primitive_hyperparams(primitive_hyperparams.defaults(), **optimal_params))
@@ -391,7 +398,12 @@ class PrimitiveDescription(object):
             predictions = prim_instance.produce(inputs=X_test).value
             if 'xgboost' in python_path and len(predictions.columns) > 1:
                 predictions = predictions.iloc[:,len(predictions.columns)-1]
-            metric = self.evaluate_metric(predictions, y_test, metric_type, posLabel)
+
+            if 'iterative_labeling' in python_path:
+                labeledIx = np.where(y_test.iloc[:, 0].values != '')[0]
+                metric = self.evaluate_metric(predictions.iloc[labeledIx], y_test.iloc[labeledIx], metric_type, posLabel)
+            else:
+                metric = self.evaluate_metric(predictions, y_test, metric_type, posLabel)
             metric_scores.append(metric)
             metric_sum += metric
 
