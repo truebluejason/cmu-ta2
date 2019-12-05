@@ -29,7 +29,7 @@ def search_phase():
     problemPath = os.environ['D3MPROBLEMPATH']
 
     logger = logging.getLogger()
-    logger.setLevel(level=logging.ERROR)
+    #logger.setLevel(level=logging.ERROR)
     print("D3MINPUTDIR = ", inputDir)
     print("D3MOUTPUTDIR = ", outputDir)
     print("timeout = ", timeout_env)
@@ -87,17 +87,17 @@ def search_phase():
 
     index = 0
     for r in results:
-        try:
+        if 1:#try:
             (score, optimal_params) = r.get(timeout=halftimeout)
             id = solutions[index].id
             valid_solutions[id] = solutions[index]
             valid_solution_scores[id] = score
             if optimal_params is not None and len(optimal_params) > 0:
                 valid_solutions[id].set_hyperparams(optimal_params)
-        except:
-            print(solutions[index].primitives)
-            print(sys.exc_info()[0])
-            print("Solution terminated: ", solutions[index].id)
+        #except:
+        #    print(solutions[index].primitives)
+        #    print(sys.exc_info()[0])
+        #    print("Solution terminated: ", solutions[index].id)
         index = index + 1
 
     # Sort solutions by their scores and rank them
@@ -124,12 +124,12 @@ def search_phase():
 
     index = 0
     for r in results:
-        try:
+        if 1:#try:
             valid=r.get(timeout=halftimeout)
-        except:
-            print(valid_solutions[sorted_x[index][0]].primitives)
-            print(sys.exc_info()[0])
-            print("Solution terminated: ", valid_solutions[sorted_x[index][0]].id)
+        #except:
+        #    print(valid_solutions[sorted_x[index][0]].primitives)
+        #    print(sys.exc_info()[0])
+        #    print("Solution terminated: ", valid_solutions[sorted_x[index][0]].id)
         index = index + 1
 
 def evaluate_solution_score(inputs, solution, primitives, metric, posLabel, sol_dict):
@@ -149,7 +149,7 @@ def fit_solution(inputs, solution, primitives, outputDir, problem_desc):
     Fits each potential solution
     Runs in a separate process
     """
-    print("Fitting ", solution.id)
+    #print("Fitting ", solution.id)
 
     #output = solution.fit(inputs=inputs, solution_dict=None)
     #output = solution.produce(inputs=inputs, solution_dict=None)
