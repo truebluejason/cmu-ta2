@@ -38,7 +38,8 @@ import networkx as nx
 import util
 import solution_templates
 
-import logging
+import logging, typing, os 
+from timeit import default_timer as timer
 
 logging.basicConfig(level=logging.INFO)
 
@@ -257,6 +258,7 @@ class SolutionDescription(object):
         self.ok_to_impute = False
         self.privileged = None
         self.index_denormalize = 0
+        self.volumes_dir = os.environ['D3MSTATICDIR']
 
     def set_categorical_atts(self, atts):
         self.categorical_atts = atts
@@ -625,6 +627,13 @@ class SolutionDescription(object):
         for i in range(len(self.primitives)):
             self.pipeline[i] = None
 
+    def _get_primitive_volumes(self, primitive_class) -> typing.Dict:
+        volumes = {}
+        for entry in primitive_class.metadata.get_volumes():
+            volume_path = os.path.join(self.volumes_dir, entry['file_digest'])
+            volumes[entry['key']] = volume_path
+        return volumes
+
     def fit_step(self, n_step: int, primitive: PrimitiveBaseMeta, primitive_arguments):
         """
         Execute a primitive step
@@ -666,7 +675,12 @@ class SolutionDescription(object):
             if param in training_arguments_primitive:
                 training_arguments[param] = value
 
-        model = primitive(hyperparams=primitive_hyperparams(primitive_hyperparams.defaults(), **custom_hyperparams))
+        method_arguments = primitive.metadata.query()['primitive_code'].get('instance_methods', {}).get('__init__', {}).get('arguments', [])
+        if 'volumes' in method_arguments:
+            volumes = self._get_primitive_volumes(primitive)
+            model = primitive(volumes=volumes, hyperparams=primitive_hyperparams(primitive_hyperparams.defaults(), **custom_hyperparams))
+        else:
+            model = primitive(hyperparams=primitive_hyperparams(primitive_hyperparams.defaults(), **custom_hyperparams))
         model.set_training_data(**training_arguments)
         model.fit()
         if 'splitter' in python_path:
@@ -1438,7 +1452,11 @@ class SolutionDescription(object):
             elif action is ActionType.VALIDATE and self.is_last_step(n_step) == True:
                 return self.validate_step(self.primitives[n_step], primitive_arguments)    
             else:
+                start = timer()
                 v = self.fit_step(n_step, self.primitives[n_step], primitive_arguments)
+                if 'corex' in python_path:
+                    end = timer()
+                    print("Time taken for corex = ", (end-start))
                 return v
 
         # Placeholder step
@@ -1550,7 +1568,6 @@ class SolutionDescription(object):
         Run common parts of a pipeline before adding last step of classifier/regressor
         This saves on data processing, featurizing steps being repeated across multiple pipelines.
         """
-        from timeit import default_timer as timer
         self.primitives_outputs = [None] * len(self.execution_order)
 
         output_step = arguments['output_step']

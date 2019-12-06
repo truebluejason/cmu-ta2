@@ -185,7 +185,7 @@ class PrimitiveDescription(object):
         # Put constraints on primitive hyperparameters to avoid excessive time-complexity!
         if 'SKlearn' in python_path:
             hyperparam_spec = self.primitive.metadata.query()['primitive_code']['hyperparams']
-            if len(X) >= 50000 and 'n_estimators' in hyperparam_spec:
+            if len(X) >= 50000 and ('random_forest' in python_path or 'gradient_boosting' in python_path or 'bagging' in python_path): # 'n_estimators' in hyperparam_spec:
                 optimal_params['n_estimators'] = 50
             if len(X) >= 100000 and 'n_estimators' in hyperparam_spec:
                 optimal_params['n_estimators'] = 10
