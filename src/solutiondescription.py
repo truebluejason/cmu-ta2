@@ -673,6 +673,9 @@ class SolutionDescription(object):
             model._training_inputs = None
         self.pipeline[n_step] = model
 
+        if 'image_transfer' in python_path:
+            self.pipeline[n_step] = None
+
         final_output = None
         if 'DistilRaggedDatasetLoader' in python_path:
             final_output = {}
@@ -727,6 +730,11 @@ class SolutionDescription(object):
 
             if self.steptypes[n_step] is StepType.PRIMITIVE:
                 primitive = self.primitives[n_step]
+                if self.pipeline[n_step] is None:
+                    primitive_hyperparams = primitive.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
+                    custom_hyperparams = dict()
+                    model = primitive(hyperparams=primitive_hyperparams(primitive_hyperparams.defaults(), **custom_hyperparams))
+                    self.pipeline[n_step] = model
                 produce_arguments_primitive = self._primitive_arguments(primitive, 'produce')
                 for argument, value in self.primitives_arguments[n_step].items():
                     if argument in produce_arguments_primitive:

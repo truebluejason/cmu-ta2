@@ -343,7 +343,7 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
 
             if len(types_present) == 1 and types_present[0] == 'FILES':
                 types_present[0] = 'TIMESERIES' 
-            if 1:#try:
+            try:
                 largetext = False
                 if 'TIMESERIES' in types_present:
                     basic_sol.initialize_solution('TIMESERIES', augmentation_dataset)
@@ -375,9 +375,9 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
                 time_used = end - start
                 total_cols = basic_sol.get_total_cols()
                 logging.info("Total cols = %s", total_cols)
-            #except:
-            #    logging.info(sys.exc_info()[0])
-            #    basic_sol = None
+            except:
+                logging.info(sys.exc_info()[0])
+                basic_sol = None
 
         # Iterate through primitives which match task type for populative pool of solutions
         listOfSolutions = []
@@ -392,9 +392,11 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
                     listOfSolutions = ['d3m.primitives.classification.extra_trees.SKlearn']
                 else:
                     listOfSolutions = classifiers
-
+        
+        # Iterate through different ML models (classifiers/regressors).
+        # Each one is evaluated in a seperate process.
         for python_path in listOfSolutions:
-            if (total_cols > 500 or rows > 100000) and 'xgboost' in python_path:
+            if (total_cols > 500 or rows > 100000 or 'IMAGE' in types_present) and 'xgboost' in python_path:
                 continue
 
             if rows > 100000 and ('linear_sv' in python_path or 'gradient_boosting' in python_path):
@@ -413,7 +415,7 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
                 if 'linear_sv' in python_path or 'ada_boost' in python_path or 'lasso_cv' in python_path or 'gradient_boosting' in python_path:
                     continue
 
-            pipe = copy.deepcopy(basic_sol) 
+            pipe = copy.deepcopy(basic_sol)
             pipe.id = str(uuid.uuid4())
             pipe.add_step(python_path, outputstep = pipe.index_denormalize + 2, dataframestep = pipe.index_denormalize + 1)
             solutions.append(pipe)
@@ -463,10 +465,22 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
         pipe.add_step('d3m.primitives.classification.extra_trees.SKlearn')
         solutions.append(pipe)
 
+        pipe = solutiondescription.SolutionDescription(problem)
+        pipe.initialize_solution('CLASSIFICATION')
+        pipe.id = str(uuid.uuid4())
+        pipe.add_step('d3m.primitives.classification.gradient_boosting.SKlearn')
+        solutions.append(pipe)
+
+        pipe = solutiondescription.SolutionDescription(problem)
+        pipe.initialize_solution('CLASSIFICATION')
+        pipe.id = str(uuid.uuid4())
+        pipe.add_step('d3m.primitives.classification.bernoulli_naive_bayes.SKlearn')
+        solutions.append(pipe)
+
         if 0: #task_name == 'GRAPHMATCHING': # or \
            #task_name == 'VERTEXCLASSIFICATION' or \
            #task_name == 'COMMUNITYDETECTION' or \
-           #task_name == 'LINKPREDICTION':
+           #task_name == 'LINKPREDICTION'            pipe = solutiondescription.SolutionDescription(problem)
             pipe = solutiondescription.SolutionDescription(problem)
             second_name = task_name + '2'
             pipe.initialize_solution(second_name)
