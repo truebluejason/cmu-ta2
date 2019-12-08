@@ -55,7 +55,12 @@ class Core(core_pb2_grpc.CoreServicer):
         util.initialize_for_search(outputDir)
 
     def get_task_name(self, keywords):
-        return problem_pb2.TaskKeyword.Name(keywords[0])
+        taskname = problem_pb2.TaskKeyword.Name(keywords[0])
+        for k in keywords:
+            name = problem_pb2.TaskKeyword.Name(k)
+            if name == 'SEMISUPERVISED':
+                return name
+        return taskname
 
     def search_solutions(self, request, dataset):
         """
