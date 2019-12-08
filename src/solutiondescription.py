@@ -1145,8 +1145,8 @@ class SolutionDescription(object):
                     data = 'steps.1.produce'
                 elif i == 4: # extract_columns
                     data = 'steps.3.produce'
-                    self.hyperparams[i] = {}
-                    self.hyperparams[i]['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/Attribute','https://metadata.datadrivendiscovery.org/types/PrimaryKey']
+                    #self.hyperparams[i] = {}
+                    #self.hyperparams[i]['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/Attribute','https://metadata.datadrivendiscovery.org/types/PrimaryKey']
                 else: # other steps
                     data = 'steps.' + str(i-1) + '.produce'
             elif taskname == 'OBJECTDETECTION':
