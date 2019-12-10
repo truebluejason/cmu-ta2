@@ -302,7 +302,7 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
     solutions = []
     time_used = 0
 
-    if task_name == 'TIMESERIESFORECASTING':
+    if task_name == 'TIMESERIES' or task_name == 'FORECASTING':
         task_name = 'REGRESSION'
     if task_name == 'VERTEXNOMINATION':
         task_name = 'VERTEXCLASSIFICATION'
