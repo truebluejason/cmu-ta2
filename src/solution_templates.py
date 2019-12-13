@@ -16,6 +16,7 @@ task_paths = {
                        'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
                        'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common',
                        'd3m.primitives.data_transformation.column_parser.Common',
+                       'd3m.primitives.data_preprocessing.text_reader.Common',
                        'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common',
                        'd3m.primitives.data_cleaning.imputer.SKlearn',
                        'd3m.primitives.data_transformation.encoder.DistilTextEncoder'],
@@ -318,12 +319,11 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
     privileged = []
     if task_name == 'CLASSIFICATION' or task_name == 'REGRESSION' or task_name == 'SEMISUPERVISED':
         try:
-            (types_present, total_cols, rows, categorical_atts, ordinal_atts, ok_to_denormalize, ok_to_impute, privileged, text_prop, ok_to_augment) = solutiondescription.column_types_present(dataset, augmentation_dataset)
+            (types_present, total_cols, rows, categorical_atts, ordinal_atts, ok_to_denormalize, privileged, text_prop, ok_to_augment) = solutiondescription.column_types_present(dataset, augmentation_dataset)
             logging.info(types_present)
             basic_sol.set_categorical_atts(categorical_atts)
             basic_sol.set_ordinal_atts(ordinal_atts)
             basic_sol.set_denormalize(ok_to_denormalize)
-            basic_sol.set_impute(ok_to_impute)
             basic_sol.set_privileged(privileged)
             if ok_to_augment == False:
                 augmentation_dataset = None
@@ -351,14 +351,14 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
                 elif 'IMAGE' in types_present:
                     basic_sol.initialize_solution('IMAGE', augmentation_dataset)
                 elif 'TEXT' in types_present:
-                    if task_name == 'CLASSIFICATION' and text_prop < 0.33:
+                    if task_name == 'CLASSIFICATION':# and text_prop < 0.33:
                         basic_sol.initialize_solution('TEXTCLASSIFICATION', augmentation_dataset)
-                    else:
-                        if rows > 50000:
-                            basic_sol.initialize_solution('LARGETEXT', augmentation_dataset)
-                            largetext = True
-                        else:
-                            basic_sol.initialize_solution('TEXT', augmentation_dataset)
+                    #else:
+                    #    if rows > 50000:
+                    #        basic_sol.initialize_solution('LARGETEXT', augmentation_dataset)
+                    #        largetext = True
+                    #    else:
+                    #        basic_sol.initialize_solution('TEXT', augmentation_dataset)
                 elif 'AUDIO' in types_present:
                     basic_sol.initialize_solution('AUDIO', augmentation_dataset)
                 elif 'VIDEO' in types_present:

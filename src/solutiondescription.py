@@ -94,7 +94,6 @@ def column_types_present(dataset, dataset_augmentation = None):
     Returns ([data types], total columns, total rows, [categorical att indices], ok_to_denormalize)
     """
     ok_to_denormalize = True
-    ok_to_impute = False
     ok_to_augment = False
 
     try:
@@ -160,15 +159,9 @@ def column_types_present(dataset, dataset_augmentation = None):
     privileged = metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/SuggestedPrivilegedData")
     attcols = metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/Attribute")
     text_prop = textcols/len(attcols)
-    for t in attcols:
-        column_metadata = metadata.query((metadata_base.ALL_ELEMENTS, t))
-        semantic_types = column_metadata.get('semantic_types', [])
-        if "http://schema.org/Integer" in semantic_types or "http://schema.org/Float" in semantic_types or "http://schema.org/DateTime" in semantic_types:
-            ok_to_impute = True
-            break
 
     print("Data types present: ", types)
-    return (types, len(attcols), len(df), cols, ordinals, ok_to_denormalize, ok_to_impute, privileged, text_prop, ok_to_augment)
+    return (types, len(attcols), len(df), cols, ordinals, ok_to_denormalize, privileged, text_prop, ok_to_augment)
 
 def compute_timestamp():
     now = time.time()
@@ -255,7 +248,6 @@ class SolutionDescription(object):
         self.categorical_atts = None
         self.ordinal_atts = None
         self.ok_to_denormalize = True
-        self.ok_to_impute = False
         self.privileged = None
         self.index_denormalize = 0
         self.volumes_dir = os.environ['D3MSTATICDIR']
@@ -268,9 +260,6 @@ class SolutionDescription(object):
 
     def set_denormalize(self, ok_to_denormalize):
         self.ok_to_denormalize = ok_to_denormalize
-
-    def set_impute(self, ok_to_impute):
-        self.ok_to_impute = ok_to_impute
 
     def set_privileged(self, privileged):
         self.privileged = privileged
@@ -891,9 +880,6 @@ class SolutionDescription(object):
         if 'denormalize' in python_paths[self.index_denormalize] and self.ok_to_denormalize == False:
             python_paths.remove('d3m.primitives.data_transformation.denormalize.Common')
 
-        if len(python_paths) > (self.index_denormalize + 5) and 'imputer' in python_paths[self.index_denormalize + 5] and self.ok_to_impute == False:
-            python_paths.remove('d3m.primitives.data_cleaning.imputer.SKlearn')
-
         if (taskname == 'CLASSIFICATION' or
             taskname == 'REGRESSION' or
             taskname == 'TEXT' or
@@ -939,6 +925,7 @@ class SolutionDescription(object):
                 self.hyperparams[i]['use_semantic_types'] = True
                 self.hyperparams[i]['return_result'] = 'replace'
                 self.hyperparams[i]['strategy'] = 'median'
+                self.hyperparams[i]['error_on_no_input'] = False
 
             if python_paths[i] == 'd3m.primitives.data_transformation.one_hot_encoder.SKlearn':
                 self.hyperparams[i] = {}
@@ -996,6 +983,10 @@ class SolutionDescription(object):
             if python_paths[i] == 'd3m.primitives.data_preprocessing.image_reader.Common':
                 self.hyperparams[i] = {}
                 self.hyperparams[i]['use_columns'] = [0,1]
+                self.hyperparams[i]['return_result'] = 'replace'
+
+            if python_paths[i] == 'd3m.primitives.data_preprocessing.text_reader.Common':
+                self.hyperparams[i] = {}
                 self.hyperparams[i]['return_result'] = 'replace'
 
             if self.privileged is not None and len(self.privileged) > 0 and \
