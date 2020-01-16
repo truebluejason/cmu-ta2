@@ -466,11 +466,12 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
         pipe.add_step('d3m.primitives.classification.extra_trees.SKlearn')
         solutions.append(pipe)
 
-        pipe = solutiondescription.SolutionDescription(problem)
-        pipe.initialize_solution('CLASSIFICATION')
-        pipe.id = str(uuid.uuid4())
-        pipe.add_step('d3m.primitives.classification.gradient_boosting.SKlearn')
-        solutions.append(pipe)
+        if task_name != 'COMMUNITYDETECTION':
+            pipe = solutiondescription.SolutionDescription(problem)
+            pipe.initialize_solution('CLASSIFICATION')
+            pipe.id = str(uuid.uuid4())
+            pipe.add_step('d3m.primitives.classification.gradient_boosting.SKlearn')
+            solutions.append(pipe)
 
         pipe = solutiondescription.SolutionDescription(problem)
         pipe.initialize_solution('CLASSIFICATION')
@@ -520,11 +521,10 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
         #pipe.id = str(uuid.uuid4())
         #pipe.add_outputs()
         #solutions.append(pipe)
-    if types_present is not None and ('AUDIO' in types_present or 'VIDEO' in types_present or 'IMAGE' in types_present):
+    if types_present is not None and ('AUDIO' in types_present or 'VIDEO' in types_present):
         pipe = solutiondescription.SolutionDescription(problem)
         pipe.initialize_solution('IMVADIO')
         pipe.id = str(uuid.uuid4())
-        pipe.run_basic_solution(inputs=[dataset], output_step = pipe.index_denormalize + 2, dataframe_step = pipe.index_denormalize + 1)
         if task_name == 'CLASSIFICATION':
             pipe.add_step('d3m.primitives.classification.random_forest.SKlearn', outputstep=pipe.index_denormalize + 2, dataframestep=pipe.index_denormalize + 1)
         else:

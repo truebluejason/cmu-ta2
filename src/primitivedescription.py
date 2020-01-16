@@ -159,12 +159,6 @@ class PrimitiveDescription(object):
             else:
                 return (1.0, optimal_params)
 
-        if 'Find_projections' in python_path and 'Numeric' not in python_path:
-            rows = len(X)
-            min_rows = (int)(rows * 0.8 * 0.5)
-            if min_rows < 100:
-                optimal_params['support'] = min_rows
-
         # Lasso CV can become very expensive for large number of columns!!!
         # Use lasso's CV score
         if 'lasso_cv' in python_path and len(X.columns) > 500:
@@ -191,7 +185,7 @@ class PrimitiveDescription(object):
                 optimal_params['n_estimators'] = 10
             if len(X) >= 100000 and ('linear_svc' in python_path or 'linear_svr' in python_path):
                 optimal_params['max_iter'] = 100
-            if len(X.columns) > 500 and 'random_forest' in python_path:
+            if len(X.columns) > 500 and ('random_forest' in python_path or 'bagging' in python_path):
                 optimal_params['max_features'] = 15
             if len(X.columns) > 50 and 'gradient_boosting' in python_path:
                 optimal_params['max_features'] = 7
