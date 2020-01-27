@@ -42,6 +42,12 @@ def add_target_columns_metadata(dataset: 'Dataset', problem_doc: 'Metadata'):
 
     return dataset
 
+def add_privileged_columns_metadata(dataset: 'Dataset', problem_doc: 'Metadata'):
+    for privileged_data in problem_doc.get('inputs')[0].get('privileged_data', []):
+        dataset.metadata = dataset.metadata.add_semantic_type((privileged_data['resource_id'], metadata_base.ALL_ELEMENTS, privileged_data['column_index']),'https://metadata.datadrivendiscovery.org/types/PrivilegedData',)
+
+    return dataset
+
 def add_target_metadata(dataset, targets):
     for target in targets:
         semantic_types = list(dataset.metadata.query((target.resource_id, metadata_base.ALL_ELEMENTS, target.column_index)).get('semantic_types', []))
@@ -55,6 +61,39 @@ def add_target_metadata(dataset, targets):
         metadata_base.ALL_ELEMENTS, target.column_index),'https://metadata.datadrivendiscovery.org/types/Attribute',)
 
     return dataset
+
+def add_privileged_metadata(dataset: 'Dataset', privileged_data):
+    for data in privileged_data:
+        dataset.metadata = dataset.metadata.add_semantic_type((data.resource_id, metadata_base.ALL_ELEMENTS, privileged_data.column_index),'https://metadata.datadrivendiscovery.org/types/PrivilegedData',)
+
+    return dataset
+
+def get_task_name(keywords):
+    taskname = keywords[0].upper()
+    for k in keywords:
+        name = k.upper()
+        if name == 'SEMISUPERVISED':
+            return name
+        if name == 'OBJECT_DETECTION':
+            return name
+        if name == 'FORECASTING':
+            return name
+        if name == 'CLASSIFICATION':
+            return name
+        if name == 'REGRESSION':
+            return name
+        if name == 'GRAPH_MATCHING':
+            return name
+        if name == 'VERTEX_NOMINATION':
+            return name
+        if name == 'LINK_PREDICTION':
+            return name
+        if name == 'VERTEX_CLASSIFICATION':
+            return name
+        if name == 'COMMUNITY_DETECTION':
+            return name
+
+    return taskname
 
 def load_data_problem(inputdir, problempath):
     print("Reading ", inputdir)
@@ -75,8 +114,8 @@ def load_data_problem(inputdir, problempath):
 
     problem_description = problem.parse_problem_description(problempath)
     dataset = add_target_columns_metadata(dataset, problem_description)
-
-    taskname = problem_doc_metadata.query(())['about']['taskKeywords'][0]
+    dataset = add_privileged_columns_metadata(dataset, problem_description)
+    taskname = get_task_name(problem_doc_metadata.query(())['about']['taskKeywords'])
     metric = problem_doc_metadata.query(())['inputs']['performanceMetrics'][0]['metric']
     posLabel = None
     if metric == "f1":

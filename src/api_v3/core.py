@@ -60,6 +60,25 @@ class Core(core_pb2_grpc.CoreServicer):
             name = problem_pb2.TaskKeyword.Name(k)
             if name == 'SEMISUPERVISED':
                 return name
+            if name == 'OBJECT_DETECTION':
+                return name
+            if name == 'FORECASTING':
+                return name
+            if name == 'CLASSIFICATION':
+                return name
+            if name == 'REGRESSION':
+                return name
+            if name == 'GRAPH_MATCHING':
+                return name
+            if name == 'VERTEX_NOMINATION':
+                return name
+            if name == 'LINK_PREDICTION':
+                return name
+            if name == 'VERTEX_CLASSIFICATION':
+                return name
+            if name == 'COMMUNITY_DETECTION':
+                return name
+
         return taskname
 
     def search_solutions(self, request, dataset):
@@ -147,6 +166,7 @@ class Core(core_pb2_grpc.CoreServicer):
             if len(problem.inputs) > 0:
                 targets = problem.inputs[0].targets
                 dataset = util.add_target_metadata(dataset, targets)
+                dataset = util.add_privileged_metadata(dataset, problem.inputs[0].privileged_data)
             inputs.append(dataset) 
 
         return inputs

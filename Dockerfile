@@ -5,7 +5,8 @@
 #FROM registry.datadrivendiscovery.org/jpl/docker_images/complete:ubuntu-bionic-python36-v2019.6.7-20190611-205824
 #FROM registry.datadrivendiscovery.org/jpl/docker_images/complete:ubuntu-bionic-python36-v2019.6.7
 #FROM registry.datadrivendiscovery.org/jpl/docker_images/complete:ubuntu-bionic-python36-v2019.6.7-20190622-073225
-FROM registry.gitlab.com/datadrivendiscovery/images/primitives:ubuntu-bionic-python36-v2019.11.10-20191127-050901
+#FROM registry.gitlab.com/datadrivendiscovery/images/primitives:ubuntu-bionic-python36-v2019.11.10-20191127-050901
+FROM registry.gitlab.com/datadrivendiscovery/images/primitives:ubuntu-bionic-python36-v2020.1.9-20200125-073913
 
 maintainer "Donghan Wang<donghanw@cs.cmu.edu>"
 
@@ -31,8 +32,8 @@ RUN pip3 install --upgrade pip==18.1 \
     && python3 -m pip install --upgrade grpcio grpcio-tools
 
 # Create static dir for Image weights file
-RUN mkdir /static
-COPY resnet50_weights_tf_dim_ordering_tf_kernels.h5 /static
+#RUN mkdir /static
+#COPY resnet50_weights_tf_dim_ordering_tf_kernels.h5 /static
 
 EXPOSE 45042
 

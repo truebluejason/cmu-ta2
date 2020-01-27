@@ -88,6 +88,13 @@ def get_cols_to_encode(df):
     print("No. of cats = ", len(cols))
     return (list(cols), ordinals)
 
+def get_primitive_volumes(volumes_dir, primitive_class) -> typing.Dict:
+        volumes = {}
+        for entry in primitive_class.metadata.get_volumes():
+            volume_path = os.path.join(volumes_dir, entry['file_digest'])
+            volumes[entry['key']] = volume_path
+        return volumes
+
 def column_types_present(dataset, dataset_augmentation = None):
     """
     Retrieve special data types present: Text, Image, Timeseries, Audio, Categorical
@@ -126,6 +133,20 @@ def column_types_present(dataset, dataset_augmentation = None):
     model = primitive(hyperparams=primitive_hyperparams.defaults())
     df = model.produce(inputs=dataset).value
 
+    primitive = d3m.index.get_primitive('d3m.primitives.schema_discovery.profiler.Common') #'d3m.primitives.data_cleaning.column_type_profiler.Simon') #'d3m.primitives.schema_discovery.profiler.Common')
+    primitive_hyperparams = primitive.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
+    #model = primitive(hyperparams=primitive_hyperparams.defaults())
+    method_arguments = primitive.metadata.query()['primitive_code'].get('instance_methods', {}).get('__init__', {}).get('arguments', [])
+    if 'volumes' in method_arguments:
+        volumes = get_primitive_volumes(os.environ['D3MSTATICDIR'], primitive)
+        model = primitive(volumes=volumes, hyperparams=primitive_hyperparams(primitive_hyperparams.defaults()))
+    else:
+        model = primitive(hyperparams=primitive_hyperparams(primitive_hyperparams.defaults()))
+
+    model.set_training_data(inputs=df)
+    model.fit()
+    df = model.produce(inputs=df).value
+
     metadata = df.metadata
 
     types = []
@@ -156,7 +177,7 @@ def column_types_present(dataset, dataset_augmentation = None):
         types.append('Ordinals')
         print("Ordinals = ", ordinals)
     
-    privileged = metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/SuggestedPrivilegedData")
+    privileged = metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/PrivilegedData")
     attcols = metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/Attribute")
     text_prop = textcols/len(attcols)
 
@@ -517,7 +538,7 @@ class SolutionDescription(object):
 
     def isDataFrameStep(self, n_step):
         if self.steptypes[n_step] is StepType.PRIMITIVE and \
-        self.primitives[n_step].metadata.query()['python_path'] == 'd3m.primitives.data_transformation.dataset_to_dataframe.Common':
+        self.primitives[n_step].metadata.query()['python_path'] == 'd3m.primitives.schema_discovery.profiler.Common': #'d3m.primitives.data_transformation.dataset_to_dataframe.Common':
             return True
         return False
 
@@ -532,6 +553,16 @@ class SolutionDescription(object):
 
         # Ignore all column that have only one value
         for att in attributes:
+            attmeta = metadata.query((metadata_base.ALL_ELEMENTS, att))['semantic_types']
+            length = len(attmeta)-1
+            if 'https://metadata.datadrivendiscovery.org/types/UniqueKey' in attmeta:
+                length = length-1
+            if 'https://metadata.datadrivendiscovery.org/types/UnknownType' in attmeta:
+                length = length-1
+
+            if length == 0:
+                self.exclude_columns.add(int(att))
+                continue
             col = int(att)
             if len(df.iloc[:, col].unique()) <= 1:
                 self.exclude_columns.add(col)
@@ -616,13 +647,6 @@ class SolutionDescription(object):
         for i in range(len(self.primitives)):
             self.pipeline[i] = None
 
-    def _get_primitive_volumes(self, primitive_class) -> typing.Dict:
-        volumes = {}
-        for entry in primitive_class.metadata.get_volumes():
-            volume_path = os.path.join(self.volumes_dir, entry['file_digest'])
-            volumes[entry['key']] = volume_path
-        return volumes
-
     def fit_step(self, n_step: int, primitive: PrimitiveBaseMeta, primitive_arguments):
         """
         Execute a primitive step
@@ -666,7 +690,7 @@ class SolutionDescription(object):
 
         method_arguments = primitive.metadata.query()['primitive_code'].get('instance_methods', {}).get('__init__', {}).get('arguments', [])
         if 'volumes' in method_arguments:
-            volumes = self._get_primitive_volumes(primitive)
+            volumes = get_primitive_volumes(self.volumes_dir, primitive)
             model = primitive(volumes=volumes, hyperparams=primitive_hyperparams(primitive_hyperparams.defaults(), **custom_hyperparams))
         else:
             model = primitive(hyperparams=primitive_hyperparams(primitive_hyperparams.defaults(), **custom_hyperparams))
@@ -816,14 +840,14 @@ class SolutionDescription(object):
             # Construct pipelines for different task types
             if i == 0: # denormalize
                 data = 'inputs.0'
-            elif i == 3: # extract_columns_by_semantic_types (targets)
+            elif i == 4: # extract_columns_by_semantic_types (targets)
                 data = 'steps.2.produce'
                 self.hyperparams[i] = {}
                 self.hyperparams[i]['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/TrueTarget']
-            elif i == 4: # extract_columns_by_semantic_types
-                data = 'steps.2.produce'
-            elif 'RPI' in python_paths[i]:
+            elif i == 5: # extract_columns_by_semantic_types
                 data = 'steps.3.produce'
+            elif 'RPI' in python_paths[i]:
+                data = 'steps.4.produce'
                 origin = data.split('.')[0]
                 source = data.split('.')[1]
                 self.primitives_arguments[i]['outputs'] = {'origin': origin, 'source': int(source), 'data': data}
@@ -959,6 +983,10 @@ class SolutionDescription(object):
                 self.hyperparams[i] = {}
                 self.hyperparams[i]['max_dimension'] = 5
                 self.hyperparams[i]['use_attributes'] = True
+                if 'LINK' in taskname:
+                    self.hyperparams[i]['max_dimension'] = 2
+                    self.hyperparams[i]['use_attributes'] = False
+                    self.hyperparams[i]['which_elbow'] = 1
 
             if 'splitter' in python_paths[i]:
                 self.hyperparams[i] = {}
@@ -993,7 +1021,11 @@ class SolutionDescription(object):
                 python_paths[i] == 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common':
                 self.hyperparams[i] = {}
                 self.hyperparams[i]['exclude_columns'] = self.privileged
-            
+           
+            if python_paths[i] == 'd3m.primitives.schema_discovery.profiler.Common':
+                self.hyperparams[i] = {}
+                self.hyperparams[i]['categorical_max_absolute_distinct_values'] = None
+ 
             #if 'column_parser' in python_paths[i]:
             #    self.hyperparams[i] = {}
             #    self.hyperparams[i]['parse_semantic_types'] = ["http://schema.org/Boolean", "http://schema.org/Integer", "http://schema.org/Float", "https://metadata.datadrivendiscovery.org/types/FloatVector", "http://schema.org/DateTime",'https://metadata.datadrivendiscovery.org/types/CategoricalData']
@@ -1008,12 +1040,12 @@ class SolutionDescription(object):
                  taskname == 'IMVADIO':
                 if i == 0: # denormalize
                     data = 'inputs.0'
-                elif i == self.index_denormalize + 2: # extract_columns_by_semantic_types (targets)
-                    data = 'steps.{}.produce'.format(self.index_denormalize + 1)
+                elif i == self.index_denormalize + 3: # extract_columns_by_semantic_types (targets)
+                    data = 'steps.{}.produce'.format(self.index_denormalize + 2)
                     self.hyperparams[i] = {}
                     self.hyperparams[i]['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/TrueTarget']
-                elif i == self.index_denormalize + 3: # extract_columns_by_semantic_types
-                    data = 'steps.{}.produce'.format(self.index_denormalize + 1)
+                elif i == self.index_denormalize + 4: # extract_columns_by_semantic_types
+                    data = 'steps.{}.produce'.format(self.index_denormalize + 2)
                 else: # other steps
                     data = 'steps.' + str(i - 1) + '.produce'
                     if taskname == 'IMVADIO' and 'one_hot' in python_paths[i]:
@@ -1060,25 +1092,7 @@ class SolutionDescription(object):
                     source = data.split('.')[1]
                     self.primitives_arguments[i]['outputs'] = {'origin': origin, 'source': int(source), 'data': data}
                     data = 'steps.' + str(i - 1) + '.produce'
-            elif taskname == 'COMMUNITYDETECTION':
-                if i == 0: # denormalize
-                    data = 'inputs.0'
-                else:
-                    data = 'steps.0.produce_target'
-                    origin = data.split('.')[0]
-                    source = data.split('.')[1]
-                    self.primitives_arguments[i]['outputs'] = {'origin': origin, 'source': int(source), 'data': data}
-                    data = 'steps.0.produce'
-            elif taskname == 'LINKPREDICTION':
-                if i == 0: # denormalize
-                    data = 'inputs.0'
-                else:
-                    data = 'steps.0.produce_target'
-                    origin = data.split('.')[0]
-                    source = data.split('.')[1]
-                    self.primitives_arguments[i]['outputs'] = {'origin': origin, 'source': int(source), 'data': data}
-                    data = 'steps.0.produce'
-            elif taskname == 'VERTEXCLASSIFICATION':
+            elif taskname == 'COMMUNITYDETECTION' or taskname == 'LINKPREDICTION' or taskname == 'VERTEXCLASSIFICATION' or taskname == 'GRAPHMATCHING':
                 if i == 0: # denormalize
                     data = 'inputs.0'
                 else:
@@ -1090,14 +1104,14 @@ class SolutionDescription(object):
             elif taskname == 'TEXTCLASSIFICATION': 
                 if i == 0:
                     data = 'inputs.0'
-                elif i == self.index_denormalize + 2: # extract_columns_by_semantic_types (targets)
-                    data = 'steps.{}.produce'.format(self.index_denormalize + 1)
+                elif i == self.index_denormalize + 3: # extract_columns_by_semantic_types (targets)
+                    data = 'steps.{}.produce'.format(self.index_denormalize + 2)
                     self.hyperparams[i] = {}
                     self.hyperparams[i]['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/TrueTarget']
-                elif i == self.index_denormalize + 3: # extract_columns_by_semantic_types
-                    data = 'steps.{}.produce'.format(self.index_denormalize + 1)
-                elif 'DistilTextEncoder' in python_paths[i]:
+                elif i == self.index_denormalize + 4: # column_parser
                     data = 'steps.{}.produce'.format(self.index_denormalize + 2)
+                elif 'DistilTextEncoder' in python_paths[i]:
+                    data = 'steps.{}.produce'.format(self.index_denormalize + 3)
                     origin = data.split('.')[0]
                     source = data.split('.')[1]
                     self.primitives_arguments[i]['outputs'] = {'origin': origin, 'source': int(source), 'data': data}
@@ -1105,15 +1119,6 @@ class SolutionDescription(object):
                     data = 'steps.' + str(i - 1) + str('.produce')
                 else: # other steps
                     data = 'steps.' + str(i - 1) + '.produce'
-            #elif taskname == 'AUDIO':
-            #    if i == 0 or i == 3: # denormalize or AudioReader
-            #        data = 'inputs.0'
-            #    elif i == 2: # extract_columns_by_semantic_types (targets)
-            #        data = 'steps.1.produce'
-            #        self.hyperparams[i] = {}
-            #        self.hyperparams[i]['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/TrueTarget']
-            #    else: # other steps
-            #        data = 'steps.' + str(i-1) + '.produce'
             elif taskname == 'AUDIO':
                 if i == 0: # AudioDatasetLoader
                     data = 'inputs.0'
@@ -1128,16 +1133,16 @@ class SolutionDescription(object):
             elif taskname == 'SEMISUPERVISED':
                 if i == 0: # denormalize
                     data = 'inputs.0'
-                elif i == 2: # extract_columns_by_semantic_types (targets)
-                    data = 'steps.1.produce'
+                elif i == 3: # extract_columns_by_semantic_types (targets)
+                    data = 'steps.2.produce'
                     self.hyperparams[i] = {}
                     self.hyperparams[i]['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/TrueTarget']
-                elif i == 3: # column_parser
-                    data = 'steps.1.produce'
-                elif i == 4: # extract_columns
-                    data = 'steps.3.produce'
-                    self.hyperparams[i] = {}
-                    self.hyperparams[i]['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/Attribute','https://metadata.datadrivendiscovery.org/types/PrimaryKey']
+                elif i == 4: # column_parser
+                    data = 'steps.2.produce'
+                #elif i == 5: # extract_columns
+                #    data = 'steps.3.produce'
+                #    self.hyperparams[i] = {}
+                #    self.hyperparams[i]['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/Attribute','https://metadata.datadrivendiscovery.org/types/PrimaryKey']
                 else: # other steps
                     data = 'steps.' + str(i-1) + '.produce'
             elif taskname == 'OBJECTDETECTION':
@@ -1338,7 +1343,7 @@ class SolutionDescription(object):
         origin = data.split('.')[0]
         source = data.split('.')[1]
         self.primitives_arguments[i]['inputs'] = {'origin': origin, 'source': int(source), 'data': data}
-        data = 'steps.' + str(3) + str('.produce') # extract_columns_by_semantic_types (targets)
+        data = 'steps.' + str(output_step) + str('.produce') # extract_columns_by_semantic_types (targets)
         origin = data.split('.')[0]
         source = data.split('.')[1]
         self.primitives_arguments[i]['outputs'] = {'origin': origin, 'source': int(source), 'data': data}
@@ -1598,11 +1603,11 @@ class SolutionDescription(object):
                         self.hyperparams[n_step] = {}
                     self.hyperparams[n_step]['exclude_columns'] = list(self.exclude_columns)
 
-            logging.info("Running %s", python_path)
+            print("Running ", python_path)
             start = timer()
             self.primitives_outputs[n_step] = self.process_step(n_step, self.primitives_outputs, ActionType.FIT, arguments)
             #if n_step > 1:
-            #    print(self.primitives_outputs[n_step].iloc[0:5,:])
+            #    print(self.primitives_outputs[n_step].iloc[0:1,:])
             end = timer()
             logging.info("Time taken : %s seconds", end - start)
 
