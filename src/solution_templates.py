@@ -56,11 +56,12 @@ task_paths = {
 'TIMESERIES3': ['d3m.primitives.data_transformation.denormalize.Common',
                 'd3m.primitives.time_series_classification.convolutional_neural_net.LSTM_FCN'],
 
-#'IMAGE': ['d3m.primitives.data_transformation.denormalize.Common',
-#          'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
-#          'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common',
-#          'd3m.primitives.data_preprocessing.dataframe_to_tensor.DSBOX',
-#          'd3m.primitives.feature_extraction.resnet50_image_feature.DSBOX'],
+'IMAGE2': ['d3m.primitives.data_transformation.denormalize.Common',
+           'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
+           'd3m.primitives.schema_discovery.profiler.Common',
+           'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common',
+           'd3m.primitives.data_preprocessing.dataframe_to_tensor.DSBOX',
+           'd3m.primitives.feature_extraction.resnet50_image_feature.DSBOX'],
 
 'IMAGE': ['d3m.primitives.data_transformation.denormalize.Common',
           'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
@@ -93,6 +94,20 @@ task_paths = {
                    'd3m.primitives.data_transformation.column_parser.Common',
                    'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common',
                    'd3m.primitives.data_cleaning.imputer.SKlearn'],
+
+'FORECASTING': ['d3m.primitives.data_transformation.denormalize.Common',
+                   'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
+                   'd3m.primitives.schema_discovery.profiler.Common',
+                   'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common',
+                   'd3m.primitives.data_transformation.column_parser.Common',
+                   'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common',
+                   'd3m.primitives.time_series_forecasting.arima.DSBOX'],
+
+'FORECASTING2': ['d3m.primitives.data_transformation.denormalize.Common',
+                 'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
+                 'd3m.primitives.schema_discovery.profiler.Common',
+                 'd3m.primitives.data_transformation.column_parser.Common',
+                 'd3m.primitives.time_series_forecasting.vector_autoregression.VAR'],
 
 'REGRESSION': ['d3m.primitives.data_transformation.denormalize.Common',
                'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
@@ -297,11 +312,20 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
     """
     solutions = []
     time_used = 0
+    start_solution_search = timer()
 
-    if task_name == 'TIMESERIES' or task_name == 'FORECASTING':
+    if task_name == 'FORECASTING':
+        tasks = ['FORECASTING'] #,'FORECASTING2']
+        for name in tasks:
+            basic_sol = solutiondescription.SolutionDescription(problem)
+            basic_sol.initialize_solution(name, augmentation_dataset)
+            basic_sol.add_outputs()
+            solutions.append(basic_sol)
         task_name = 'REGRESSION'
+
     if task_name == 'VERTEXNOMINATION':
         task_name = 'VERTEXCLASSIFICATION'
+
     basic_sol = solutiondescription.SolutionDescription(problem)
     basic_sol.initialize_solution(task_name, augmentation_dataset)
 
@@ -309,12 +333,11 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
         basic_sol.clear_model()
     
     types_present = []
-    text_prop = 1.0
     total_cols = 0
     privileged = []
     if task_name == 'CLASSIFICATION' or task_name == 'REGRESSION' or task_name == 'SEMISUPERVISED':
         try:
-            (types_present, total_cols, rows, categorical_atts, ordinal_atts, ok_to_denormalize, privileged, text_prop, ok_to_augment) = solutiondescription.column_types_present(dataset, augmentation_dataset)
+            (types_present, total_cols, rows, categorical_atts, ordinal_atts, ok_to_denormalize, privileged, ok_to_augment) = solutiondescription.column_types_present(dataset, augmentation_dataset)
             logging.info(types_present)
             basic_sol.set_categorical_atts(categorical_atts)
             basic_sol.set_ordinal_atts(ordinal_atts)
@@ -341,12 +364,16 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
                 types_present[0] = 'TIMESERIES' 
             try:
                 largetext = False
+                addn_sol = None
                 if 'TIMESERIES' in types_present:
                     basic_sol.initialize_solution('TIMESERIES', augmentation_dataset)
                 elif 'IMAGE' in types_present:
                     basic_sol.initialize_solution('IMAGE', augmentation_dataset)
+                    if rows < 2000:
+                        addn_sol = solutiondescription.SolutionDescription(problem)
+                        addn_sol.initialize_solution('IMAGE2', augmentation_dataset)
                 elif 'TEXT' in types_present:
-                    if task_name == 'CLASSIFICATION':# and text_prop < 0.33:
+                    if task_name == 'CLASSIFICATION':
                         basic_sol.initialize_solution('TEXTCLASSIFICATION', augmentation_dataset)
                     else:
                         if rows > 50000:
@@ -366,12 +393,16 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
                 if basic_sol.splitter_present() == False: # splitter is too expensive to copy! We will run each solution from scratch
                     output_step_index = basic_sol.index_denormalize + 3
                     basic_sol.run_basic_solution(inputs=[dataset], output_step = output_step_index, dataframe_step = basic_sol.index_denormalize + 1)
+                if addn_sol is not None:
+                    output_step_index = addn_sol.index_denormalize + 3
+                    addn_sol.run_basic_solution(inputs=[dataset], output_step = output_step_index, dataframe_step = addn_sol.index_denormalize + 1)
 
                 end = timer()
                 logging.info("Time taken to run basic solution: %s secs", end - start)
-                time_used = end - start
                 total_cols = basic_sol.get_total_cols()
                 logging.info("Total cols = %s", total_cols)
+                if addn_sol is not None:
+                    logging.info("Total cols = %s", addn_sol.get_total_cols())
             except:
                 logging.info(sys.exc_info()[0])
                 basic_sol = None
@@ -418,11 +449,16 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
             pipe.add_step(python_path, outputstep = outputstep, dataframestep = pipe.index_denormalize + 1)
             solutions.append(pipe)
 
+            if addn_sol is not None:
+                pipe = copy.deepcopy(addn_sol)
+                pipe.id = str(uuid.uuid4())
+                pipe.add_step(python_path, outputstep = outputstep, dataframestep = pipe.index_denormalize + 1)
+                solutions.append(pipe)
+
         # Try general relational pipelines
         if not one_model:
-            (general_solutions, general_time_used) = get_general_relational_solutions(task_name, types_present, rows, dataset, primitives, problem_metric, posLabel, problem)
+            general_solutions = get_general_relational_solutions(task_name, types_present, rows, dataset, primitives, problem_metric, posLabel, problem)
             solutions = solutions + general_solutions
-            time_used = time_used + general_time_used
            
             # Try RPI solutions
             rpi_solutions = get_rpi_solutions(task_name, types_present, privileged, rows, dataset, primitives, problem_metric, posLabel, problem)
@@ -519,11 +555,6 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
         pipe.run_basic_solution(inputs=[dataset], input_step=1, output_step = 3, dataframe_step = 2)
         pipe.add_step('d3m.primitives.time_series_classification.k_neighbors.Kanine', inputstep=1, outputstep=3, dataframestep=2)
         solutions.append(pipe)
-        #pipe = solutiondescription.SolutionDescription(problem)
-        #pipe.initialize_solution('TIMESERIES3')
-        #pipe.id = str(uuid.uuid4())
-        #pipe.add_outputs()
-        #solutions.append(pipe)
     if types_present is not None and ('AUDIO' in types_present or 'VIDEO' in types_present):
         pipe = solutiondescription.SolutionDescription(problem)
         pipe.initialize_solution('IMVADIO')
@@ -534,15 +565,17 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
             pipe.add_step('d3m.primitives.regression.random_forest.SKlearn', outputstep=pipe.index_denormalize + 3, dataframestep=pipe.index_denormalize + 1)
         solutions.append(pipe)
 
+    end_solution_search = timer()
+    time_used = end_solution_search - start_solution_search
     return (solutions, time_used)
 
 def get_general_relational_solutions(task_name, types_present, rows, dataset, primitives, problem_metric, posLabel, problem):
     solutions = []
     if types_present is None:
-        return (solutions, 0)
+        return solutions
 
     if task_name != "REGRESSION" and task_name != "CLASSIFICATION":
-        return (solutions, 0)
+        return solutions
     
     if 'AUDIO' in types_present or \
        'VIDEO' in types_present or \
@@ -550,7 +583,7 @@ def get_general_relational_solutions(task_name, types_present, rows, dataset, pr
        'TIMESERIES' in types_present or \
        'IMAGE' in types_present or \
        rows > 100000:
-        return (solutions, 0)
+        return solutions
 
     basic_sol = solutiondescription.SolutionDescription(problem)
     basic_sol.initialize_solution('GENERAL_RELATIONAL')
@@ -576,9 +609,8 @@ def get_general_relational_solutions(task_name, types_present, rows, dataset, pr
         logging.info(sys.exc_info()[0])
 
     end = timer()
-    time_used = end - start
     logging.info("Time taken to run general solution: %s secs", end - start)
-    return (solutions, time_used)  
+    return solutions 
 
 def get_rpi_solutions(task_name, types_present, privileged, rows, dataset, primitives, problem_metric, posLabel, problem):
     solutions = []

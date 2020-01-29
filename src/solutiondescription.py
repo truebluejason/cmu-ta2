@@ -179,10 +179,9 @@ def column_types_present(dataset, dataset_augmentation = None):
     
     privileged = metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/PrivilegedData")
     attcols = metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/Attribute")
-    text_prop = textcols/len(attcols)
 
     print("Data types present: ", types)
-    return (types, len(attcols), len(df), cols, ordinals, ok_to_denormalize, privileged, text_prop, ok_to_augment)
+    return (types, len(attcols), len(df), cols, ordinals, ok_to_denormalize, privileged, ok_to_augment)
 
 def compute_timestamp():
     now = time.time()
@@ -554,6 +553,7 @@ class SolutionDescription(object):
         # Ignore all column that have only one value
         for att in attributes:
             attmeta = metadata.query((metadata_base.ALL_ELEMENTS, att))['semantic_types']
+            print(attmeta)
             length = len(attmeta)-1
             if 'https://metadata.datadrivendiscovery.org/types/UniqueKey' in attmeta:
                 length = length-1
@@ -908,6 +908,7 @@ class SolutionDescription(object):
             taskname == 'REGRESSION' or
             taskname == 'TEXT' or
             taskname == 'IMAGE' or
+            taskname == 'IMAGE2' or
             taskname == 'TIMESERIES' or
             taskname == 'TEXTCLASSIFICATION' or
             taskname == 'IMVADIO' or
@@ -915,7 +916,8 @@ class SolutionDescription(object):
             if self.categorical_atts is not None and len(self.categorical_atts) > 0:
                 python_paths.append('d3m.primitives.data_transformation.one_hot_encoder.SKlearn')
 
-            if taskname is not 'IMAGE' and taskname is not 'VIDEO':  # Image data frame has too many dimensions (in thousands)! This step is extremely slow! 
+            if taskname is not 'IMAGE' and taskname is not 'IMAGE2' and taskname is not 'VIDEO':
+                # Image data frame has too many dimensions (in thousands)! This step is extremely slow! 
                 python_paths.append('d3m.primitives.data_preprocessing.robust_scaler.SKlearn')
 
         num = len(python_paths)
@@ -1025,16 +1027,17 @@ class SolutionDescription(object):
             if python_paths[i] == 'd3m.primitives.schema_discovery.profiler.Common':
                 self.hyperparams[i] = {}
                 self.hyperparams[i]['categorical_max_absolute_distinct_values'] = None
+          
+            if python_paths[i] == 'd3m.primitives.time_series_forecasting.arima.DSBOX':
+                self.hyperparams[i] = {}
+                self.hyperparams[i]['take_log'] = False
  
-            #if 'column_parser' in python_paths[i]:
-            #    self.hyperparams[i] = {}
-            #    self.hyperparams[i]['parse_semantic_types'] = ["http://schema.org/Boolean", "http://schema.org/Integer", "http://schema.org/Float", "https://metadata.datadrivendiscovery.org/types/FloatVector", "http://schema.org/DateTime",'https://metadata.datadrivendiscovery.org/types/CategoricalData']
-
             # Construct pipelines for different task types
             if taskname == 'CLASSIFICATION' or \
                  taskname == 'REGRESSION' or \
                  taskname == 'TEXT' or \
                  taskname == 'IMAGE' or \
+                 taskname == 'IMAGE2' or \
                  taskname == 'VIDEO' or \
                  taskname == 'TIMESERIES' or \
                  taskname == 'IMVADIO':
@@ -1139,10 +1142,49 @@ class SolutionDescription(object):
                     self.hyperparams[i]['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/TrueTarget']
                 elif i == 4: # column_parser
                     data = 'steps.2.produce'
-                #elif i == 5: # extract_columns
-                #    data = 'steps.3.produce'
-                #    self.hyperparams[i] = {}
-                #    self.hyperparams[i]['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/Attribute','https://metadata.datadrivendiscovery.org/types/PrimaryKey']
+                elif i == 5: # extract_columns
+                    data = 'steps.4.produce'
+                    self.hyperparams[i] = {}
+                    self.hyperparams[i]['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/Attribute','https://metadata.datadrivendiscovery.org/types/PrimaryKey']
+                else: # other steps
+                    data = 'steps.' + str(i-1) + '.produce'
+            elif taskname == 'FORECASTING':
+                if i == 0: # denormalize
+                    data = 'inputs.0'
+                elif i == 3: # extract_columns_by_semantic_types (targets)
+                    data = 'steps.2.produce'
+                    self.hyperparams[i] = {}
+                    self.hyperparams[i]['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/TrueTarget']
+                elif i == 4: # column_parser
+                    data = 'steps.2.produce'
+                    self.hyperparams[i] = {}
+                    self.hyperparams[i]['parse_semantic_types'] = ["http://schema.org/Boolean", "http://schema.org/Integer", "http://schema.org/Float"]
+                elif i == 5: # extract_columns
+                    data = 'steps.4.produce'
+                    self.hyperparams[i] = {}
+                    self.hyperparams[i]['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/Attribute','https://metadata.datadrivendiscovery.org/types/PrimaryKey','https://metadata.datadrivendiscovery.org/types/TrueTarget']
+                elif i == 6: # arima
+                    data = 'steps.3.produce'
+                    origin = data.split('.')[0]
+                    source = data.split('.')[1]
+                    self.primitives_arguments[i]['outputs'] = {'origin': origin, 'source': int(source), 'data': data}
+                    data = 'steps.' + str(i-1) + '.produce'
+                    execution_graph.add_edge(str(source), str(i))
+                else: # other steps
+                    data = 'steps.' + str(i-1) + '.produce'
+            elif taskname == 'FORECASTING2':
+                if i == 0: # denormalize
+                    data = 'inputs.0'
+                elif i == 3: # column_parser
+                    data = 'steps.' + str(i-1) + '.produce'
+                    self.hyperparams[i] = {}
+                    self.hyperparams[i]['parse_semantic_types'] = ["http://schema.org/Boolean", "http://schema.org/Integer", "http://schema.org/Float", "https://metadata.datadrivendiscovery.org/types/FloatVector", "http://schema.org/DateTime"]
+                elif i == 4: # VAR
+                    data = 'steps.' + str(i-1) + '.produce'
+                    origin = data.split('.')[0]
+                    source = data.split('.')[1]
+                    self.primitives_arguments[i]['outputs'] = {'origin': origin, 'source': int(source), 'data': data}
+                    execution_graph.add_edge(str(source), str(i))
                 else: # other steps
                     data = 'steps.' + str(i-1) + '.produce'
             elif taskname == 'OBJECTDETECTION':
@@ -1609,7 +1651,7 @@ class SolutionDescription(object):
             #if n_step > 1:
             #    print(self.primitives_outputs[n_step].iloc[0:1,:])
             end = timer()
-            logging.info("Time taken : %s seconds", end - start)
+            logging.info("Time taken : %s sec", end - start)
 
             if self.isDataFrameStep(n_step) == True:
                 self.exclude(self.primitives_outputs[n_step])

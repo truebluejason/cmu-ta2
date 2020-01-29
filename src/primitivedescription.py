@@ -390,7 +390,9 @@ class PrimitiveDescription(object):
             prim_instance.set_training_data(inputs=X_train, outputs=y_train)
             prim_instance.fit()
             predictions = prim_instance.produce(inputs=X_test).value
-            if 'xgboost' in python_path and len(predictions.columns) > 1:
+            if len(y_test.columns) > 1:
+                y_test = y_test.iloc[:,-1]
+            if ('xgboost' in python_path or 'arima' in python_path or 'vector_autoregression' in python_path) and len(predictions.columns) > 1:
                 predictions = predictions.iloc[:,len(predictions.columns)-1]
 
             if 'iterative_labeling' in python_path:
