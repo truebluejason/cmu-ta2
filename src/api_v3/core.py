@@ -73,6 +73,10 @@ class Core(core_pb2_grpc.CoreServicer):
             if name == 'VERTEX_NOMINATION':
                 return name
             if name == 'LINK_PREDICTION':
+                for m in keywords:
+                    mname = problem_pb2.TaskKeyword.Name(m)
+                    if mname == 'TIMESERIES':
+                        return 'LINK_PREDICTION_TIMESERIES'
                 return name
             if name == 'VERTEX_CLASSIFICATION':
                 return name

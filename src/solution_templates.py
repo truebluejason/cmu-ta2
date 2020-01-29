@@ -326,10 +326,9 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
     if task_name == 'VERTEXNOMINATION':
         task_name = 'VERTEXCLASSIFICATION'
 
-    basic_sol = solutiondescription.SolutionDescription(problem)
-    basic_sol.initialize_solution(task_name, augmentation_dataset)
-
     if augmentation_dataset:
+        basic_sol = solutiondescription.SolutionDescription(problem)
+        basic_sol.initialize_solution(task_name, augmentation_dataset)
         basic_sol.clear_model()
     
     types_present = []
@@ -337,6 +336,8 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
     privileged = []
     if task_name == 'CLASSIFICATION' or task_name == 'REGRESSION' or task_name == 'SEMISUPERVISED':
         try:
+            basic_sol = solutiondescription.SolutionDescription(problem)
+            basic_sol.initialize_solution(task_name, augmentation_dataset)
             (types_present, total_cols, rows, categorical_atts, ordinal_atts, ok_to_denormalize, privileged, ok_to_augment) = solutiondescription.column_types_present(dataset, augmentation_dataset)
             logging.info(types_present)
             basic_sol.set_categorical_atts(categorical_atts)
@@ -481,36 +482,27 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
          task_name == 'GRAPHMATCHING' or \
          task_name == 'LINKPREDICTION' or \
          task_name == 'CLUSTERING':
+        basic_sol = solutiondescription.SolutionDescription(problem)
+        basic_sol.initialize_solution(task_name)
         pipe = copy.deepcopy(basic_sol)
         pipe.id = str(uuid.uuid4())
         pipe.add_outputs()
         solutions.append(pipe)
         
         # Add a classification pipeline too
-        pipe = solutiondescription.SolutionDescription(problem)
-        pipe.initialize_solution('CLASSIFICATION')
-        pipe.id = str(uuid.uuid4())
-        pipe.add_step('d3m.primitives.classification.random_forest.SKlearn')
-        solutions.append(pipe)
-
-        pipe = solutiondescription.SolutionDescription(problem)
-        pipe.initialize_solution('CLASSIFICATION')
-        pipe.id = str(uuid.uuid4())
-        pipe.add_step('d3m.primitives.classification.extra_trees.SKlearn')
-        solutions.append(pipe)
-
-        if task_name != 'COMMUNITYDETECTION':
+        primitives = ['d3m.primitives.classification.random_forest.SKlearn', 
+                      'd3m.primitives.classification.extra_trees.SKlearn', 
+                      'd3m.primitives.classification.gradient_boosting.SKlearn', 
+                      'd3m.primitives.classification.bernoulli_naive_bayes.SKlearn']
+        for p in primitives:
+            if task_name == 'COMMUNITYDETECTION' and 'gradient_boosting' in p:
+                continue
             pipe = solutiondescription.SolutionDescription(problem)
             pipe.initialize_solution('CLASSIFICATION')
             pipe.id = str(uuid.uuid4())
-            pipe.add_step('d3m.primitives.classification.gradient_boosting.SKlearn')
+            outputstep = pipe.index_denormalize + 3
+            pipe.add_step(p, outputstep=outputstep)
             solutions.append(pipe)
-
-        pipe = solutiondescription.SolutionDescription(problem)
-        pipe.initialize_solution('CLASSIFICATION')
-        pipe.id = str(uuid.uuid4())
-        pipe.add_step('d3m.primitives.classification.bernoulli_naive_bayes.SKlearn')
-        solutions.append(pipe)
 
         if task_name == 'VERTEXCLASSIFICATION':
             indexes = ['3','4']
@@ -529,6 +521,8 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
             pipe.add_outputs()
             solutions.append(pipe)
     elif task_name == 'COLLABORATIVEFILTERING':
+        basic_sol = solutiondescription.SolutionDescription(problem)
+        basic_sol.initialize_solution(task_name)
         pipe = copy.deepcopy(basic_sol)
         pipe.id = str(uuid.uuid4())
         pipe.add_outputs()
@@ -538,8 +532,29 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
         pipe = solutiondescription.SolutionDescription(problem)
         pipe.initialize_solution('REGRESSION')
         pipe.id = str(uuid.uuid4())
-        pipe.add_step('d3m.primitives.regression.random_forest.SKlearn')
+        pipe.add_step('d3m.primitives.regression.random_forest.SKlearn', outputstep=pipe.index_denormalize + 3)
         solutions.append(pipe)
+    elif task_name == 'LINKPREDICTIONTIMESERIES':
+        tasks = ['LINKPREDICTION', 'LINKPREDICTION2']
+        for t in tasks:
+            basic_sol = solutiondescription.SolutionDescription(problem)
+            basic_sol.initialize_solution(t)
+            pipe = copy.deepcopy(basic_sol)
+            pipe.id = str(uuid.uuid4())
+            pipe.add_outputs()
+            solutions.append(pipe)
+        
+        # Add a regression pipeline too
+        primitives = ['d3m.primitives.regression.random_forest.SKlearn',
+                      'd3m.primitives.regression.extra_trees.SKlearn',
+                      'd3m.primitives.regression.gradient_boosting.SKlearn']
+        for p in primitives:
+            pipe = solutiondescription.SolutionDescription(problem)
+            pipe.initialize_solution('REGRESSION')
+            pipe.id = str(uuid.uuid4())
+            outputstep = pipe.index_denormalize + 3
+            pipe.add_step(p, outputstep=outputstep)
+            solutions.append(pipe)
     elif task_name == 'OBJECTDETECTION':
         pipe = copy.deepcopy(basic_sol)
         pipe.id = str(uuid.uuid4())

@@ -74,7 +74,7 @@ def get_task_name(keywords):
         name = k.upper()
         if name == 'SEMISUPERVISED':
             return name
-        if name == 'OBJECT_DETECTION':
+        if name == 'OBJECTDETECTION':
             return name
         if name == 'FORECASTING':
             return name
@@ -82,15 +82,19 @@ def get_task_name(keywords):
             return name
         if name == 'REGRESSION':
             return name
-        if name == 'GRAPH_MATCHING':
+        if name == 'GRAPHMATCHING':
             return name
-        if name == 'VERTEX_NOMINATION':
+        if name == 'VERTEXNOMINATION':
             return name
-        if name == 'LINK_PREDICTION':
+        if name == 'LINKPREDICTION':
+            for m in keywords:
+                mname = m.upper()
+                if mname == 'TIMESERIES':
+                    return 'LINKPREDICTIONTIMESERIES'
             return name
-        if name == 'VERTEX_CLASSIFICATION':
+        if name == 'VERTEXCLASSIFICATION':
             return name
-        if name == 'COMMUNITY_DETECTION':
+        if name == 'COMMUNITYDETECTION':
             return name
 
     return taskname
