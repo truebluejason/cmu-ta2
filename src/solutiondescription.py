@@ -165,6 +165,7 @@ def column_types_present(dataset, dataset_augmentation = None):
 
     metadata = df.metadata
 
+    types = []
     (categoricals, ordinals, add_floats, add_texts) = get_cols_to_encode(df)
     if len(categoricals) > 0:
         types.append('Categorical')
@@ -173,7 +174,6 @@ def column_types_present(dataset, dataset_augmentation = None):
         types.append('Ordinals')
         print("Ordinals = ", ordinals)
 
-    types = []
     textcols = len(metadata.get_columns_with_semantic_type("http://schema.org/Text"))
     if textcols > 0 or len(add_texts) > 0:
         types.append('TEXT')
