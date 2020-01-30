@@ -200,18 +200,18 @@ task_paths = {
           'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common',
           'd3m.primitives.feature_extraction.audio_transfer.DistilAudioTransfer']}
 
-classifiers = [#'d3m.primitives.classification.bernoulli_naive_bayes.SKlearn',
-               #'d3m.primitives.classification.linear_discriminant_analysis.SKlearn',
-               #'d3m.primitives.classification.logistic_regression.SKlearn',
-               #'d3m.primitives.classification.ada_boost.SKlearn',
-               #'d3m.primitives.classification.linear_svc.SKlearn',
-               #'d3m.primitives.classification.extra_trees.SKlearn',
-               #'d3m.primitives.classification.random_forest.SKlearn',
-               #'d3m.primitives.classification.bagging.SKlearn',
-               #'d3m.primitives.classification.svc.SKlearn',
-               'd3m.primitives.classification.passive_aggressive.SKlearn']
-               #'d3m.primitives.classification.xgboost_gbtree.Common',
-               #'d3m.primitives.classification.gradient_boosting.SKlearn']
+classifiers = ['d3m.primitives.classification.bernoulli_naive_bayes.SKlearn',
+               'd3m.primitives.classification.linear_discriminant_analysis.SKlearn',
+               'd3m.primitives.classification.logistic_regression.SKlearn',
+               'd3m.primitives.classification.ada_boost.SKlearn',
+               'd3m.primitives.classification.linear_svc.SKlearn',
+               'd3m.primitives.classification.extra_trees.SKlearn',
+               'd3m.primitives.classification.random_forest.SKlearn',
+               'd3m.primitives.classification.bagging.SKlearn',
+               'd3m.primitives.classification.svc.SKlearn',
+               'd3m.primitives.classification.passive_aggressive.SKlearn',
+               'd3m.primitives.classification.xgboost_gbtree.Common',
+               'd3m.primitives.classification.gradient_boosting.SKlearn']
 
 regressors = ['d3m.primitives.regression.ridge.SKlearn',
               'd3m.primitives.regression.lasso.SKlearn',
