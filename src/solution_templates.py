@@ -345,7 +345,7 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
     total_cols = 0
     privileged = []
     if task_name == 'CLASSIFICATION' or task_name == 'REGRESSION' or task_name == 'SEMISUPERVISED':
-        try:
+        if 1:#try:
             basic_sol = solutiondescription.SolutionDescription(problem)
             basic_sol.initialize_solution(task_name, augmentation_dataset)
             (types_present, total_cols, rows, categorical_atts, ordinal_atts, ok_to_denormalize, privileged, add_floats, add_texts, ok_to_augment) = solutiondescription.column_types_present(dataset, augmentation_dataset)
@@ -359,11 +359,11 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
             if ok_to_augment == False:
                 augmentation_dataset = None
             basic_sol.initialize_solution(task_name, augmentation_dataset)
-        except:
-            logging.error(sys.exc_info()[0])
-            basic_sol = None
-            types_present = None
-            rows = 0
+        #except:
+        #    logging.error(sys.exc_info()[0])
+        #    basic_sol = None
+        #    types_present = None
+        #    rows = 0
 
         if types_present is not None:
             if one_model == True and ('AUDIO' in types_present or \
@@ -375,7 +375,7 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
 
             if len(types_present) == 1 and types_present[0] == 'FILES':
                 types_present[0] = 'TIMESERIES' 
-            try:
+            if 1:#try:
                 largetext = False
                 addn_sol = None
                 if 'TIMESERIES' in types_present:
@@ -418,9 +418,9 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
                 logging.info("Total cols = %s", total_cols)
                 if addn_sol is not None:
                     logging.info("Total cols = %s", addn_sol.get_total_cols())
-            except:
-                logging.error(sys.exc_info()[0])
-                basic_sol = None
+            #except:
+            #    logging.error(sys.exc_info()[0])
+            #    basic_sol = None
 
         # Iterate through primitives which match task type for populative pool of solutions
         listOfSolutions = []
