@@ -153,10 +153,12 @@ class PrimitiveDescription(object):
             score = abs(prim_instance._model.best_fitness)
             return (score, optimal_params)
 
-        if y is None or 'graph' in python_path or 'vertex' in python_path or 'link' in python_path or 'community' in python_path or 'JHU' in python_path or 'yolo' in python_path or 'FCN' in python_path:
+        if y is None or 'graph' in python_path or 'Vertex' in python_path or 'DistilLink' in python_path or 'community' in python_path or 'JHU' in python_path or 'yolo' in python_path or 'FCN' in python_path:
             if util.invert_metric(metric_type) is True:
                 return (0.0, optimal_params)
             else:
+                if 'JHU' in python_path:
+                    return (0.99, optimal_params)
                 return (1.0, optimal_params)
 
         # Lasso CV can become very expensive for large number of columns!!!
@@ -202,7 +204,7 @@ class PrimitiveDescription(object):
         ub = min((int)(0.975*len(metric_scores) + 0.5)-1, len(metric_scores)-1)
         stderror = np.std(metric_scores)/math.sqrt(len(metric_scores))
         z = 1.96*stderror
-        logging.info("CV scores for %s = %s(%s - %s) k = %s", python_path, mean, mean-z, mean+z, len(metric_scores))
+        logging.critical("CV scores for %s = %s(%s - %s) k = %s", python_path, mean, mean-z, mean+z, len(metric_scores))
         return (score, optimal_params)
 
     def evaluate_metric(self, predictions, Ytest, metric, posLabel):

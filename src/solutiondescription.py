@@ -63,6 +63,8 @@ def get_cols_to_encode(df):
 
     tmp_cols = copy.deepcopy(cols)
     ordinals = []
+
+    # Iterate over all categorical attributes
     for t in tmp_cols:
         arity = len(df.iloc[:,t].unique())
         if arity == 1:
@@ -85,8 +87,29 @@ def get_cols_to_encode(df):
         import random
         cols = random.sample(cols, 5)
 
+    add_floats = []
+    add_texts = []
+    attributes = df.metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/Attribute")
+    for att in attributes:
+        attmeta = df.metadata.query((metadata_base.ALL_ELEMENTS, att))['semantic_types']
+        length = len(attmeta)-1
+        if 'https://metadata.datadrivendiscovery.org/types/UniqueKey' in attmeta:
+            continue
+        if 'https://metadata.datadrivendiscovery.org/types/UnknownType' in attmeta:
+            length = length-1
+        if length == 0:
+            try:
+                pd.to_numeric(df.iloc[0:5,att])
+                add_floats.append(int(att))
+                print("Att ", df.columns[int(att)], " numeric")
+            except:
+                add_texts.append(int(att))
+                print("Att ", df.columns[int(att)], " non-numeric")
+
     print("No. of cats = ", len(cols))
-    return (list(cols), ordinals)
+    print("Floats = ", add_floats)
+    print("Texts = ", add_texts)
+    return (list(cols), ordinals, add_floats, add_texts)
 
 def get_primitive_volumes(volumes_dir, primitive_class) -> typing.Dict:
         volumes = {}
@@ -133,25 +156,26 @@ def column_types_present(dataset, dataset_augmentation = None):
     model = primitive(hyperparams=primitive_hyperparams.defaults())
     df = model.produce(inputs=dataset).value
 
-    primitive = d3m.index.get_primitive('d3m.primitives.schema_discovery.profiler.Common') #'d3m.primitives.data_cleaning.column_type_profiler.Simon') #'d3m.primitives.schema_discovery.profiler.Common')
+    primitive = d3m.index.get_primitive('d3m.primitives.schema_discovery.profiler.Common')
     primitive_hyperparams = primitive.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
-    #model = primitive(hyperparams=primitive_hyperparams.defaults())
-    method_arguments = primitive.metadata.query()['primitive_code'].get('instance_methods', {}).get('__init__', {}).get('arguments', [])
-    if 'volumes' in method_arguments:
-        volumes = get_primitive_volumes(os.environ['D3MSTATICDIR'], primitive)
-        model = primitive(volumes=volumes, hyperparams=primitive_hyperparams(primitive_hyperparams.defaults()))
-    else:
-        model = primitive(hyperparams=primitive_hyperparams(primitive_hyperparams.defaults()))
-
+    model = primitive(hyperparams=primitive_hyperparams.defaults())
     model.set_training_data(inputs=df)
     model.fit()
     df = model.produce(inputs=df).value
 
     metadata = df.metadata
 
+    (categoricals, ordinals, add_floats, add_texts) = get_cols_to_encode(df)
+    if len(categoricals) > 0:
+        types.append('Categorical')
+        print("Cats = ", categoricals)
+    if len(ordinals) > 0:
+        types.append('Ordinals')
+        print("Ordinals = ", ordinals)
+
     types = []
     textcols = len(metadata.get_columns_with_semantic_type("http://schema.org/Text"))
-    if textcols > 0:
+    if textcols > 0 or len(add_texts) > 0:
         types.append('TEXT')
     cols = len(metadata.get_columns_with_semantic_type("http://schema.org/ImageObject"))
     if cols > 0:
@@ -169,19 +193,11 @@ def column_types_present(dataset, dataset_augmentation = None):
     if cols > 0:
         types.append('FILES')
 
-    (cols, ordinals) = get_cols_to_encode(df)
-    if len(cols) > 0:
-        types.append('Categorical')
-        print("Cats = ", cols)
-    if len(ordinals) > 0:
-        types.append('Ordinals')
-        print("Ordinals = ", ordinals)
-    
     privileged = metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/PrivilegedData")
     attcols = metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/Attribute")
 
     print("Data types present: ", types)
-    return (types, len(attcols), len(df), cols, ordinals, ok_to_denormalize, privileged, ok_to_augment)
+    return (types, len(attcols), len(df), categoricals, ordinals, ok_to_denormalize, privileged, add_floats, add_texts, ok_to_augment)
 
 def compute_timestamp():
     now = time.time()
@@ -268,6 +284,8 @@ class SolutionDescription(object):
         self.categorical_atts = None
         self.ordinal_atts = None
         self.ok_to_denormalize = True
+        self.add_floats = None
+        self.add_texts = None
         self.privileged = None
         self.index_denormalize = 0
         self.volumes_dir = os.environ['D3MSTATICDIR']
@@ -283,6 +301,12 @@ class SolutionDescription(object):
 
     def set_privileged(self, privileged):
         self.privileged = privileged
+
+    def set_add_floats(self, add_floats):
+        self.add_floats = add_floats
+
+    def set_add_texts(self, add_texts):
+        self.add_texts = add_texts
 
     def contains_placeholder(self):
         if self.steptypes is None:
@@ -328,7 +352,7 @@ class SolutionDescription(object):
                 pdesc['name'] = p.primitive_class.name
                 pdesc['digest'] = p.primitive_class.digest
                 step = PrimitiveStep(primitive_description=pdesc)
-                if 'DistilSingleGraphLoader' in p.primitive_class.python_path:
+                if 'DistilSingleGraphLoader' in p.primitive_class.python_path or 'DistilGraphLoader' in p.primitive_class.python_path:
                     for op in p.primitive_class.produce_methods:
                         step.add_output(output_id=op)
                 else:
@@ -553,16 +577,11 @@ class SolutionDescription(object):
         # Ignore all column that have only one value
         for att in attributes:
             attmeta = metadata.query((metadata_base.ALL_ELEMENTS, att))['semantic_types']
-            print(attmeta)
+            #print("For col ", att, " ", attmeta)
             length = len(attmeta)-1
+            is_unique = False
             if 'https://metadata.datadrivendiscovery.org/types/UniqueKey' in attmeta:
-                length = length-1
-            if 'https://metadata.datadrivendiscovery.org/types/UnknownType' in attmeta:
-                length = length-1
-
-            if length == 0:
                 self.exclude_columns.add(int(att))
-                continue
             col = int(att)
             if len(df.iloc[:, col].unique()) <= 1:
                 self.exclude_columns.add(col)
@@ -708,7 +727,7 @@ class SolutionDescription(object):
             final_output = {}
             final_output['produce'] = model.produce(**produce_params).value
             final_output['produce_collection'] = model.produce_collection(**produce_params).value
-        elif 'DistilSingleGraphLoader' in python_path:
+        elif 'DistilSingleGraphLoader' in python_path or 'DistilGraphLoader' in python_path:
             final_output = {}
             final_output['produce'] = model.produce(**produce_params).value
             final_output['produce_target'] = model.produce_target(**produce_params).value
@@ -757,10 +776,18 @@ class SolutionDescription(object):
 
             if self.steptypes[n_step] is StepType.PRIMITIVE:
                 primitive = self.primitives[n_step]
-                if self.pipeline[n_step] is None:
+                python_path = primitive.metadata.query()['python_path']
+                if self.pipeline[n_step] is None: #if 'resnet50' in python_path or self.pipeline[n_step] is None:
                     primitive_hyperparams = primitive.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
                     custom_hyperparams = dict()
-                    model = primitive(hyperparams=primitive_hyperparams(primitive_hyperparams.defaults(), **custom_hyperparams))
+
+                    method_arguments = primitive.metadata.query()['primitive_code'].get('instance_methods', {}).get('__init__', {}).get('arguments', [])
+                    if 'volumes' in method_arguments:
+                        volumes = get_primitive_volumes(self.volumes_dir, primitive)
+                        model = primitive(volumes=volumes, hyperparams=primitive_hyperparams(primitive_hyperparams.defaults(), **custom_hyperparams))
+                    else:
+                        model = primitive(hyperparams=primitive_hyperparams(primitive_hyperparams.defaults(), **custom_hyperparams))
+
                     self.pipeline[n_step] = model
                 produce_arguments_primitive = self._primitive_arguments(primitive, 'produce')
                 for argument, value in self.primitives_arguments[n_step].items():
@@ -771,7 +798,6 @@ class SolutionDescription(object):
                             produce_arguments[argument] = arguments['inputs'][value['source']]
                         if produce_arguments[argument] is None:
                             continue
-
             if self.steptypes[n_step] is StepType.PRIMITIVE: # Primitive
                 if n_step in self.produce_order:
                     v = self.pipeline[n_step].produce(**produce_arguments).value
@@ -920,6 +946,13 @@ class SolutionDescription(object):
                 # Image data frame has too many dimensions (in thousands)! This step is extremely slow! 
                 python_paths.append('d3m.primitives.data_preprocessing.robust_scaler.SKlearn')
 
+        after_target_step = 4
+        if self.add_floats is not None and len(self.add_floats) > 0:
+            python_paths.insert(after_target_step, 'd3m.primitives.data_transformation.add_semantic_types.Common')
+            after_target_step = after_target_step + 1
+        if self.add_texts is not None and len(self.add_texts) > 0:
+            python_paths.insert(after_target_step, 'd3m.primitives.data_transformation.add_semantic_types.Common')
+
         num = len(python_paths)
         self.taskname = taskname
         self.primitives_arguments = {}
@@ -971,12 +1004,6 @@ class SolutionDescription(object):
                 self.hyperparams[i] = {}
                 self.hyperparams[i]['n_neighbors'] = 1
      
-            if python_paths[i] == 'd3m.primitives.link_prediction.graph_matching_link_prediction.GraphMatchingLinkPrediction':
-                self.hyperparams[i] = {}
-                custom_hyperparams = {}
-                custom_hyperparams['prediction_column'] = 'match'
-                self.hyperparams[i]['link_prediction_hyperparams'] = LinkPredictionHyperparams(LinkPredictionHyperparams.defaults(), **custom_hyperparams)
-
             if 'clustering.ekss.Umich' in python_paths[i]:
                 self.hyperparams[i] = {}
                 self.hyperparams[i]['n_clusters'] = 200
@@ -1007,6 +1034,10 @@ class SolutionDescription(object):
                 self.hyperparams[i]['metric'] = 'normalizedMutualInformation'
 
             if python_paths[i] == 'd3m.primitives.vertex_nomination.vertex_nomination.DistilVertexNomination':
+                self.hyperparams[i] = {}
+                self.hyperparams[i]['metric'] = 'accuracy'
+
+            if python_paths[i] == 'd3m.primitives.graph_matching.seeded_graph_matching.DistilSeededGraphMatcher':
                 self.hyperparams[i] = {}
                 self.hyperparams[i]['metric'] = 'accuracy'
 
@@ -1096,7 +1127,7 @@ class SolutionDescription(object):
                     self.primitives_arguments[i]['outputs'] = {'origin': origin, 'source': int(source), 'data': data}
                     data = 'steps.' + str(i - 1) + '.produce'
             elif taskname == 'COMMUNITYDETECTION' or taskname == 'LINKPREDICTION' or taskname == 'VERTEXCLASSIFICATION' or taskname == 'GRAPHMATCHING':
-                if i == 0: # denormalize
+                if i == 0: 
                     data = 'inputs.0'
                 else:
                     data = 'steps.0.produce_target'
@@ -1206,6 +1237,34 @@ class SolutionDescription(object):
                     data = 'steps.2.produce'
                 else: # other steps
                     data = 'steps.' + str(i-1) + '.produce'
+            elif taskname == 'COLLABORATIVEFILTERING':
+                if i == 0: # dataset_to_dataframe
+                    data = 'inputs.0'
+                elif i == num-1: # construct_predictions
+                    data = 'steps.1.produce'
+                    origin = data.split('.')[0]
+                    source = data.split('.')[1]
+                    self.primitives_arguments[i]['reference'] = {'origin': origin, 'source': int(source), 'data': data}
+                    data = 'steps.' + str(i-1) + '.produce'
+                elif i == 4: # extract_columns_by_semantic_types (targets)
+                    data = 'steps.3.produce'
+                    self.hyperparams[i] = {}
+                    self.hyperparams[i]['semantic_types'] = ['https://metadata.datadrivendiscovery.org/types/TrueTarget']
+                elif i == 5: # extract_columns_by_semantic_types
+                    data = 'steps.3.produce'
+                elif i == 3:
+                    data = 'steps.' + str(i-1) + '.produce'
+                    self.hyperparams[i] = {}
+                    self.hyperparams[i]['parse_semantic_types'] = ["http://schema.org/Integer","http://schema.org/Float"]
+                elif i == 6: # collaborative_filtering
+                    data = 'steps.4.produce'
+                    origin = data.split('.')[0]
+                    source = data.split('.')[1]
+                    self.primitives_arguments[i]['outputs'] = {'origin': origin, 'source': int(source), 'data': data}
+                    execution_graph.add_edge(str(source), str(i))
+                    data = 'steps.' + str(i-1) + '.produce'
+                else: # other steps
+                    data = 'steps.' + str(i-1) + '.produce'
             elif taskname == 'CLUSTERING':
                 if i == 0: # dataset_to_dataframe
                     data = 'inputs.0'
@@ -1300,13 +1359,6 @@ class SolutionDescription(object):
             hyperparam_spec = self.primitives[i].metadata.query()['primitive_code']['hyperparams']
             if 'n_estimators' in hyperparam_spec:
                 self.hyperparams[i]['n_estimators'] = 100
-        elif 'mlp' in python_path:
-            self.hyperparams[i] = {}
-            self.hyperparams[i]['early_stopping'] = True
-            self.hyperparams[i]['learning_rate_init'] = 0.01
-            self.hyperparams[i]['shuffle'] = False
-            sizes = container.List([300,300], generate_metadata=True)
-            self.hyperparams[i]['hidden_layer_sizes'] = sizes
         self.execution_order.append(i)
 
         i = i + 1
@@ -1478,7 +1530,10 @@ class SolutionDescription(object):
             python_path = self.primitives[n_step].metadata.query()['python_path']
             for argument, value in self.primitives_arguments[n_step].items():
                 if value['origin'] == 'steps':
-                    if 'DistilLinkPrediction' in python_path:
+                    if 'DistilLinkPrediction' in python_path or \
+                       'DistilSeededGraphMatcher' in python_path or \
+                       'DistilCommunityDetection' in python_path or \
+                       'DistilVertexNomination' in python_path:
                         method = value['data'].split('.')[2]
                         primitive_arguments[argument] = primitives_outputs[value['source']][method]
                     else: 
@@ -1623,9 +1678,20 @@ class SolutionDescription(object):
         for i in range(0, len(self.execution_order)):
             n_step = self.execution_order[i]
             python_path = self.primitives[n_step].metadata.query()['python_path']
-        
+       
+            if python_path == 'd3m.primitives.data_transformation.add_semantic_types.Common':
+                self.hyperparams[n_step] = {}
+                if self.add_floats is not None and len(self.add_floats) > 0:
+                    self.hyperparams[n_step]['columns'] = self.add_floats
+                    self.hyperparams[n_step]['semantic_types'] = ['http://schema.org/Float']
+                    self.add_floats = None
+                else:
+                    self.hyperparams[n_step]['columns'] = self.add_texts
+                    self.hyperparams[n_step]['semantic_types'] = ['http://schema.org/Text']
+                    self.add_texts = None
+ 
             if python_path == 'd3m.primitives.data_transformation.one_hot_encoder.SKlearn':
-                (cols, ordinals) = get_cols_to_encode(self.primitives_outputs[n_step-1])
+                (cols, ordinals, add_floats, add_texts) = get_cols_to_encode(self.primitives_outputs[n_step-1])
                 self.hyperparams[n_step]['use_columns'] = list(cols)
                 print("Cats = ", cols)
 
@@ -1645,13 +1711,13 @@ class SolutionDescription(object):
                         self.hyperparams[n_step] = {}
                     self.hyperparams[n_step]['exclude_columns'] = list(self.exclude_columns)
 
-            print("Running ", python_path)
+            logging.critical("Running %s", python_path)
             start = timer()
             self.primitives_outputs[n_step] = self.process_step(n_step, self.primitives_outputs, ActionType.FIT, arguments)
             #if n_step > 1:
-            #    print(self.primitives_outputs[n_step].iloc[0:1,:])
+            #    print(self.primitives_outputs[n_step].iloc[0:4,:])
             end = timer()
-            logging.info("Time taken : %s sec", end - start)
+            logging.critical("Time taken : %s sec", end - start)
 
             if self.isDataFrameStep(n_step) == True:
                 self.exclude(self.primitives_outputs[n_step])

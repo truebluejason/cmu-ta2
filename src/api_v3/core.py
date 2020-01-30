@@ -129,6 +129,7 @@ class Core(core_pb2_grpc.CoreServicer):
         except:
             logging.info(sys.exc_info()[0])
 
+        logging.info("Solutions = %s", solutions)
         if pipeline_placeholder_present is True:
             new_solution_set = []
             for s in solutions:

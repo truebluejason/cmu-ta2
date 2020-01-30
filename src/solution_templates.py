@@ -15,7 +15,7 @@ task_paths = {
 'TEXTCLASSIFICATION': ['d3m.primitives.data_transformation.denormalize.Common',
                        'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
                        'd3m.primitives.schema_discovery.profiler.Common',
-                       'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common',
+                       'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common',  # targets
                        'd3m.primitives.data_transformation.column_parser.Common',
                        'd3m.primitives.data_preprocessing.text_reader.Common',
                        'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common',
@@ -25,7 +25,7 @@ task_paths = {
 'TEXT': ['d3m.primitives.data_transformation.denormalize.Common',
          'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
          'd3m.primitives.schema_discovery.profiler.Common',
-         'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common',
+         'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common',  # targets
          'd3m.primitives.data_transformation.column_parser.Common',
          'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common',
          'd3m.primitives.data_cleaning.imputer.SKlearn',
@@ -35,7 +35,7 @@ task_paths = {
          'd3m.primitives.data_transformation.denormalize.Common',
          'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
          'd3m.primitives.schema_discovery.profiler.Common',
-         'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common',
+         'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common',  # targets
          'd3m.primitives.data_transformation.column_parser.Common',
          'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common',
          'd3m.primitives.data_cleaning.imputer.SKlearn',
@@ -44,7 +44,7 @@ task_paths = {
 'TIMESERIES': ['d3m.primitives.data_transformation.denormalize.Common',
                'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
                'd3m.primitives.schema_discovery.profiler.Common',
-               'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common',
+               'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common',  # targets
                'd3m.primitives.data_preprocessing.time_series_to_list.DSBOX',
                'd3m.primitives.feature_extraction.random_projection_timeseries_featurization.DSBOX'],
 
@@ -59,14 +59,14 @@ task_paths = {
 'IMAGE2': ['d3m.primitives.data_transformation.denormalize.Common',
            'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
            'd3m.primitives.schema_discovery.profiler.Common',
-           'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common',
+           'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common',  # targets
            'd3m.primitives.data_preprocessing.dataframe_to_tensor.DSBOX',
            'd3m.primitives.feature_extraction.resnet50_image_feature.DSBOX'],
 
 'IMAGE': ['d3m.primitives.data_transformation.denormalize.Common',
           'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
           'd3m.primitives.schema_discovery.profiler.Common',
-          'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common',
+          'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common',  # targets
           'd3m.primitives.data_preprocessing.image_reader.Common',
           'd3m.primitives.data_transformation.column_parser.Common',
           'd3m.primitives.feature_extraction.image_transfer.DistilImageTransfer'],
@@ -82,7 +82,7 @@ task_paths = {
 'CLASSIFICATION': ['d3m.primitives.data_transformation.denormalize.Common',
                    'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
                    'd3m.primitives.schema_discovery.profiler.Common',
-                   'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common',
+                   'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common',  # targets
                    'd3m.primitives.data_transformation.column_parser.Common',
                    'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common',
                    'd3m.primitives.data_cleaning.imputer.SKlearn'],
@@ -90,7 +90,7 @@ task_paths = {
 'SEMISUPERVISED': ['d3m.primitives.data_transformation.denormalize.Common',
                    'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
                    'd3m.primitives.schema_discovery.profiler.Common',
-                   'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common',
+                   'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common',  # targets
                    'd3m.primitives.data_transformation.column_parser.Common',
                    'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common',
                    'd3m.primitives.data_cleaning.imputer.SKlearn'],
@@ -98,7 +98,7 @@ task_paths = {
 'FORECASTING': ['d3m.primitives.data_transformation.denormalize.Common',
                    'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
                    'd3m.primitives.schema_discovery.profiler.Common',
-                   'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common',
+                   'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common',  # targets
                    'd3m.primitives.data_transformation.column_parser.Common',
                    'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common',
                    'd3m.primitives.time_series_forecasting.arima.DSBOX'],
@@ -112,7 +112,7 @@ task_paths = {
 'REGRESSION': ['d3m.primitives.data_transformation.denormalize.Common',
                'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
                'd3m.primitives.schema_discovery.profiler.Common',
-               'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common',
+               'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common',  # targets
                'd3m.primitives.data_transformation.column_parser.Common',
                'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common',
                'd3m.primitives.data_cleaning.imputer.SKlearn'],
@@ -128,7 +128,7 @@ task_paths = {
                  'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
                  'd3m.primitives.schema_discovery.profiler.Common',
                  'd3m.primitives.data_transformation.column_parser.Common',
-                 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common',
+                 'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common',  # targets
                  'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common'],
 
 #'CLUSTERING': ['d3m.primitives.data_transformation.dataset_to_dataframe.Common',
@@ -145,12 +145,19 @@ task_paths = {
                'd3m.primitives.data_transformation.ndarray_to_dataframe.Common',
                'd3m.primitives.data_transformation.construct_predictions.Common'],
 
-'GRAPHMATCHING': ['d3m.primitives.data_transformation.load_single_graph.DistilSingleGraphLoader',
+'GRAPHMATCHING': ['d3m.primitives.data_transformation.load_graphs.DistilGraphLoader',
                   'd3m.primitives.graph_matching.seeded_graph_matching.DistilSeededGraphMatcher'],
 
 'GRAPHMATCHING2': ['d3m.primitives.graph_matching.seeded_graph_matching.JHU'],
 
-'COLLABORATIVEFILTERING': ['d3m.primitives.link_prediction.collaborative_filtering_link_prediction.CollaborativeFilteringLinkPrediction'],
+'COLLABORATIVEFILTERING': ['d3m.primitives.data_transformation.denormalize.Common',
+                           'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
+                           'd3m.primitives.schema_discovery.profiler.Common',
+                           'd3m.primitives.data_transformation.column_parser.Common',
+                           'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common',
+                           'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common',
+                           'd3m.primitives.collaborative_filtering.collaborative_filtering_link_prediction.DistilCollaborativeFiltering',
+                           'd3m.primitives.data_transformation.construct_predictions.Common'],
 
 'VERTEXCLASSIFICATION3': ['d3m.primitives.data_transformation.load_graphs.JHU',
                           'd3m.primitives.data_preprocessing.largest_connected_component.JHU',
@@ -159,6 +166,7 @@ task_paths = {
 
 'VERTEXCLASSIFICATION4': ['d3m.primitives.data_transformation.vertex_classification_parser.VertexClassificationParser',
                           'd3m.primitives.classification.vertex_nomination.VertexClassification'],
+
 'VERTEXCLASSIFICATION': ['d3m.primitives.data_transformation.load_single_graph.DistilSingleGraphLoader',
                          'd3m.primitives.vertex_nomination.vertex_nomination.DistilVertexNomination'],
 
@@ -180,28 +188,30 @@ task_paths = {
 
 'IMVADIO': ['d3m.primitives.data_transformation.denormalize.Common',
           'd3m.primitives.data_transformation.dataset_to_dataframe.Common',
+          'd3m.primitives.schema_discovery.profiler.Common',
+          'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common',  # targets
           'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common',
           'd3m.primitives.data_transformation.column_parser.Common',
           'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common',
           'd3m.primitives.data_transformation.one_hot_encoder.SKlearn'],
 
 'AUDIO': ['d3m.primitives.data_preprocessing.audio_loader.DistilAudioDatasetLoader',
-           'd3m.primitives.data_transformation.column_parser.Common',
-           'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common',
-           'd3m.primitives.feature_extraction.audio_transfer.DistilAudioTransfer']}
+          'd3m.primitives.data_transformation.column_parser.Common',
+          'd3m.primitives.data_transformation.extract_columns_by_semantic_types.Common',
+          'd3m.primitives.feature_extraction.audio_transfer.DistilAudioTransfer']}
 
-classifiers = ['d3m.primitives.classification.bernoulli_naive_bayes.SKlearn',
-               'd3m.primitives.classification.linear_discriminant_analysis.SKlearn',
-               'd3m.primitives.classification.logistic_regression.SKlearn',
-               'd3m.primitives.classification.ada_boost.SKlearn',
-               'd3m.primitives.classification.linear_svc.SKlearn',
-               'd3m.primitives.classification.extra_trees.SKlearn',
-               'd3m.primitives.classification.random_forest.SKlearn',
-               'd3m.primitives.classification.bagging.SKlearn',
-               'd3m.primitives.classification.svc.SKlearn',
-               'd3m.primitives.classification.passive_aggressive.SKlearn',
-               'd3m.primitives.classification.xgboost_gbtree.Common',
-               'd3m.primitives.classification.gradient_boosting.SKlearn']
+classifiers = [#'d3m.primitives.classification.bernoulli_naive_bayes.SKlearn',
+               #'d3m.primitives.classification.linear_discriminant_analysis.SKlearn',
+               #'d3m.primitives.classification.logistic_regression.SKlearn',
+               #'d3m.primitives.classification.ada_boost.SKlearn',
+               #'d3m.primitives.classification.linear_svc.SKlearn',
+               #'d3m.primitives.classification.extra_trees.SKlearn',
+               #'d3m.primitives.classification.random_forest.SKlearn',
+               #'d3m.primitives.classification.bagging.SKlearn',
+               #'d3m.primitives.classification.svc.SKlearn',
+               'd3m.primitives.classification.passive_aggressive.SKlearn']
+               #'d3m.primitives.classification.xgboost_gbtree.Common',
+               #'d3m.primitives.classification.gradient_boosting.SKlearn']
 
 regressors = ['d3m.primitives.regression.ridge.SKlearn',
               'd3m.primitives.regression.lasso.SKlearn',
@@ -255,7 +265,7 @@ def get_augmented_solutions(task_name, dataset, primitives, problem_metric, posL
     try:
         datasets = util.search_all_related(dataset, keywords)
     except:
-        logging.info("DATAMART NOT AVAILABLE")
+        logging.error("DATAMART NOT AVAILABLE")
         return ([], timer() - start)
     
     if len(datasets) == 0:
@@ -275,7 +285,7 @@ def get_augmented_solutions(task_name, dataset, primitives, problem_metric, posL
                 time_spent += timer() - start_loop
                 solutions[i] = solution[0]
             except Exception as e:
-                logging.info("Augmentation with: {} => TOO SLOW".format(datasets[i].get_json_metadata()['metadata']['name']), e)
+                logging.error("Augmentation with: {} => TOO SLOW".format(datasets[i].get_json_metadata()['metadata']['name']), e)
 
         # Evaluates solutions
         parallel_evaluations  = [pool.apply_async(search.evaluate_solution_score, ([dataset], solutions[i], primitives, problem_metric, posLabel, None)) for i in solutions]
@@ -287,7 +297,7 @@ def get_augmented_solutions(task_name, dataset, primitives, problem_metric, posL
                 time_spent += timer() - start_loop
                 logging.info("Augmentation with: {} => {}".format(datasets[i].get_json_metadata()['metadata']['name'], performances[i]))
             except Exception as e:
-                logging.info("Augmentation scoring with: {} => TOO SLOW".format(datasets[i].get_json_metadata()['metadata']['name']), e)
+                logging.error("Augmentation scoring with: {} => TOO SLOW".format(datasets[i].get_json_metadata()['metadata']['name']), e)
 
         # Rank solutions
         sorted_x = search.rank_solutions(performances, problem_metric)
@@ -297,7 +307,7 @@ def get_augmented_solutions(task_name, dataset, primitives, problem_metric, posL
         logging.info("Best augmentation: {}".format(best.get_json_metadata()['metadata']['name']))
         (solutions, _) = get_solutions(task_name, dataset, primitives, problem_metric, posLabel, problem, augmentation_dataset = best.serialize())
     except Exception as e:
-        logging.info("Unexpected error during creation pipeline", e)
+        logging.error("Unexpected error during creation pipeline", e)
         solutions = []
 
     return (solutions, timer() - start)
@@ -338,8 +348,10 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
         try:
             basic_sol = solutiondescription.SolutionDescription(problem)
             basic_sol.initialize_solution(task_name, augmentation_dataset)
-            (types_present, total_cols, rows, categorical_atts, ordinal_atts, ok_to_denormalize, privileged, ok_to_augment) = solutiondescription.column_types_present(dataset, augmentation_dataset)
-            logging.info(types_present)
+            (types_present, total_cols, rows, categorical_atts, ordinal_atts, ok_to_denormalize, privileged, add_floats, add_texts, ok_to_augment) = solutiondescription.column_types_present(dataset, augmentation_dataset)
+            logging.critical(types_present)
+            basic_sol.set_add_floats(add_floats)
+            basic_sol.set_add_texts(add_texts)
             basic_sol.set_categorical_atts(categorical_atts)
             basic_sol.set_ordinal_atts(ordinal_atts)
             basic_sol.set_denormalize(ok_to_denormalize)
@@ -348,7 +360,7 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
                 augmentation_dataset = None
             basic_sol.initialize_solution(task_name, augmentation_dataset)
         except:
-            logging.info(sys.exc_info()[0])
+            logging.error(sys.exc_info()[0])
             basic_sol = None
             types_present = None
             rows = 0
@@ -369,13 +381,15 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
                 if 'TIMESERIES' in types_present:
                     basic_sol.initialize_solution('TIMESERIES', augmentation_dataset)
                 elif 'IMAGE' in types_present:
-                    basic_sol.initialize_solution('IMAGE', augmentation_dataset)
-                    if rows < 2000:
-                        addn_sol = solutiondescription.SolutionDescription(problem)
-                        addn_sol.initialize_solution('IMAGE2', augmentation_dataset)
+                    basic_sol.initialize_solution('IMAGE2', augmentation_dataset)
+                    #if rows < 2000:
+                    #    addn_sol = copy.deepcopy(basic_sol)
+                    #    addn_sol.initialize_solution('IMAGE2', augmentation_dataset)
                 elif 'TEXT' in types_present:
                     if task_name == 'CLASSIFICATION':
                         basic_sol.initialize_solution('TEXTCLASSIFICATION', augmentation_dataset)
+                        addn_sol = copy.deepcopy(basic_sol)
+                        addn_sol.initialize_solution('TEXT', augmentation_dataset)
                     else:
                         if rows > 50000:
                             basic_sol.initialize_solution('LARGETEXT', augmentation_dataset)
@@ -405,7 +419,7 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
                 if addn_sol is not None:
                     logging.info("Total cols = %s", addn_sol.get_total_cols())
             except:
-                logging.info(sys.exc_info()[0])
+                logging.error(sys.exc_info()[0])
                 basic_sol = None
 
         # Iterate through primitives which match task type for populative pool of solutions
@@ -439,6 +453,8 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
                 continue 
 
             outputstep = basic_sol.index_denormalize + 3
+            if basic_sol.splitter_present() == True:
+                outputstep = basic_sol.index_denormalize + 4
 
             if basic_sol.primitives_outputs != None and len(basic_sol.primitives_outputs[outputstep].columns) > 1: # multi-column output?
                 # These do not work for multi-column output
@@ -561,7 +577,7 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
         pipe.add_outputs()
         solutions.append(pipe)
     else:
-        logging.info("No matching solutions")
+        logging.error("No matching solutions")
 
     if types_present is not None and task_name == 'CLASSIFICATION' and 'TIMESERIES' in types_present:
         pipe = solutiondescription.SolutionDescription(problem)
@@ -621,7 +637,7 @@ def get_general_relational_solutions(task_name, types_present, rows, dataset, pr
                 pipe.add_step(python_path, outputstep=3, dataframestep=2)
                 solutions.append(pipe)
     except:
-        logging.info(sys.exc_info()[0])
+        logging.error(sys.exc_info()[0])
 
     end = timer()
     logging.info("Time taken to run general solution: %s secs", end - start)
@@ -652,7 +668,7 @@ def get_rpi_solutions(task_name, types_present, privileged, rows, dataset, primi
         total_cols = basic_sol.get_total_cols()
         logging.info("Total cols = %s", total_cols)
     except:
-        logging.info(sys.exc_info()[0])
+        logging.error(sys.exc_info()[0])
         basic_sol = None
 
     if basic_sol is not None:
