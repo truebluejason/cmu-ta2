@@ -110,14 +110,15 @@ class Core(core_pb2_grpc.CoreServicer):
                 pipeline_placeholder_present = True    
                 inputs = []
                 inputs.append(dataset)
-                new_dataset = basic_sol.fit(inputs=inputs, solution_dict=self._solutions)            
+                new_dataset = basic_sol.fit(inputs=inputs, solution_dict=self._solutions)      
+                dataset = new_dataset      
                 logging.info("New datset from specified pipeline: %s", new_dataset)
 
         taskname = task_name.replace('_', '')
         logging.info("taskname = %s", taskname)
         metric = request.problem.problem.performance_metrics[0].metric
         posLabel = request.problem.problem.performance_metrics[0].pos_label
-        (solutions,time_used) = solution_templates.get_solutions(taskname, new_dataset, primitives, metric, posLabel, request.problem)
+        (solutions,time_used) = solution_templates.get_solutions(taskname, dataset, primitives, metric, posLabel, request.problem)
         try:
             keywords = None
             if request.problem.data_augmentation is not None and len(request.problem.data_augmentation) > 0:
