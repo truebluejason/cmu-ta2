@@ -111,8 +111,7 @@ class Core(core_pb2_grpc.CoreServicer):
                 inputs = []
                 inputs.append(dataset)
                 new_dataset = basic_sol.fit(inputs=inputs, solution_dict=self._solutions)            
-                dataset = new_dataset
-                logging.info("New datset from specified pipeline: %s", dataset)
+                logging.info("New datset from specified pipeline: %s", new_dataset)
 
         taskname = task_name.replace('_', '')
         logging.info("taskname = %s", taskname)
