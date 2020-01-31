@@ -1847,7 +1847,7 @@ class SolutionDescription(object):
                     step_inputs.append(sa)
                 step_outputs = []
                 for output in s.outputs:
-                    step_outputs.append(pipeline_pb2.StepOutput(id==output[2]))         
+                    step_outputs.append(pipeline_pb2.StepOutput(id = output[2]))         
                 p = pipeline_pb2.SubpipelinePipelineDescriptionStep(pipeline=pipeline_pb2.PipelineDescription(id=s.id), inputs=step_inputs, outputs=step_outputs)
                 steps.append(p)
             else: # primitive
