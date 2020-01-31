@@ -217,12 +217,12 @@ regressors = ['d3m.primitives.regression.ridge.SKlearn',
               'd3m.primitives.regression.lasso.SKlearn',
               'd3m.primitives.regression.elastic_net.SKlearn',
               'd3m.primitives.regression.lasso_cv.SKlearn',
-              'd3m.primitives.regression.ada_boost.SKlearn']
-              #'d3m.primitives.regression.linear_svr.SKlearn',
-              #'d3m.primitives.regression.random_forest.SKlearn',
-              #'d3m.primitives.regression.extra_trees.SKlearn',
-              #'d3m.primitives.regression.xgboost_gbtree.Common',
-              #'d3m.primitives.regression.gradient_boosting.SKlearn']
+              'd3m.primitives.regression.ada_boost.SKlearn',
+              'd3m.primitives.regression.linear_svr.SKlearn',
+              'd3m.primitives.regression.random_forest.SKlearn',
+              'd3m.primitives.regression.extra_trees.SKlearn',
+              'd3m.primitives.regression.xgboost_gbtree.Common',
+              'd3m.primitives.regression.gradient_boosting.SKlearn']
 
 regressors_rpi = ['d3m.primitives.regression.random_forest.SKlearn',
                   'd3m.primitives.regression.extra_trees.SKlearn',
@@ -348,10 +348,9 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
         try:
             basic_sol = solutiondescription.SolutionDescription(problem)
             basic_sol.initialize_solution(task_name, augmentation_dataset)
-            (types_present, total_cols, rows, categorical_atts, ordinal_atts, ok_to_denormalize, privileged, add_floats, add_texts, ok_to_augment, profiler_needed) = solutiondescription.column_types_present(dataset, augmentation_dataset)
+            (types_present, total_cols, rows, categorical_atts, ordinal_atts, ok_to_denormalize, privileged, add_floats, ok_to_augment, profiler_needed) = solutiondescription.column_types_present(dataset, augmentation_dataset)
             logging.critical(types_present)
             basic_sol.set_add_floats(add_floats)
-            basic_sol.set_add_texts(add_texts)
             basic_sol.set_categorical_atts(categorical_atts)
             basic_sol.set_ordinal_atts(ordinal_atts)
             basic_sol.set_denormalize(ok_to_denormalize)

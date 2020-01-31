@@ -87,7 +87,6 @@ def get_cols_to_encode(df):
         cols = random.sample(cols, 5)
 
     add_floats = []
-    add_texts = []
     attributes = df.metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/Attribute")
     for att in attributes:
         attmeta = df.metadata.query((metadata_base.ALL_ELEMENTS, att))['semantic_types']
@@ -97,18 +96,11 @@ def get_cols_to_encode(df):
         if 'https://metadata.datadrivendiscovery.org/types/UnknownType' in attmeta:
             length = length-1
         if length == 0:
-            try:
-                pd.to_numeric(df.iloc[0:5,att])
-                add_floats.append(int(att))
-                print("Att ", df.columns[int(att)], " numeric")
-            except:
-                add_texts.append(int(att))
-                print("Att ", df.columns[int(att)], " non-numeric")
+            add_floats.append(int(att))
 
     print("No. of cats = ", len(cols))
     print("Floats = ", add_floats)
-    print("Texts = ", add_texts)
-    return (list(cols), ordinals, add_floats, add_texts)
+    return (list(cols), ordinals, add_floats)
 
 def get_primitive_volumes(volumes_dir, primitive_class) -> typing.Dict:
         volumes = {}
@@ -154,9 +146,7 @@ def column_types_present(dataset, dataset_augmentation = None):
     primitive_hyperparams = primitive.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
     model = primitive(hyperparams=primitive_hyperparams.defaults())
     df = model.produce(inputs=dataset).value
-    logging.info("DF = %s", df.iloc[0:5,:])
     atts = df.metadata.get_columns_with_semantic_type('https://metadata.datadrivendiscovery.org/types/UnknownType')
-    logging.info("Atts = %s", atts)
 
     profiler_needed = False
     if len(atts) > 0:
@@ -171,7 +161,7 @@ def column_types_present(dataset, dataset_augmentation = None):
     metadata = df.metadata
 
     types = []
-    (categoricals, ordinals, add_floats, add_texts) = get_cols_to_encode(df)
+    (categoricals, ordinals, add_floats) = get_cols_to_encode(df)
     if len(categoricals) > 0:
         types.append('Categorical')
         print("Cats = ", categoricals)
@@ -180,7 +170,7 @@ def column_types_present(dataset, dataset_augmentation = None):
         print("Ordinals = ", ordinals)
 
     textcols = len(metadata.get_columns_with_semantic_type("http://schema.org/Text"))
-    if textcols > 0 or len(add_texts) > 0:
+    if textcols > 0:
         types.append('TEXT')
     cols = len(metadata.get_columns_with_semantic_type("http://schema.org/ImageObject"))
     if cols > 0:
@@ -202,7 +192,7 @@ def column_types_present(dataset, dataset_augmentation = None):
     attcols = metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/Attribute")
 
     print("Data types present: ", types)
-    return (types, len(attcols), len(df), categoricals, ordinals, ok_to_denormalize, privileged, add_floats, add_texts, ok_to_augment, profiler_needed)
+    return (types, len(attcols), len(df), categoricals, ordinals, ok_to_denormalize, privileged, add_floats, ok_to_augment, profiler_needed)
 
 def compute_timestamp():
     now = time.time()
@@ -290,7 +280,6 @@ class SolutionDescription(object):
         self.ordinal_atts = None
         self.ok_to_denormalize = True
         self.add_floats = None
-        self.add_texts = None
         self.privileged = None
         self.index_denormalize = 0
         self.profiler_needed = False
@@ -311,9 +300,6 @@ class SolutionDescription(object):
 
     def set_add_floats(self, add_floats):
         self.add_floats = add_floats
-
-    def set_add_texts(self, add_texts):
-        self.add_texts = add_texts
 
     def contains_placeholder(self):
         if self.steptypes is None:
@@ -543,10 +529,6 @@ class SolutionDescription(object):
         execution_order = list(filter(lambda x: x.isdigit(), execution_order))
         self.execution_order = [int(x) for x in execution_order]
 
-        logging.info("Primitives = %s", self.primitives)
-        logging.info("Primitives = %s", self.primitives_arguments)
-        logging.info("Order = %s", self.execution_order)
-
         # Creating set of steps to be call in produce
         self.produce_order = set()
         for i in range(len(pipeline_description.outputs)):
@@ -592,7 +574,9 @@ class SolutionDescription(object):
             length = len(attmeta)-1
             is_unique = False
             if 'https://metadata.datadrivendiscovery.org/types/UniqueKey' in attmeta:
-                self.exclude_columns.add(int(att))
+                length = length - 1
+                if length == 0:
+                    self.exclude_columns.add(int(att))
             col = int(att)
             if len(df.iloc[:, col].unique()) <= 1:
                 self.exclude_columns.add(col)
@@ -962,9 +946,6 @@ class SolutionDescription(object):
 
         after_target_step = 4
         if self.add_floats is not None and len(self.add_floats) > 0:
-            python_paths.insert(after_target_step, 'd3m.primitives.data_transformation.add_semantic_types.Common')
-            after_target_step = after_target_step + 1
-        if self.add_texts is not None and len(self.add_texts) > 0:
             python_paths.insert(after_target_step, 'd3m.primitives.data_transformation.add_semantic_types.Common')
 
         num = len(python_paths)
@@ -1677,13 +1658,9 @@ class SolutionDescription(object):
                     self.hyperparams[n_step]['columns'] = self.add_floats
                     self.hyperparams[n_step]['semantic_types'] = ['http://schema.org/Float']
                     self.add_floats = None
-                else:
-                    self.hyperparams[n_step]['columns'] = self.add_texts
-                    self.hyperparams[n_step]['semantic_types'] = ['http://schema.org/Text']
-                    self.add_texts = None
  
             if python_path == 'd3m.primitives.data_transformation.one_hot_encoder.SKlearn':
-                (cols, ordinals, add_floats, add_texts) = get_cols_to_encode(self.primitives_outputs[n_step-1])
+                (cols, ordinals, add_floats) = get_cols_to_encode(self.primitives_outputs[n_step-1])
                 self.hyperparams[n_step]['use_columns'] = list(cols)
                 print("Cats = ", cols)
 
