@@ -543,6 +543,10 @@ class SolutionDescription(object):
         execution_order = list(filter(lambda x: x.isdigit(), execution_order))
         self.execution_order = [int(x) for x in execution_order]
 
+        logging.info("Primitives = %s", self.primitives)
+        logging.info("Primitives = %s", self.primitives_arguments)
+        logging.info("Order = %s", self.execution_order)
+
         # Creating set of steps to be call in produce
         self.produce_order = set()
         for i in range(len(pipeline_description.outputs)):
@@ -1834,25 +1838,32 @@ class SolutionDescription(object):
         
         for j in range(len(self.primitives_arguments)):
             s = self.primitives[j]
-            prim = prim_dict[s]
-            p = primitive_pb2.Primitive(id=prim.id, version=prim.primitive_class.version, python_path=prim.primitive_class.python_path,
-            name=prim.primitive_class.name, digest=prim.primitive_class.digest)
+            if s is None: # subpipeline
+                s = self.subpipelines[j]
+                step_inputs = []
+                for argument, data in self.primitives_arguments[j].items():
+                    argument_edge = data['data']
+                    sa = pipeline_pb2.StepInput(data = argument_edge)
+                    step_inputs.append(sa)
+                step_outputs = []
+                for output in s.outputs:
+                    step_outputs.append(pipeline_pb2.StepOutput(id==output[2]))         
+                p = pipeline_pb2.SubpipelinePipelineDescriptionStep(pipeline=pipeline_pb2.PipelineDescription(id=s.id), inputs=step_inputs, outputs=step_outputs)
+                steps.append(p)
+            else: # primitive
+                prim = prim_dict[s]
+                p = primitive_pb2.Primitive(id=prim.id, version=prim.primitive_class.version, python_path=prim.primitive_class.python_path, name=prim.primitive_class.name, digest=prim.primitive_class.digest)
 
-            arguments={}
+                arguments={}
+                for argument, data in self.primitives_arguments[j].items():
+                    argument_edge = data['data']
+                    sa = pipeline_pb2.PrimitiveStepArgument(container = pipeline_pb2.ContainerArgument(data=argument_edge))
+                    arguments[argument] = sa
 
-            for argument, data in self.primitives_arguments[j].items():
-                argument_edge = data['data']
-                origin = argument_edge.split('.')[0]
-                source = argument_edge.split('.')[1]
-                
-                sa = pipeline_pb2.PrimitiveStepArgument(container = pipeline_pb2.ContainerArgument(data=argument_edge))
-                arguments[argument] = sa
-
-            step_outputs = []
-            for a in prim.primitive_class.produce_methods:
-                step_outputs.append(pipeline_pb2.StepOutput(id=a))
-            steps.append(pipeline_pb2.PipelineDescriptionStep(primitive=pipeline_pb2.PrimitivePipelineDescriptionStep(primitive=p,
-             arguments=arguments, outputs=step_outputs)))
+                step_outputs = []
+                for a in prim.primitive_class.produce_methods:
+                    step_outputs.append(pipeline_pb2.StepOutput(id=a))
+                steps.append(pipeline_pb2.PipelineDescriptionStep(primitive=pipeline_pb2.PrimitivePipelineDescriptionStep(primitive=p, arguments=arguments, outputs=step_outputs)))
            
         return pipeline_pb2.PipelineDescription(id=self.id, source=self.source, created=self.created, context=self.context,
          name=self.name, description=self.description, inputs=inputs, outputs=outputs, steps=steps)
