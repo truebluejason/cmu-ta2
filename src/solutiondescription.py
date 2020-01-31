@@ -159,7 +159,9 @@ def column_types_present(dataset, dataset_augmentation = None):
     atts = df.metadata.get_columns_with_semantic_type('https://metadata.datadrivendiscovery.org/types/UnknownType')
     logging.info("Atts = %s", atts)
 
+    profiler_needed = False
     if len(atts) > 0:
+        profiler_needed = True
         primitive = d3m.index.get_primitive('d3m.primitives.schema_discovery.profiler.Common')
         primitive_hyperparams = primitive.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
         model = primitive(hyperparams=primitive_hyperparams.defaults())
@@ -201,7 +203,7 @@ def column_types_present(dataset, dataset_augmentation = None):
     attcols = metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/Attribute")
 
     print("Data types present: ", types)
-    return (types, len(attcols), len(df), categoricals, ordinals, ok_to_denormalize, privileged, add_floats, add_texts, ok_to_augment)
+    return (types, len(attcols), len(df), categoricals, ordinals, ok_to_denormalize, privileged, add_floats, add_texts, ok_to_augment, profiler_needed)
 
 def compute_timestamp():
     now = time.time()
@@ -292,6 +294,7 @@ class SolutionDescription(object):
         self.add_texts = None
         self.privileged = None
         self.index_denormalize = 0
+        self.profiler_needed = False
         self.volumes_dir = os.environ['D3MSTATICDIR']
 
     def set_categorical_atts(self, atts):
@@ -933,6 +936,9 @@ class SolutionDescription(object):
 
         if 'denormalize' in python_paths[self.index_denormalize] and self.ok_to_denormalize == False:
             python_paths.remove('d3m.primitives.data_transformation.denormalize.Common')
+
+        if self.profiler_needed == False and 'profiler' in python_paths[2]:
+            python_paths[2] = 'd3m.primitives.data_preprocessing.do_nothing.DSBOX'
 
         if (taskname == 'CLASSIFICATION' or
             taskname == 'REGRESSION' or

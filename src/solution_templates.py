@@ -345,10 +345,10 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
     total_cols = 0
     privileged = []
     if task_name == 'CLASSIFICATION' or task_name == 'REGRESSION' or task_name == 'SEMISUPERVISED':
-        if 1:#try:
+        try:
             basic_sol = solutiondescription.SolutionDescription(problem)
             basic_sol.initialize_solution(task_name, augmentation_dataset)
-            (types_present, total_cols, rows, categorical_atts, ordinal_atts, ok_to_denormalize, privileged, add_floats, add_texts, ok_to_augment) = solutiondescription.column_types_present(dataset, augmentation_dataset)
+            (types_present, total_cols, rows, categorical_atts, ordinal_atts, ok_to_denormalize, privileged, add_floats, add_texts, ok_to_augment, profiler_needed) = solutiondescription.column_types_present(dataset, augmentation_dataset)
             logging.critical(types_present)
             basic_sol.set_add_floats(add_floats)
             basic_sol.set_add_texts(add_texts)
@@ -356,14 +356,15 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
             basic_sol.set_ordinal_atts(ordinal_atts)
             basic_sol.set_denormalize(ok_to_denormalize)
             basic_sol.set_privileged(privileged)
+            basic_sol.profiler_needed = profiler_needed
             if ok_to_augment == False:
                 augmentation_dataset = None
             basic_sol.initialize_solution(task_name, augmentation_dataset)
-        #except:
-        #    logging.error(sys.exc_info()[0])
-        #    basic_sol = None
-        #    types_present = None
-        #    rows = 0
+        except:
+            logging.error(sys.exc_info()[0])
+            basic_sol = None
+            types_present = None
+            rows = 0
 
         if types_present is not None:
             if one_model == True and ('AUDIO' in types_present or \
@@ -473,13 +474,13 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
                 solutions.append(pipe)
 
         # Try general relational pipelines
-        if not one_model:
-            general_solutions = get_general_relational_solutions(task_name, types_present, rows, dataset, primitives, problem_metric, posLabel, problem)
-            solutions = solutions + general_solutions
+        #if not one_model:
+        #    general_solutions = get_general_relational_solutions(task_name, types_present, rows, dataset, primitives, problem_metric, posLabel, problem)
+        #    solutions = solutions + general_solutions
            
-            # Try RPI solutions
-            rpi_solutions = get_rpi_solutions(task_name, types_present, privileged, rows, dataset, primitives, problem_metric, posLabel, problem)
-            solutions = solutions + rpi_solutions
+        #    # Try RPI solutions
+        #    rpi_solutions = get_rpi_solutions(task_name, types_present, privileged, rows, dataset, primitives, problem_metric, posLabel, problem)
+        #    solutions = solutions + rpi_solutions
 
         if task_name == 'SEMISUPERVISED':
             # Iterate through variants of possible blackbox hyperparamets.
