@@ -1739,7 +1739,7 @@ class SolutionDescription(object):
         
         return (score, optimal_params) 
 
-    def describe_solution(self, prim_dict):
+    def describe_solution(self, prim_dict, solution_dict):
         """
         Required for TA2-TA3 API DescribeSolution().
         """
@@ -1762,9 +1762,10 @@ class SolutionDescription(object):
                     sa = pipeline_pb2.StepInput(data = argument_edge)
                     step_inputs.append(sa)
                 step_outputs = []
-                for output in s.outputs:
+                subpipe = solution_dict[s]
+                for output in subpipe.outputs:
                     step_outputs.append(pipeline_pb2.StepOutput(id = output[2]))         
-                p = pipeline_pb2.SubpipelinePipelineDescriptionStep(pipeline=pipeline_pb2.PipelineDescription(id=s.id), inputs=step_inputs, outputs=step_outputs)
+                p = pipeline_pb2.SubpipelinePipelineDescriptionStep(pipeline=pipeline_pb2.PipelineDescription(id=s), inputs=step_inputs, outputs=step_outputs)
                 steps.append(pipeline_pb2.PipelineDescriptionStep(pipeline=p))
             else: # primitive
                 prim = prim_dict[s]

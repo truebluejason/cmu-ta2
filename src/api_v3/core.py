@@ -307,7 +307,7 @@ class Core(core_pb2_grpc.CoreServicer):
         logging.info("Message received: DescribeSolution")
         solution_id = request.solution_id
         solution = self._solutions[solution_id]
-        desc = solution.describe_solution(self._primitives)
+        desc = solution.describe_solution(self._primitives, self._solutions)
         param_map = self.GetStepDescriptions(solution_id)
 
         return core_pb2.DescribeSolutionResponse(pipeline=desc, steps=param_map)
