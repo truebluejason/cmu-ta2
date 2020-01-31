@@ -1334,7 +1334,8 @@ class SolutionDescription(object):
         self.primitives[i] = None
         self.steptypes[i] = StepType.SUBPIPELINE
         self.subpipelines[i] = pipeline
-       
+      
+        logging.info("Sub = %s", self.subpipelines[i].pipeline_description) 
         data = 'steps.' + str(i-1) + '.produce'
         origin = data.split('.')[0]
         source = data.split('.')[1] 

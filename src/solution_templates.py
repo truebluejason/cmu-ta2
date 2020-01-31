@@ -217,12 +217,12 @@ regressors = ['d3m.primitives.regression.ridge.SKlearn',
               'd3m.primitives.regression.lasso.SKlearn',
               'd3m.primitives.regression.elastic_net.SKlearn',
               'd3m.primitives.regression.lasso_cv.SKlearn',
-              'd3m.primitives.regression.ada_boost.SKlearn',
-              'd3m.primitives.regression.linear_svr.SKlearn',
-              'd3m.primitives.regression.random_forest.SKlearn',
-              'd3m.primitives.regression.extra_trees.SKlearn',
-              'd3m.primitives.regression.xgboost_gbtree.Common',
-              'd3m.primitives.regression.gradient_boosting.SKlearn']
+              'd3m.primitives.regression.ada_boost.SKlearn']
+              #'d3m.primitives.regression.linear_svr.SKlearn',
+              #'d3m.primitives.regression.random_forest.SKlearn',
+              #'d3m.primitives.regression.extra_trees.SKlearn',
+              #'d3m.primitives.regression.xgboost_gbtree.Common',
+              #'d3m.primitives.regression.gradient_boosting.SKlearn']
 
 regressors_rpi = ['d3m.primitives.regression.random_forest.SKlearn',
                   'd3m.primitives.regression.extra_trees.SKlearn',
