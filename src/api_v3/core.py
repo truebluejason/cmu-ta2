@@ -287,6 +287,19 @@ class Core(core_pb2_grpc.CoreServicer):
         logging.info("Message received: StopSearchSolutions")
         return core_pb2.StopSearchSolutionsResponse()
 
+    def GetStepDescriptions(self, solution_id):
+        param_map = []
+        solution = self._solutions[solution_id]
+        num_steps = solution.num_steps()
+        for j in range(num_steps):
+            if solution.primitives[j] is not None:
+                step = core_pb2.StepDescription(primitive=solution.get_hyperparams(j, self._primitives))
+            else:
+                step_array = self.GetStepDescriptions(solution.subpipelines[j].id)
+                step = core_pb2.StepDescription(pipeline=SubpipelineStepDescription(steps=step_array))
+            param_map.append(step)
+        return param_map
+
     def DescribeSolution(self, request, context):
         """
         TA2-3 API call
@@ -295,11 +308,7 @@ class Core(core_pb2_grpc.CoreServicer):
         solution_id = request.solution_id
         solution = self._solutions[solution_id]
         desc = solution.describe_solution(self._primitives)
-
-        param_map = []
-        num_steps = self._solutions[solution_id].num_steps()
-        for j in range(num_steps):
-            param_map.append(core_pb2.StepDescription(primitive=self._solutions[solution_id].get_hyperparams(j, self._primitives)))
+        param_map = self.GetStepDescriptions(solution_id)
 
         return core_pb2.DescribeSolutionResponse(pipeline=desc, steps=param_map)
 
