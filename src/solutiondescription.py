@@ -9,7 +9,7 @@ with the available primitives, and a plan for how to create a solution gets made
     Feed the results and hyperparameters back into the chooser
 """
 
-import core_pb2, problem_pb2, pipeline_pb2, primitive_pb2, value_pb2
+import problem_pb2, pipeline_pb2, primitive_pb2, value_pb2
 import pandas as pd
 
 from  api_v3 import core
@@ -1842,4 +1842,4 @@ class SolutionDescription(object):
                     elif isinstance(value, str):
                         send_params[name]=value_pb2.Value(raw=value_pb2.ValueRaw(string=value))
            
-        return core_pb2.PrimitiveStepDescription(hyperparams=send_params)
+        return send_params

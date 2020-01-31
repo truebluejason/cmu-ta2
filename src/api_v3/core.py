@@ -293,10 +293,10 @@ class Core(core_pb2_grpc.CoreServicer):
         num_steps = solution.num_steps()
         for j in range(num_steps):
             if solution.primitives[j] is not None:
-                step = core_pb2.StepDescription(primitive=solution.get_hyperparams(j, self._primitives))
+                step = core_pb2.StepDescription(primitive=core_pb2.PrimitiveStepDescription(hyperparams=solution.get_hyperparams(j, self._primitives)))
             else:
                 step_array = self.GetStepDescriptions(solution.subpipelines[j].id)
-                step = core_pb2.StepDescription(pipeline=SubpipelineStepDescription(steps=step_array))
+                step = core_pb2.StepDescription(pipeline=core_pb2.SubpipelineStepDescription(steps=step_array))
             param_map.append(step)
         return param_map
 
