@@ -294,6 +294,7 @@ class SolutionDescription(object):
         self.privileged = None
         self.index_denormalize = 0
         self.profiler_needed = False
+        self.pipeline_description = None
         self.volumes_dir = os.environ['D3MSTATICDIR']
 
     def set_categorical_atts(self, atts):
