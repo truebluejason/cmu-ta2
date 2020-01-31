@@ -28,20 +28,6 @@ from d3m.container.dataset import D3MDatasetLoader, Dataset
 from d3m.metadata import base as metadata_base
 from d3m import container
 
-def evaluate_solution(inputs, solution, solution_dict):
-    """
-    Validate each potential solution
-    Runs in a separate process
-    """
-
-    logging.info("Evaluating %s", solution.id)
-
-    valid = solution.validate_solution(inputs=inputs, solution_dict=solution_dict)
-    if valid == True:
-        return 0
-    else:
-        return -1
-
 class Core(core_pb2_grpc.CoreServicer):
     def __init__(self):
         self._sessions = {}

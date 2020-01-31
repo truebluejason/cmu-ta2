@@ -31,7 +31,6 @@ from d3m.primitive_interfaces.base import PrimitiveBaseMeta
 from d3m.container import DataFrame as d3m_dataframe
 from d3m.runtime import Runtime
 from d3m import container
-from sri.psl.link_prediction import LinkPredictionHyperparams
 import d3m.index
 
 import networkx as nx
@@ -1649,29 +1648,6 @@ class SolutionDescription(object):
 
         self.pipeline_description = None #Recreate it again
 
-    def validate_solution(self,**arguments):
-        """
-        Validate a solution 
-        """
- 
-        valid = False
-        primitives_outputs = [None] * len(self.execution_order)
-        
-        last_step = self.get_last_step()
-
-        if self.primitives_outputs is None:
-            for i in range(0, last_step+1):
-                n_step = self.execution_order[i]
-                primitives_outputs[n_step] = self.process_step(n_step, primitives_outputs, ActionType.VALIDATE, arguments)
-
-                if self.isDataFrameStep(n_step) == True:
-                    self.exclude(primitives_outputs[n_step])
-        else:
-            primitives_outputs[last_step] = self.process_step(last_step, self.primitives_outputs, ActionType.VALIDATE, arguments)
-
-        valid = primitives_outputs[last_step]
-        return valid
-
     def run_basic_solution(self, **arguments):
         """
         Run common parts of a pipeline before adding last step of classifier/regressor
@@ -1782,47 +1758,6 @@ class SolutionDescription(object):
         
         return (score, optimal_params) 
 
-    def validate_step(self, primitive: PrimitiveBaseMeta, primitive_arguments):
-        """
-        Last step of a solution evaluated for validate_solution()
-        """
-        python_path = primitive.metadata.query()['python_path']
-        if 'Find_projections' in python_path:
-            return True
-
-        family = primitive.metadata.query()['primitive_family']
-
-        training_arguments_primitive = self._primitive_arguments(primitive, 'set_training_data')
-        training_arguments = {}
-
-        for param, value in primitive_arguments.items():
-            if param in training_arguments_primitive:
-                training_arguments[param] = value
-
-        primitive_hyperparams = primitive.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
-        model = primitive(hyperparams=primitive_hyperparams(
-                            primitive_hyperparams.defaults()))
-
-        if family is not PrimitiveFamily.DATA_TRANSFORMATION and 'd3m.primitives.sri.' not in primitive.metadata.query()['python_path']:
-            ip = training_arguments['inputs']
-            from sklearn.model_selection import KFold
-        
-            # Train on just 20% of the data to validate
-            kf = KFold(n_splits=5, shuffle=True, random_state=9001)
-            newtrain_args = {}
-            for train_index, test_index in kf.split(ip):
-                for param, value in training_arguments.items():
-                    newvalue = pd.DataFrame(data=value.values)
-                    newtrain_args[param] = newvalue.iloc[test_index]
-                    newtrain_args[param].metadata = value.metadata
-                break
-            training_arguments = newtrain_args
- 
-        model.set_training_data(**training_arguments)
-        model.fit()
-
-        return True
- 
     def describe_solution(self, prim_dict):
         """
         Required for TA2-TA3 API DescribeSolution().
@@ -1849,7 +1784,7 @@ class SolutionDescription(object):
                 for output in s.outputs:
                     step_outputs.append(pipeline_pb2.StepOutput(id = output[2]))         
                 p = pipeline_pb2.SubpipelinePipelineDescriptionStep(pipeline=pipeline_pb2.PipelineDescription(id=s.id), inputs=step_inputs, outputs=step_outputs)
-                steps.append(p)
+                steps.append(pipeline_pb2.PipelineDescriptionStep(pipeline=p))
             else: # primitive
                 prim = prim_dict[s]
                 p = primitive_pb2.Primitive(id=prim.id, version=prim.primitive_class.version, python_path=prim.primitive_class.python_path, name=prim.primitive_class.name, digest=prim.primitive_class.digest)
