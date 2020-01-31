@@ -324,12 +324,12 @@ class SolutionDescription(object):
                 return index
             index = index + 1
 
-    def create_pipeline_json(self, prim_dict):
+    def create_pipeline_json(self, prim_dict, solution_dict):
         """
         Generate pipeline.json
         """
         name = "Pipeline for evaluation"
-        pipeline_id = self.id #+ "_" + str(self.rank)
+        pipeline_id = self.id 
         pipeline_description = Pipeline(pipeline_id=pipeline_id, name=name)
         for ip in self.inputs:
             pipeline_description.add_input(name=ip['name'])
@@ -363,14 +363,15 @@ class SolutionDescription(object):
                         else:
                             step.add_hyperparameter(name=name, argument_type=ArgumentType.VALUE, data=value)
             else: # Subpipeline
-                pdesc = self.subpipelines[i].pipeline_description
+                solution = solution_dict[self.subpipelines[i]]
+                pdesc = solution.pipeline_description
                 if pdesc is None:
-                    self.subpipelines[i].create_pipeline_json(prim_dict)
-                    pdesc = self.subpipelines[i].pipeline_description 
+                    solution.create_pipeline_json(prim_dict, solution_dict)
+                    pdesc = solution.pipeline_description 
                 step = SubpipelineStep(pipeline=pdesc)
                 ipname = 'steps.' + str(i-1) + '.produce'
                 step.add_input(ipname)
-                for output in self.subpipelines[i].outputs:
+                for output in solution.outputs:
                     step.add_output(output_id=output[2])
 
             pipeline_description.add_step(step)
@@ -380,13 +381,13 @@ class SolutionDescription(object):
 
         self.pipeline_description = pipeline_description
    
-    def write_pipeline_json(self, prim_dict, dirName, subpipeline_dirName, rank=None):
+    def write_pipeline_json(self, prim_dict, solution_dict, dirName, subpipeline_dirName, rank=None):
         """
         Output pipeline to JSON file
         """
         filename = dirName + "/" + self.id + ".json"
         if self.pipeline_description is None:
-            self.create_pipeline_json(prim_dict)
+            self.create_pipeline_json(prim_dict, solution_dict)
             for step in self.pipeline_description.steps:
                 if isinstance(step, SubpipelineStep):
                     subfilename = subpipeline_dirName + "/" + step.pipeline.id + ".json"
@@ -407,7 +408,7 @@ class SolutionDescription(object):
         with open(filename_yaml, "w") as out:
             pipeline_run.to_yaml(file=filename_yaml)
 
-    def create_from_pipelinedescription(self, pipeline_description: pipeline_pb2.PipelineDescription) -> None:
+    def create_from_pipelinedescription(self, solution_dict, pipeline_description: pipeline_pb2.PipelineDescription) -> None:
         """
         Initialize a solution object from a pipeline_pb2.PipelineDescription object passed by TA3.
         """
@@ -419,6 +420,7 @@ class SolutionDescription(object):
         self.inputs = []
         for ip in pipeline_description.inputs:
              self.inputs.append({"name": ip.name})
+
         self.id = pipeline_description.id
         self.source = {}
         self.source['name'] = pipeline_description.source.name
@@ -494,8 +496,7 @@ class SolutionDescription(object):
             elif pipeline_description.steps[i].HasField("pipeline") == True:
                 s = pipeline_description.steps[i].pipeline
                 self.primitives[i] = None
-                self.subpipelines[i] = SolutionDescription(self.problem)
-                self.subpipelines[i].create_from_pipelinedescription(s)
+                self.subpipelines[i] = s.id
                 self.steptypes.append(StepType.SUBPIPELINE)
                 for j in range(len(s.inputs)):
                     argument_edge = s.inputs[j].data
@@ -802,7 +803,7 @@ class SolutionDescription(object):
                     steps_outputs[n_step] = None
             else: # Subpipeline
                 solution_dict = arguments['solution_dict']
-                solution = solution_dict[self.subpipelines[n_step].id]
+                solution = solution_dict[self.subpipelines[n_step]]
                 inputs = []
                 inputs.append(produce_arguments['inputs'])
                 steps_outputs[n_step] = solution.produce(inputs=inputs, solution_dict=solution_dict)[0]
@@ -1315,7 +1316,7 @@ class SolutionDescription(object):
         self.pipeline.append(None)
         self.primitives[i] = None
         self.steptypes[i] = StepType.SUBPIPELINE
-        self.subpipelines[i] = pipeline
+        self.subpipelines[i] = pipeline.id
       
         data = 'steps.' + str(i-1) + '.produce'
         origin = data.split('.')[0]
@@ -1518,7 +1519,7 @@ class SolutionDescription(object):
                     primitive_arguments[argument] = primitives_outputs[value['source']]
                 else:
                     primitive_arguments[argument] = arguments['inputs'][value['source']]
-            return self._pipeline_step_fit(n_step, self.subpipelines[n_step].id, primitive_arguments, arguments, action)
+            return self._pipeline_step_fit(n_step, self.subpipelines[n_step], primitive_arguments, arguments, action)
 
         # Primitive step
         if self.steptypes[n_step] is StepType.PRIMITIVE:
@@ -1615,7 +1616,7 @@ class SolutionDescription(object):
         
         return (score, optimal_params)
 
-    def set_hyperparams(self, hp):
+    def set_hyperparams(self, solution_dict, hp):
         """
         Set hyperparameters for the primtiive at the "last" step.
         """
@@ -1627,7 +1628,8 @@ class SolutionDescription(object):
             else:
                 self.hyperparams[self.execution_order[n_step]] = hp
         else:
-            self.subpipelines[self.execution_order[n_step]].set_hyperparams(hp)
+            solution_id = self.subpipelines[self.execution_order[n_step]]
+            solution_dict[solution_id].set_hyperparams(solution_dict, hp)
 
         self.pipeline_description = None #Recreate it again
 

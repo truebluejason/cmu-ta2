@@ -88,7 +88,7 @@ class Core(core_pb2_grpc.CoreServicer):
         # TA3 has specified a pipeline
         if template != None and isinstance(template, pipeline_pb2.PipelineDescription) and len(template.steps) > 0:
             basic_sol = solutiondescription.SolutionDescription(request.problem)
-            basic_sol.create_from_pipelinedescription(pipeline_description=template)
+            basic_sol.create_from_pipelinedescription(self._solutions, pipeline_description=template)
             if basic_sol.contains_placeholder() == False:  # Fully defined
                 solutions.append(basic_sol)
                 return (solutions, 0)
@@ -224,8 +224,8 @@ class Core(core_pb2_grpc.CoreServicer):
                     self._search_solutions[search_id_str].append(id)
                     valid_solution_scores[id] = score
                     if optimal_params is not None and len(optimal_params) > 0:
-                        self._solutions[id].set_hyperparams(optimal_params)
-                    util.write_pipeline_json(solutions[index], self._primitives, outputDir + "/pipelines_searched", outputDir + "/subpipelines")
+                        self._solutions[id].set_hyperparams(self._solutions, optimal_params)
+                    util.write_pipeline_json(solutions[index], self._primitives, self._solutions, outputDir + "/pipelines_searched", outputDir + "/subpipelines")
                     end_solution = timer()
                     time_used = end_solution - start_solution
                     timeout = timeout - time_used
@@ -353,7 +353,7 @@ class Core(core_pb2_grpc.CoreServicer):
                                 posLabel = request_params.performance_metrics[0].pos_label,
                                 primitive_dict=self._primitives, solution_dict=self._solutions)
                 if optimal_params is not None and len(optimal_params) > 0:
-                    self._solutions[solution_id].set_hyperparams(optimal_params)
+                    self._solutions[solution_id].set_hyperparams(self._solutions, optimal_params)
 
                 e = timer()
                 logging.info("Time taken = %s sec", e-s) 
@@ -365,7 +365,7 @@ class Core(core_pb2_grpc.CoreServicer):
             score = self._solutions[solution_id].rank
             outputDir = os.environ['D3MOUTPUTDIR']
             try:
-                util.write_pipeline_json(self._solutions[solution_id], self._primitives, outputDir + "/pipelines_scored", outputDir + "/subpipelines")
+                util.write_pipeline_json(self._solutions[solution_id], self._primitives, self._solutions, outputDir + "/pipelines_scored", outputDir + "/subpipelines")
             except:
                 logging.info(sys.exc_info()[0])
                 logging.info(self._solutions[solution_id].primitives)
@@ -531,7 +531,7 @@ class Core(core_pb2_grpc.CoreServicer):
         solution.rank = rank
 
         outputDir = os.environ['D3MOUTPUTDIR'] 
-        util.write_pipeline_json(solution, self._primitives, outputDir + "/pipelines_ranked", outputDir + "/subpipelines", rank=solution.rank)
+        util.write_pipeline_json(solution, self._primitives, self._solutions, outputDir + "/pipelines_ranked", outputDir + "/subpipelines", rank=solution.rank)
         util.write_rank_file(solution, rank, outputDir + "/pipelines_ranked")
 
         return core_pb2.SolutionExportResponse()

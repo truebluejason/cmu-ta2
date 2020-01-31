@@ -171,8 +171,8 @@ def write_predictions(predictions, dirname, solution):
         predictions.to_csv(outputFile, header=True, index=False)
     return outputFilePath
    
-def write_pipeline_json(solution, primitives, dirName, subpipeline_dirName, rank=None):
-    solution.write_pipeline_json(primitives, dirName, subpipeline_dirName, rank) 
+def write_pipeline_json(solution, primitives, solution_dict, dirName, subpipeline_dirName, rank=None):
+    solution.write_pipeline_json(primitives, solution_dict, dirName, subpipeline_dirName, rank) 
 
 def write_rank_file(solution, rank, dirName):
     outputFilePath = dirName + "/" + solution.id + ".rank"
