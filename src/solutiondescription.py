@@ -494,7 +494,8 @@ class SolutionDescription(object):
             elif pipeline_description.steps[i].HasField("pipeline") == True:
                 s = pipeline_description.steps[i].pipeline
                 self.primitives[i] = None
-                self.subpipelines[i] = s
+                self.subpipelines[i] = SolutionDescription(self.problem)
+                self.subpipelines[i].create_from_pipelinedescription(s)
                 self.steptypes.append(StepType.SUBPIPELINE)
                 for j in range(len(s.inputs)):
                     argument_edge = s.inputs[j].data
@@ -1316,7 +1317,6 @@ class SolutionDescription(object):
         self.steptypes[i] = StepType.SUBPIPELINE
         self.subpipelines[i] = pipeline
       
-        logging.info("Sub = %s", self.subpipelines[i].pipeline_description) 
         data = 'steps.' + str(i-1) + '.produce'
         origin = data.split('.')[0]
         source = data.split('.')[1] 
