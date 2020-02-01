@@ -1793,7 +1793,7 @@ class SolutionDescription(object):
                 step_hyperparameters = {}
                 for name, value in hyperparameters.items():
                     if name == "primitive":
-                        step_hyperparameters[name] = pipeline_pb2.PrimitiveStepHyperparameter(primitive=pipeline_pb2.PrimitiveArgument(data=value))
+                        step_hyperparameters[name] = pipeline_pb2.PrimitiveStepHyperparameter(primitive=pipeline_pb2.PrimitiveArgument(data=value.raw.int64))
                     else:
                         step_hyperparameters[name] = pipeline_pb2.PrimitiveStepHyperparameter(value=pipeline_pb2.ValueArgument(data=value))
                 steps.append(pipeline_pb2.PipelineDescriptionStep(primitive=pipeline_pb2.PrimitivePipelineDescriptionStep(primitive=p, arguments=arguments, outputs=step_outputs, hyperparams=step_hyperparameters)))
