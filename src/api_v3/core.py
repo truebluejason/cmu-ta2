@@ -479,12 +479,12 @@ class Core(core_pb2_grpc.CoreServicer):
         solution = self._solutions[solution_id]
 
         inputs = self._get_inputs(solution.problem, request_params.inputs)
-        try:
+        if 1:#try:
             output = solution.produce(inputs=inputs, solution_dict=self._solutions)[0]
-        except:
-            logging.info("Exception in produce: %s", solution.primitives)
-            logging.info("Exception in produce: %s", sys.exc_info()[0])
-            output = None
+        #except:
+        #    logging.info("Exception in produce: %s", solution.primitives)
+        #    logging.info("Exception in produce: %s", sys.exc_info()[0])
+        #    output = None
     
         result = None
         
