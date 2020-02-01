@@ -432,7 +432,7 @@ class Core(core_pb2_grpc.CoreServicer):
                 output = pd.DataFrame(data=output)
 
             if output is not None:
-                uri = util.write_predictions(output, outputDir + "/predictions", fitted_solution)
+                uri = util.write_predictions(output, outputDir + "/predictions", solution)
                 uri = 'file://{uri}'.format(uri=os.path.abspath(uri)) 
                 result = value_pb2.Value(csv_uri=uri)
             else:
@@ -443,7 +443,7 @@ class Core(core_pb2_grpc.CoreServicer):
             msg = core_pb2.Progress(state=core_pb2.COMPLETED, status="", start=start, end=solutiondescription.compute_timestamp())
 
             steps = []
-            for i in range(fitted_solution.num_steps()):
+            for i in range(solution.num_steps()):
                 steps.append(core_pb2.StepProgress(progress=msg))
 
             exposed_outputs = {}

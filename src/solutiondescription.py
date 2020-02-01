@@ -685,6 +685,7 @@ class SolutionDescription(object):
                 produce_params[param] = value
 
         python_path = primitive.metadata.query()['python_path']
+        logging.info("Fitting %s", python_path)
         if model is not None:  # Use pre-learnt model
             return model.produce(**produce_params).value
         
@@ -797,6 +798,7 @@ class SolutionDescription(object):
                             continue
             if self.steptypes[n_step] is StepType.PRIMITIVE: # Primitive
                 if n_step in self.produce_order:
+                    logging.info("Running produce on %s", self.pipeline[n_step])
                     v = self.pipeline[n_step].produce(**produce_arguments).value
                     steps_outputs[n_step] = v
                 else:
