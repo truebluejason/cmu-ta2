@@ -495,6 +495,7 @@ class SolutionDescription(object):
             # SubpipelinePipelineDescriptionStep
             elif pipeline_description.steps[i].HasField("pipeline") == True:
                 s = pipeline_description.steps[i].pipeline
+                logging.info("SBP = %s", s)
                 self.primitives[i] = None
                 self.subpipelines[i] = s.id
                 self.steptypes.append(StepType.SUBPIPELINE)
