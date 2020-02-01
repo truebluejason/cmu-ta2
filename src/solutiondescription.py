@@ -685,7 +685,6 @@ class SolutionDescription(object):
                 produce_params[param] = value
 
         python_path = primitive.metadata.query()['python_path']
-        logging.info("Fitting %s", python_path)
         if model is not None:  # Use pre-learnt model
             return model.produce(**produce_params).value
         
@@ -702,7 +701,6 @@ class SolutionDescription(object):
                     continue
                 custom_hyperparams[hyperparam] = value
 
-        logging.info(custom_hyperparams)
         training_arguments_primitive = self._primitive_arguments(primitive, 'set_training_data')
         training_arguments = {}
 
@@ -804,7 +802,8 @@ class SolutionDescription(object):
                             continue
             if self.steptypes[n_step] is StepType.PRIMITIVE: # Primitive
                 if n_step in self.produce_order:
-                    #logging.info("Running produce on %s", self.pipeline[n_step])
+                    logging.info("Runnig step %s", n_step)
+                    logging.info("Running produce on %s", self.pipeline[n_step])
                     v = self.pipeline[n_step].produce(**produce_arguments).value
                     steps_outputs[n_step] = v
                 else:
@@ -814,7 +813,8 @@ class SolutionDescription(object):
                 solution = solution_dict[self.subpipelines[n_step]]
                 inputs = []
                 inputs.append(produce_arguments['inputs'])
-                steps_outputs[n_step] = solution.produce(inputs=inputs, solution_dict=solution_dict)[0]
+                op = solution.produce(inputs=inputs, solution_dict=solution_dict)
+                steps_outputs[n_step] = op[0]
 
         # Create output
         pipeline_output = []
