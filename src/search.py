@@ -1,4 +1,3 @@
-
 import os, sys
 import util
 import solution_templates
@@ -89,7 +88,7 @@ def search_phase():
             valid_solutions[id] = solutions[index]
             valid_solution_scores[id] = score
             if optimal_params is not None and len(optimal_params) > 0:
-                valid_solutions[id].set_hyperparams(optimal_params)
+                valid_solutions[id].set_hyperparams(None, optimal_params)
         except:
             print(solutions[index].primitives)
             print(sys.exc_info()[0])
