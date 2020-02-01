@@ -359,8 +359,8 @@ class Core(core_pb2_grpc.CoreServicer):
                 logging.info("Time taken = %s sec", e-s) 
             except:
                 score = 0.0
-                logging.info(self._solutions[solution_id].primitives)
-                logging.info(sys.exc_info()[0])
+                logging.info("Exception in score: %s", self._solutions[solution_id].primitives)
+                logging.info("Exception in score: %s", sys.exc_info()[0])
             
             score = self._solutions[solution_id].rank
             outputDir = os.environ['D3MOUTPUTDIR']
@@ -412,17 +412,17 @@ class Core(core_pb2_grpc.CoreServicer):
 
             msg = core_pb2.Progress(state=core_pb2.RUNNING, status="", start=start, end=solutiondescription.compute_timestamp())
             
-            fitted_solution = copy.deepcopy(solution)
-            fitted_solution.id = str(uuid.uuid4())
-            fitted_solution.create_pipeline_json(self._primitives, self._solutions) 
-            self._solutions[fitted_solution.id] = fitted_solution
+            #fitted_solution = copy.deepcopy(solution)
+            #fitted_solution.id = str(uuid.uuid4())
+            solution.create_pipeline_json(self._primitives, self._solutions) 
+            #self._solutions[fitted_solution.id] = fitted_solution
 
             inputs = self._get_inputs(solution.problem, request_params.inputs)
             try:
-                output = fitted_solution.fit(inputs=inputs, solution_dict=self._solutions)
+                output = solution.fit(inputs=inputs, solution_dict=self._solutions)
             except:
-                logging.info(fitted_solution.primitives)
-                logging.info(sys.exc_info()[0])
+                logging.info("Exception in fit: %s", solution.primitives)
+                logging.info("Exception in fit: %s", sys.exc_info()[0])
                 output = None
 
             result = None
@@ -438,7 +438,7 @@ class Core(core_pb2_grpc.CoreServicer):
             else:
                 result = value_pb2.Value(error = value_pb2.ValueError(message="Output is NULL"))
 
-            yield core_pb2.GetFitSolutionResultsResponse(progress=msg, steps=[], exposed_outputs=[], fitted_solution_id=fitted_solution.id)
+            yield core_pb2.GetFitSolutionResultsResponse(progress=msg, steps=[], exposed_outputs=[], fitted_solution_id=solution.id)
 
             msg = core_pb2.Progress(state=core_pb2.COMPLETED, status="", start=start, end=solutiondescription.compute_timestamp())
 
@@ -450,14 +450,14 @@ class Core(core_pb2_grpc.CoreServicer):
             if request_params.expose_outputs is not None and len(request_params.expose_outputs) > 0:
                 last_step_output = request_params.expose_outputs[len(request_params.expose_outputs)-1]
             else:
-                last_step_output = fitted_solution.outputs[0][2]
+                last_step_output = solution.outputs[0][2]
 
             exposed_outputs[last_step_output] = result
 
             # Clean up
             self._solution_score_map.pop(request_id, None)
 
-            yield core_pb2.GetFitSolutionResultsResponse(progress=msg, steps=steps, exposed_outputs=exposed_outputs, fitted_solution_id=fitted_solution.id)
+            yield core_pb2.GetFitSolutionResultsResponse(progress=msg, steps=steps, exposed_outputs=exposed_outputs, fitted_solution_id=solution.id)
 
     def ProduceSolution(self, request, context):
         """
@@ -485,8 +485,8 @@ class Core(core_pb2_grpc.CoreServicer):
         try:
             output = solution.produce(inputs=inputs, solution_dict=self._solutions)[0]
         except:
-            logging.info(solution.primitives)
-            logging.info(sys.exc_info()[0])
+            logging.info("Exception in produce: %s", solution.primitives)
+            logging.info("Exception in produce: %s", sys.exc_info()[0])
             output = None
     
         result = None
