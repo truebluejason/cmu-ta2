@@ -414,7 +414,7 @@ class Core(core_pb2_grpc.CoreServicer):
             
             fitted_solution = copy.deepcopy(solution)
             fitted_solution.id = str(uuid.uuid4())
-            fitted_solution.create_pipeline_json(self._primitives) 
+            fitted_solution.create_pipeline_json(self._primitives, self._solutions) 
             self._solutions[fitted_solution.id] = fitted_solution
 
             inputs = self._get_inputs(solution.problem, request_params.inputs)
