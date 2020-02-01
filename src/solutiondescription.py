@@ -708,6 +708,7 @@ class SolutionDescription(object):
         for param, value in primitive_arguments.items():
             if param in training_arguments_primitive:
                 training_arguments[param] = value
+                logging.info("Param = %s", param)
 
         method_arguments = primitive.metadata.query()['primitive_code'].get('instance_methods', {}).get('__init__', {}).get('arguments', [])
         if 'volumes' in method_arguments:
