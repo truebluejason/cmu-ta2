@@ -358,8 +358,7 @@ class SolutionDescription(object):
                 if self.hyperparams[i] is not None:
                     for name, value in self.hyperparams[i].items():
                         if name == "primitive":
-                            index = self.find_primitive_index(value.metadata.query()['python_path'])
-                            step.add_hyperparameter(name=name, argument_type=ArgumentType.PRIMITIVE, data=int(index))
+                            step.add_hyperparameter(name=name, argument_type=ArgumentType.PRIMITIVE, data=value) 
                         else:
                             step.add_hyperparameter(name=name, argument_type=ArgumentType.VALUE, data=value)
             else: # Subpipeline
@@ -487,10 +486,7 @@ class SolutionDescription(object):
                             self.hyperparams[i][name] = value
                         elif argument.HasField("primitive") == True:
                             arg = int(argument.primitive.data)
-                            value = self.primitives[arg]
-                            primitive_hyperparams = value.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
-                            model = value(hyperparams=primitive_hyperparams(primitive_hyperparams.defaults(), **self.hyperparams[arg]))
-                            self.hyperparams[i][name] = model
+                            self.hyperparams[i][name] = arg 
 
             # SubpipelinePipelineDescriptionStep
             elif pipeline_description.steps[i].HasField("pipeline") == True:
@@ -691,16 +687,19 @@ class SolutionDescription(object):
         python_path = primitive.metadata.query()['python_path']
         logging.info("Fitting %s", python_path)
         if model is not None:  # Use pre-learnt model
-            logging.info("Pre-learnt model = %s", model)
             return model.produce(**produce_params).value
         
-        primitive_hyperparams = primitive.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
-
         custom_hyperparams = dict()
  
         hyperparams = self.hyperparams[n_step]
         if hyperparams is not None:
             for hyperparam, value in hyperparams.items():
+                if hyperparam == 'primitive':
+                    val = self.primitives[value]
+                    primitive_hyperparams = val.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
+                    primitive_model = val(hyperparams=primitive_hyperparams(primitive_hyperparams.defaults(), **self.hyperparams[value]))
+                    custom_hyperparams[hyperparam] = primitive_model
+                    continue
                 custom_hyperparams[hyperparam] = value
 
         logging.info(custom_hyperparams)
@@ -710,8 +709,8 @@ class SolutionDescription(object):
         for param, value in primitive_arguments.items():
             if param in training_arguments_primitive:
                 training_arguments[param] = value
-                logging.info("Param = %s", param)
 
+        primitive_hyperparams = primitive.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
         method_arguments = primitive.metadata.query()['primitive_code'].get('instance_methods', {}).get('__init__', {}).get('arguments', [])
         if 'volumes' in method_arguments:
             volumes = get_primitive_volumes(self.volumes_dir, primitive)
@@ -1789,7 +1788,15 @@ class SolutionDescription(object):
                 step_outputs = []
                 for a in prim.primitive_class.produce_methods:
                     step_outputs.append(pipeline_pb2.StepOutput(id=a))
-                steps.append(pipeline_pb2.PipelineDescriptionStep(primitive=pipeline_pb2.PrimitivePipelineDescriptionStep(primitive=p, arguments=arguments, outputs=step_outputs)))
+
+                hyperparameters = self.get_hyperparams(j,prim_dict)
+                step_hyperparameters = {}
+                for name, value in hyperparameters.items():
+                    if name == "primitive":
+                        step_hyperparameters[name] = pipeline_pb2.PrimitiveStepHyperparameter(primitive=pipeline_pb2.PrimitiveArgument(data=value))
+                    else:
+                        step_hyperparameters[name] = pipeline_pb2.PrimitiveStepHyperparameter(value=pipeline_pb2.ValueArgument(data=value))
+                steps.append(pipeline_pb2.PipelineDescriptionStep(primitive=pipeline_pb2.PrimitivePipelineDescriptionStep(primitive=p, arguments=arguments, outputs=step_outputs, hyperparams=step_hyperparameters)))
            
         return pipeline_pb2.PipelineDescription(id=self.id, source=self.source, created=self.created, context=self.context,
          name=self.name, description=self.description, inputs=inputs, outputs=outputs, steps=steps)
@@ -1814,6 +1821,9 @@ class SolutionDescription(object):
             hyperparam_types = {name:filter_hyperparam(vl['structural_type']) for name,vl in hyperparam_spec.items() if 'structural_type' in vl.keys()}
         
             for name, value in hyperparams.items():
+                if name == "primitive":
+                    send_params[name] = value_pb2.Value(raw=value_pb2.ValueRaw(int64=value))
+                    continue
                 tp = hyperparam_types[name]
                 if tp is int:
                     send_params[name]=value_pb2.Value(raw=value_pb2.ValueRaw(int64=value))

@@ -310,6 +310,7 @@ class Core(core_pb2_grpc.CoreServicer):
         desc = solution.describe_solution(self._primitives, self._solutions)
         param_map = self.GetStepDescriptions(solution_id)
 
+        logging.info(param_map)
         return core_pb2.DescribeSolutionResponse(pipeline=desc, steps=param_map)
 
     def ScoreSolution(self, request, context):
@@ -427,9 +428,6 @@ class Core(core_pb2_grpc.CoreServicer):
             result = None
             outputDir = os.environ['D3MOUTPUTDIR']
 
-            if isinstance(output, np.ndarray):
-                output = pd.DataFrame(data=output)
-
             if output is not None:
                 uri = util.write_predictions(output, outputDir + "/predictions", solution)
                 uri = 'file://{uri}'.format(uri=os.path.abspath(uri)) 
@@ -491,8 +489,6 @@ class Core(core_pb2_grpc.CoreServicer):
         result = None
         
         outputDir = os.environ['D3MOUTPUTDIR']
-        if isinstance(output, np.ndarray):
-            output = pd.DataFrame(data=output)
 
         if output is not None:
             uri = util.write_predictions(output, outputDir + "/predictions", solution)
