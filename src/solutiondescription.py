@@ -243,6 +243,31 @@ def get_dict_items(values : value_pb2.ValueDict):
         items[name] = get_values(arg)
     return items
 
+def get_pipeline_values(value):
+    if value is None:
+        return value_pb2.Value(raw=value_pb2.ValueRaw(null=value_pb2.NULL_VALUE))
+    if isinstance(value, list):
+        vitems = []
+        for v in value:
+            vitems.append(get_pipeline_values(v).raw)
+        vlist = value_pb2.ValueList(items=vitems)
+        return value_pb2.Value(raw=value_pb2.ValueRaw(list=vlist))
+    elif isinstance(value, dict):
+        vitems = {}
+        for name,v in value.items():
+            vitems[name] = get_pipeline_values(v).raw
+        vlist = value_pb2.ValueDict(items=vitems)
+        return value_pb2.Value(raw=value_pb2.ValueRaw(dict=vlist))
+    elif isinstance(value, int):
+        return value_pb2.Value(raw=value_pb2.ValueRaw(int64=value))
+    elif isinstance(value, float):
+        return value_pb2.Value(raw=value_pb2.ValueRaw(double=value))
+    elif isinstance(value, bool):
+        return value_pb2.Value(raw=value_pb2.ValueRaw(bool=value))
+    elif isinstance(value, str):
+        return value_pb2.Value(raw=value_pb2.ValueRaw(string=value))
+    return None
+
 class SolutionDescription(object):
     """
     A wrapper of a pipeline.
@@ -1816,38 +1841,15 @@ class SolutionDescription(object):
         custom_hyperparams = self.hyperparams[step]
 
         send_params={}
-        if 'hyperparams' in p.primitive.metadata.query()['primitive_code']:
-            hyperparam_spec = p.primitive.metadata.query()['primitive_code']['hyperparams']
-            filter_hyperparam = lambda vl: None if vl == 'None' else vl
-            hyperparams = {name:filter_hyperparam(vl['default']) for name,vl in hyperparam_spec.items()}
-
-            if custom_hyperparams is not None:
-                for name, value in custom_hyperparams.items():
-                    hyperparams[name] = value
-
-            hyperparam_types = {name:filter_hyperparam(vl['structural_type']) for name,vl in hyperparam_spec.items() if 'structural_type' in vl.keys()}
-        
-            for name, value in hyperparams.items():
-                if name == "primitive":
-                    send_params[name] = value_pb2.Value(raw=value_pb2.ValueRaw(int64=value))
-                    continue
-                tp = hyperparam_types[name]
-                if tp is int:
-                    send_params[name]=value_pb2.Value(raw=value_pb2.ValueRaw(int64=value))
-                elif tp is float:
-                    send_params[name]=value_pb2.Value(raw=value_pb2.ValueRaw(double=value))
-                elif tp is bool:
-                    send_params[name]=value_pb2.Value(raw=value_pb2.ValueRaw(bool=value))
-                elif tp is str:
-                    send_params[name]=value_pb2.Value(raw=value_pb2.ValueRaw(string=value))
-                else:
-                    if isinstance(value, int):
-                        send_params[name]=value_pb2.Value(raw=value_pb2.ValueRaw(int64=value))
-                    elif isinstance(value, float):
-                        send_params[name]=value_pb2.Value(raw=value_pb2.ValueRaw(double=value))
-                    elif isinstance(value, bool):
-                        send_params[name]=value_pb2.Value(raw=value_pb2.ValueRaw(bool=value))
-                    elif isinstance(value, str):
-                        send_params[name]=value_pb2.Value(raw=value_pb2.ValueRaw(string=value))
+       
+        if custom_hyperparams is None:
+            return send_params
+ 
+        for name, value in custom_hyperparams.items():
+            if name == "primitive":
+                send_params[name] = value_pb2.Value(raw=value_pb2.ValueRaw(int64=value))
+                continue
+            else:
+                send_params[name] = get_pipeline_values(value)
            
         return send_params
