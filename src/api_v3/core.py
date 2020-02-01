@@ -346,8 +346,7 @@ class Core(core_pb2_grpc.CoreServicer):
             yield core_pb2.GetScoreSolutionResultsResponse(progress=msg, scores=[])
         else:
             inputs = self._get_inputs(self._solutions[solution_id].problem, request_params.inputs)
-            try:
-                logging.info(self._solutions[solution_id].primitives)
+            if 1:#try:
                 s = timer()                
                 (score, optimal_params) = self._solutions[solution_id].score_solution(inputs=inputs, metric=request_params.performance_metrics[0].metric,
                                 posLabel = request_params.performance_metrics[0].pos_label,
@@ -357,10 +356,10 @@ class Core(core_pb2_grpc.CoreServicer):
 
                 e = timer()
                 logging.info("Time taken = %s sec", e-s) 
-            except:
-                score = 0.0
-                logging.info("Exception in score: %s", self._solutions[solution_id].primitives)
-                logging.info("Exception in score: %s", sys.exc_info()[0])
+            #except:
+            #    score = 0.0
+            #    logging.info("Exception in score: %s", self._solutions[solution_id].primitives)
+            #    logging.info("Exception in score: %s", sys.exc_info()[0])
             
             score = self._solutions[solution_id].rank
             outputDir = os.environ['D3MOUTPUTDIR']
@@ -418,12 +417,12 @@ class Core(core_pb2_grpc.CoreServicer):
             #self._solutions[fitted_solution.id] = fitted_solution
 
             inputs = self._get_inputs(solution.problem, request_params.inputs)
-            try:
+            if 1:#try:
                 output = solution.fit(inputs=inputs, solution_dict=self._solutions)
-            except:
-                logging.info("Exception in fit: %s", solution.primitives)
-                logging.info("Exception in fit: %s", sys.exc_info()[0])
-                output = None
+            #except:
+            #    logging.info("Exception in fit: %s", solution.primitives)
+            #    logging.info("Exception in fit: %s", sys.exc_info()[0])
+            #    output = None
 
             result = None
             outputDir = os.environ['D3MOUTPUTDIR']
