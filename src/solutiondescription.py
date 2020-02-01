@@ -691,6 +691,7 @@ class SolutionDescription(object):
         python_path = primitive.metadata.query()['python_path']
         logging.info("Fitting %s", python_path)
         if model is not None:  # Use pre-learnt model
+            logging.info("Pre-learnt model = %s", model)
             return model.produce(**produce_params).value
         
         primitive_hyperparams = primitive.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
@@ -702,6 +703,7 @@ class SolutionDescription(object):
             for hyperparam, value in hyperparams.items():
                 custom_hyperparams[hyperparam] = value
 
+        logging.info(custom_hyperparams)
         training_arguments_primitive = self._primitive_arguments(primitive, 'set_training_data')
         training_arguments = {}
 
@@ -803,7 +805,7 @@ class SolutionDescription(object):
                             continue
             if self.steptypes[n_step] is StepType.PRIMITIVE: # Primitive
                 if n_step in self.produce_order:
-                    logging.info("Running produce on %s", self.pipeline[n_step])
+                    #logging.info("Running produce on %s", self.pipeline[n_step])
                     v = self.pipeline[n_step].produce(**produce_arguments).value
                     steps_outputs[n_step] = v
                 else:
