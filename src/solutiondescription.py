@@ -531,6 +531,10 @@ class SolutionDescription(object):
         execution_order = list(filter(lambda x: x.isdigit(), execution_order))
         self.execution_order = [int(x) for x in execution_order]
 
+        logging.info(self.primitives)
+        logging.info(self.primitives_arguments)
+        logging.info(self.execution_order)
+
         # Creating set of steps to be call in produce
         self.produce_order = set()
         for i in range(len(pipeline_description.outputs)):
@@ -572,7 +576,7 @@ class SolutionDescription(object):
         # Ignore all column that have only one value
         for att in attributes:
             attmeta = metadata.query((metadata_base.ALL_ELEMENTS, att))['semantic_types']
-            #print("For col ", att, " ", attmeta)
+            print("For col ", att, " ", attmeta)
             length = len(attmeta)-1
             is_unique = False
             if 'https://metadata.datadrivendiscovery.org/types/UniqueKey' in attmeta:
