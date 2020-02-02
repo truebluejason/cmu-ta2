@@ -552,10 +552,6 @@ class SolutionDescription(object):
         execution_order = list(filter(lambda x: x.isdigit(), execution_order))
         self.execution_order = [int(x) for x in execution_order]
 
-        logging.info(self.primitives)
-        logging.info(self.primitives_arguments)
-        logging.info(self.execution_order)
-
         # Creating set of steps to be call in produce
         self.produce_order = set()
         for i in range(len(pipeline_description.outputs)):
@@ -829,13 +825,6 @@ class SolutionDescription(object):
                 if n_step in self.produce_order:
                     primitive = self.primitives[n_step]
                     python_path = primitive.metadata.query()['python_path']
-                    logging.info("Runnig step %s", n_step)
-                    logging.info("Running produce on %s", python_path)
-                    if 'extract' in python_path:
-                        logging.info("%s", produce_arguments['inputs'].iloc[0:5,:])
-                        df = produce_arguments['inputs']
-                        attributes = df.metadata.get_columns_with_semantic_type("https://metadata.datadrivendiscovery.org/types/Attribute")
-                        logging.info("%s", attributes)
                     v = self.pipeline[n_step].produce(**produce_arguments).value
                     steps_outputs[n_step] = v
                 else:
