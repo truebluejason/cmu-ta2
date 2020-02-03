@@ -49,7 +49,7 @@ class Core(core_pb2_grpc.CoreServicer):
         return names
 
     def get_task_name(self, keywords):
-        names = get_task_list(self, keywords)
+        names = self.get_task_list(keywords)
         return util.get_task(names)
 
     def search_solutions(self, request, dataset):
