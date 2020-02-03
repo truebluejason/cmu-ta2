@@ -956,7 +956,7 @@ class SolutionDescription(object):
         if 'denormalize' in python_paths[self.index_denormalize] and self.ok_to_denormalize == False:
             python_paths.remove('d3m.primitives.data_transformation.denormalize.Common')
 
-        if self.profiler_needed == False and 'profiler' in python_paths[2]:
+        if self.profiler_needed == False and len(python_paths) > 2 and 'profiler' in python_paths[2]:
             python_paths[2] = 'd3m.primitives.data_preprocessing.do_nothing.DSBOX'
 
         if (taskname == 'CLASSIFICATION' or
