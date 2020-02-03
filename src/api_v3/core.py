@@ -50,6 +50,7 @@ class Core(core_pb2_grpc.CoreServicer):
 
     def get_task_name(self, keywords):
         names = self.get_task_list(keywords)
+        logging.info("Names = %s", names)
         return util.get_task(names)
 
     def search_solutions(self, request, dataset):
