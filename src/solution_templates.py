@@ -572,7 +572,8 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
             pipe.add_step(p, outputstep=outputstep)
             solutions.append(pipe)
     elif task_name == 'OBJECTDETECTION':
-        pipe = copy.deepcopy(basic_sol)
+        pipe = solutiondescription.SolutionDescription(problem)
+        pipe.initialize_solution(task_name)
         pipe.id = str(uuid.uuid4())
         pipe.add_outputs()
         solutions.append(pipe)
