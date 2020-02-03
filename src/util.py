@@ -68,37 +68,27 @@ def add_privileged_metadata(dataset: 'Dataset', privileged_data):
 
     return dataset
 
+def get_task(names):
+    tasks = ['SEMISUPERVISED', 'OBJECTDETECTION', 'FORECASTING', 'GRAPHMATCHING', 'VERTEXNOMINATION', 'VERTEXCLASSIFICATION', 'COMMUNITYDETECTION', 'LINKPREDICTION', 'CLASSIFICATION', 'REGRESSION']
+    for t in tasks:
+        if t in names:
+            if t == 'LINKPREDICTION':
+                if 'TIMESERIES' in names:
+                    return 'LINKPREDICTIONTIMESERIES'
+            return t
+    return None
+        
 def get_task_name(keywords):
-    taskname = keywords[0].upper()
+    names = get_task_list(keywords)
+    return get_task(names)
+
+def get_task_list(keywords):
+    names = []
     for k in keywords:
         name = k.upper()
-        if name == 'SEMISUPERVISED':
-            return name
-        if name == 'OBJECTDETECTION':
-            return name
-        if name == 'FORECASTING':
-            return name
-        if name == 'CLASSIFICATION':
-            return name
-        if name == 'REGRESSION':
-            return name
-        if name == 'GRAPHMATCHING':
-            return name
-        if name == 'VERTEXNOMINATION':
-            return name
-        if name == 'LINKPREDICTION':
-            for m in keywords:
-                mname = m.upper()
-                if mname == 'TIMESERIES':
-                    return 'LINKPREDICTIONTIMESERIES'
-            return name
-        if name == 'VERTEXCLASSIFICATION':
-            return name
-        if name == 'COMMUNITYDETECTION':
-            return name
-
-    return taskname
-
+        names.append(name)
+    return names
+ 
 def load_data_problem(inputdir, problempath):
     print("Reading ", inputdir)
     print("Reading ", problempath)

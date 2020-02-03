@@ -40,36 +40,17 @@ class Core(core_pb2_grpc.CoreServicer):
         outputDir = os.environ['D3MOUTPUTDIR']
         util.initialize_for_search(outputDir)
 
-    def get_task_name(self, keywords):
-        taskname = problem_pb2.TaskKeyword.Name(keywords[0])
+    def get_task_list(self, keywords):
+        names = []
         for k in keywords:
             name = problem_pb2.TaskKeyword.Name(k)
-            if name == 'SEMISUPERVISED':
-                return name
-            if name == 'OBJECT_DETECTION':
-                return name
-            if name == 'FORECASTING':
-                return name
-            if name == 'CLASSIFICATION':
-                return name
-            if name == 'REGRESSION':
-                return name
-            if name == 'GRAPH_MATCHING':
-                return name
-            if name == 'VERTEX_NOMINATION':
-                return name
-            if name == 'LINK_PREDICTION':
-                for m in keywords:
-                    mname = problem_pb2.TaskKeyword.Name(m)
-                    if mname == 'TIMESERIES':
-                        return 'LINK_PREDICTION_TIMESERIES'
-                return name
-            if name == 'VERTEX_CLASSIFICATION':
-                return name
-            if name == 'COMMUNITY_DETECTION':
-                return name
+            name.replace('_', '')
+            names.append(name)
+        return names
 
-        return taskname
+    def get_task_name(self, keywords):
+        names = get_task_list(self, keywords)
+        return util.get_task(names)
 
     def search_solutions(self, request, dataset):
         """
@@ -412,18 +393,15 @@ class Core(core_pb2_grpc.CoreServicer):
 
             msg = core_pb2.Progress(state=core_pb2.RUNNING, status="", start=start, end=solutiondescription.compute_timestamp())
             
-            #fitted_solution = copy.deepcopy(solution)
-            #fitted_solution.id = str(uuid.uuid4())
             solution.create_pipeline_json(self._primitives, self._solutions) 
-            #self._solutions[fitted_solution.id] = fitted_solution
 
             inputs = self._get_inputs(solution.problem, request_params.inputs)
-            if 1:#try:
+            try:
                 output = solution.fit(inputs=inputs, solution_dict=self._solutions)
-            #except:
-            #    logging.info("Exception in fit: %s", solution.primitives)
-            #    logging.info("Exception in fit: %s", sys.exc_info()[0])
-            #    output = None
+            except:
+                logging.info("Exception in fit: %s", solution.primitives)
+                logging.info("Exception in fit: %s", sys.exc_info()[0])
+                output = None
 
             result = None
             outputDir = os.environ['D3MOUTPUTDIR']
@@ -479,12 +457,12 @@ class Core(core_pb2_grpc.CoreServicer):
         solution = self._solutions[solution_id]
 
         inputs = self._get_inputs(solution.problem, request_params.inputs)
-        if 1:#try:
+        try:
             output = solution.produce(inputs=inputs, solution_dict=self._solutions)[0]
-        #except:
-        #    logging.info("Exception in produce: %s", solution.primitives)
-        #    logging.info("Exception in produce: %s", sys.exc_info()[0])
-        #    output = None
+        except:
+            logging.info("Exception in produce: %s", solution.primitives)
+            logging.info("Exception in produce: %s", sys.exc_info()[0])
+            output = None
     
         result = None
         
