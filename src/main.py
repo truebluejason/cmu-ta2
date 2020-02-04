@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 
+__author__ = "Saswati Ray"
+__email__ = "sray@cs.cmu.edu"
+
 import logging
 from concurrent import futures
 import time

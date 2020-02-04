@@ -2,6 +2,9 @@
 A module for loading primitives.
 """
 
+__author__ = "Saswati Ray"
+__email__ = "sray@cs.cmu.edu"
+
 import d3m.index
 import d3m.metadata.base as metadata
 import logging
