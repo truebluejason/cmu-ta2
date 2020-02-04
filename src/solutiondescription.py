@@ -9,6 +9,9 @@ with the available primitives, and a plan for how to create a solution gets made
     Feed the results and hyperparameters back into the chooser
 """
 
+__author__ = "Saswati Ray"
+__email__ = "sray@cs.cmu.edu"
+
 import problem_pb2, pipeline_pb2, primitive_pb2, value_pb2
 import pandas as pd
 

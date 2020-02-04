@@ -1,3 +1,6 @@
+__author__ = "Saswati Ray"
+__email__ = "sray@cs.cmu.edu"
+
 import logging, uuid
 logging.basicConfig(level=logging.INFO)
 

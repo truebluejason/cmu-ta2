@@ -1,3 +1,7 @@
+
+__author__ = "Saswati Ray"
+__email__ = "sray@cs.cmu.edu"
+
 import os, copy, uuid, sys
 import solutiondescription
 import logging

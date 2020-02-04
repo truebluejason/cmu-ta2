@@ -2,6 +2,9 @@
 Implementation of the ta2ta3 API v2 (preprocessing extensions) -- core.proto
 """
 
+__author__ = "Saswati Ray"
+__email__ = "sray@cs.cmu.edu"
+
 import core_pb2 as core_pb2
 import core_pb2_grpc as core_pb2_grpc
 import value_pb2 as value_pb2
