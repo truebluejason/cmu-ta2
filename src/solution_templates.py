@@ -381,7 +381,7 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
                 if 'TIMESERIES' in types_present:
                     basic_sol.initialize_solution('TIMESERIES', augmentation_dataset)
                 elif 'IMAGE' in types_present:
-                    basic_sol.initialize_solution('IMAGE2', augmentation_dataset)
+                    basic_sol.initialize_solution('IMAGE', augmentation_dataset)
                     #if rows < 2000:
                     #    addn_sol = copy.deepcopy(basic_sol)
                     #    addn_sol.initialize_solution('IMAGE2', augmentation_dataset)
