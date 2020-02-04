@@ -50,7 +50,6 @@ class Core(core_pb2_grpc.CoreServicer):
 
     def get_task_name(self, keywords):
         names = self.get_task_list(keywords)
-        logging.info("Names = %s", names)
         return util.get_task(names)
 
     def search_solutions(self, request, dataset):
@@ -399,6 +398,7 @@ class Core(core_pb2_grpc.CoreServicer):
             inputs = self._get_inputs(solution.problem, request_params.inputs)
             try:
                 output = solution.fit(inputs=inputs, solution_dict=self._solutions)
+                logging.info("Fit predictions with rows = %s", len(output))
             except:
                 logging.info("Exception in fit: %s", solution.primitives)
                 logging.info("Exception in fit: %s", sys.exc_info()[0])
@@ -460,6 +460,7 @@ class Core(core_pb2_grpc.CoreServicer):
         inputs = self._get_inputs(solution.problem, request_params.inputs)
         try:
             output = solution.produce(inputs=inputs, solution_dict=self._solutions)[0]
+            logging.info("Produce predictions with rows = %s", len(output))
         except:
             logging.info("Exception in produce: %s", solution.primitives)
             logging.info("Exception in produce: %s", sys.exc_info()[0])
