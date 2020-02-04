@@ -44,7 +44,7 @@ class Core(core_pb2_grpc.CoreServicer):
         names = []
         for k in keywords:
             name = problem_pb2.TaskKeyword.Name(k)
-            name.replace('_', '')
+            name = name.replace('_', '')
             names.append(name)
         return names
 
