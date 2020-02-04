@@ -375,7 +375,7 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
 
             if len(types_present) == 1 and types_present[0] == 'FILES':
                 types_present[0] = 'TIMESERIES' 
-            try:
+            if 1:#try:
                 largetext = False
                 addn_sol = None
                 if 'TIMESERIES' in types_present:
@@ -418,9 +418,9 @@ def get_solutions(task_name, dataset, primitives, problem_metric, posLabel, prob
                 logging.info("Total cols = %s", total_cols)
                 if addn_sol is not None:
                     logging.info("Total cols = %s", addn_sol.get_total_cols())
-            except:
-                logging.error(sys.exc_info()[0])
-                basic_sol = None
+            #except:
+            #    logging.error(sys.exc_info()[0])
+            #    basic_sol = None
 
         # Iterate through primitives which match task type for populative pool of solutions
         listOfSolutions = []

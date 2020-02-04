@@ -629,7 +629,7 @@ class SolutionDescription(object):
         """
         primitives_outputs = [None] * len(self.primitives) 
    
-        if self.primitives_outputs is None: 
+        if 1: #self.primitives_outputs is None: 
             for i in range(0, len(self.execution_order)):
                 n_step = self.execution_order[i]
                 primitives_outputs[n_step] = self.process_step(n_step, primitives_outputs, ActionType.FIT, arguments)
