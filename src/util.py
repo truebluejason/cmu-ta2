@@ -1,8 +1,8 @@
+
 __author__ = "Saswati Ray"
 __email__ = "sray@cs.cmu.edu"
 
 import logging, uuid
-logging.basicConfig(level=logging.INFO)
 
 __version__ = "0.1.0"
 
@@ -67,12 +67,12 @@ def add_target_metadata(dataset, targets):
 
 def add_privileged_metadata(dataset: 'Dataset', privileged_data):
     for data in privileged_data:
-        dataset.metadata = dataset.metadata.add_semantic_type((data.resource_id, metadata_base.ALL_ELEMENTS, privileged_data.column_index),'https://metadata.datadrivendiscovery.org/types/PrivilegedData',)
+        dataset.metadata = dataset.metadata.add_semantic_type((data.resource_id, metadata_base.ALL_ELEMENTS, data.column_index),'https://metadata.datadrivendiscovery.org/types/PrivilegedData',)
 
     return dataset
 
 def get_task(names):
-    tasks = ['SEMISUPERVISED', 'OBJECTDETECTION', 'FORECASTING', 'GRAPHMATCHING', 'VERTEXNOMINATION', 'VERTEXCLASSIFICATION', 'COMMUNITYDETECTION', 'LINKPREDICTION', 'CLASSIFICATION', 'REGRESSION']
+    tasks = ['SEMISUPERVISED', 'OBJECTDETECTION', 'FORECASTING', 'GRAPHMATCHING', 'VERTEXNOMINATION', 'VERTEXCLASSIFICATION', 'COMMUNITYDETECTION', 'LINKPREDICTION', 'COLLABORATIVEFILTERING', 'CLUSTERING', 'CLASSIFICATION', 'REGRESSION']
     for t in tasks:
         if t in names:
             if t == 'LINKPREDICTION':
@@ -154,8 +154,8 @@ def initialize_for_search(outputDir):
         if not os.path.exists(name):
            os.makedirs(name)
 
-def write_predictions(predictions, dirname, solution):
-    directory = dirname + "/" + solution.id + "_" + str(solution.rank)
+def write_predictions(predictions, dirname, request_id):
+    directory = dirname + "/" + str(request_id)
     if not os.path.exists(directory):
         os.makedirs(directory)
 
@@ -188,24 +188,24 @@ def write_pipeline_executable(solution, dirname):
 
 def invert_metric(metric_type):
     min_metrics = set()
-    min_metrics.add(problem_pb2.MEAN_SQUARED_ERROR)
-    min_metrics.add(problem_pb2.ROOT_MEAN_SQUARED_ERROR)
-    min_metrics.add(problem_pb2.MEAN_ABSOLUTE_ERROR)
-    min_metrics.add(problem_pb2.LOSS)
-    min_metrics.add(problem_pb2.HAMMING_LOSS)
+    min_metrics.add("MEAN_SQUARED_ERROR")
+    min_metrics.add("ROOT_MEAN_SQUARED_ERROR")
+    min_metrics.add("MEAN_ABSOLUTE_ERROR")
+    min_metrics.add("LOSS")
+    min_metrics.add("HAMMING_LOSS")
     if metric_type in min_metrics:
         return True
     return False
 
 def get_distil_metric_name(metric_type):
     metric = 'accuracy'
-    if metric_type == problem_pb2.MEAN_SQUARED_ERROR or metric_type == problem_pb2.ROOT_MEAN_SQUARED_ERROR or metric_type == problem_pb2.MEAN_ABSOLUTE_ERROR:
+    if metric_type == "MEAN_SQUARED_ERROR" or metric_type == "ROOT_MEAN_SQUARED_ERROR" or metric_type == "MEAN_ABSOLUTE_ERROR":
         metric = 'meanSquaredError'
-    elif metric_type == problem_pb2.MEAN_ABSOLUTE_ERROR:
+    elif metric_type == "MEAN_ABSOLUTE_ERROR":
         metric = 'meanAbsoluteError'
-    elif metric_type == problem_pb2.ACCURACY:
+    elif metric_type == "ACCURACY":
         metric = 'accuracy'
-    elif metric_type == problem_pb2.F1_MACRO or metric_type == problem_pb2.F1_MICRO or metric_type == problem_pb2.F1:
+    elif metric_type == "F1_MACRO" or metric_type == "F1_MICRO" or metric_type == "F1":
         metric_type == 'f1Macro'
     return metric
 

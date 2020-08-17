@@ -15,16 +15,17 @@ import logging
 import primitive_lib
 import os, sys, copy
 import pandas as pd
+import pickle
 import numpy as np
 import search
 
-import solutiondescription, util, solution_templates
+import solutiondescription, util, auto_solutions
 from multiprocessing import Pool, cpu_count
 from multiprocessing.context import TimeoutError
 import uuid
 from timeit import default_timer as timer
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.ERROR)
 pd.set_option('display.max_rows', None)
 
 from d3m.container.dataset import D3MDatasetLoader, Dataset
@@ -33,7 +34,7 @@ from d3m import container
 
 class Core(core_pb2_grpc.CoreServicer):
     def __init__(self):
-        self._sessions = {}
+        self._solution_to_search = {}
         self._primitives = {}
         self._solutions = {}
         self._solution_score_map = {}
@@ -41,12 +42,11 @@ class Core(core_pb2_grpc.CoreServicer):
         self.async_message_thread = Pool(cpu_count()) #pool.ThreadPool(processes=1,)
         self._primitives = primitive_lib.load_primitives()         
         outputDir = os.environ['D3MOUTPUTDIR']
-        util.initialize_for_search(outputDir)
 
     def get_task_list(self, keywords):
         names = []
         for k in keywords:
-            name = problem_pb2.TaskKeyword.Name(k)
+            name = k #problem_pb2.TaskKeyword.Name(k)
             name = name.replace('_', '')
             names.append(name)
         return names
@@ -63,7 +63,7 @@ class Core(core_pb2_grpc.CoreServicer):
         problem = request.problem.problem
         template = request.template
         task_name = self.get_task_name(problem.task_keywords)
-        logging.info(task_name)
+        logging.critical(task_name)
 
         solutions = []
         pipeline_placeholder_present = False
@@ -82,24 +82,29 @@ class Core(core_pb2_grpc.CoreServicer):
                 inputs.append(dataset)
                 new_dataset = basic_sol.fit(inputs=inputs, solution_dict=self._solutions)      
                 dataset = new_dataset      
-                logging.info("New datset from specified pipeline: %s", new_dataset)
+                logging.critical("New datset from specified pipeline: %s", new_dataset)
 
         taskname = task_name.replace('_', '')
-        logging.info("taskname = %s", taskname)
+        logging.critical("taskname = %s", taskname)
         metric = request.problem.problem.performance_metrics[0].metric
         posLabel = request.problem.problem.performance_metrics[0].pos_label
-        (solutions,time_used) = solution_templates.get_solutions(taskname, dataset, primitives, metric, posLabel, request.problem)
-        try:
-            keywords = None
-            if request.problem.data_augmentation is not None and len(request.problem.data_augmentation) > 0:
-                data_augment = request.problem.data_augmentation
-                logging.info("keywords = %s", data_augment[0].keywords)
-                (augmented_solutions, augmented_time_used) = solution_templates.get_augmented_solutions(taskname, dataset, primitives, metric, posLabel, request.problem, data_augment)
-                (solutions, time_used) = (augmented_solutions + solutions, augmented_time_used + time_used)
-        except:
-            logging.info(sys.exc_info()[0])
+        start = timer()
+        automl = auto_solutions.auto_solutions(taskname, request.problem)
+        solutions = automl.get_solutions(dataset)
+        #solutions = solution_templates.get_solutions(taskname, dataset, primitives, metric, posLabel, request.problem)
+        end = timer()
+        time_used = end - start
+        #try:
+        #    keywords = None
+        #    if request.problem.data_augmentation is not None and len(request.problem.data_augmentation) > 0:
+        #        data_augment = request.problem.data_augmentation
+        #        logging.critical("keywords = %s", data_augment[0].keywords)
+        #        (augmented_solutions, augmented_time_used) = solution_templates.get_augmented_solutions(taskname, dataset, primitives, metric, posLabel, request.problem, data_augment)
+        #        (solutions, time_used) = (augmented_solutions + solutions, augmented_time_used + time_used)
+        #except:
+        #    logging.critical(sys.exc_info()[0])
 
-        logging.info("Solutions = %s", solutions)
+        logging.critical("Solutions = %s", solutions)
         if pipeline_placeholder_present is True:
             new_solution_set = []
             for s in solutions:
@@ -110,8 +115,8 @@ class Core(core_pb2_grpc.CoreServicer):
                     self._solutions[s.id] = s 
                     new_solution_set.append(pipe)
                 except:
-                    logging.info(sys.exc_info()[0])            
-            logging.info("%s", new_solution_set)
+                    logging.critical(sys.exc_info()[0])            
+            logging.critical("%s", new_solution_set)
             return (new_solution_set, time_used)
  
         return (solutions, time_used)
@@ -120,10 +125,13 @@ class Core(core_pb2_grpc.CoreServicer):
         """
         TA2-3 API call
         """
-        logging.info("Message received: SearchSolutions")
+        logging.critical("Message received: SearchSolutions")
         search_id_str = str(uuid.uuid4())
 
         self._solution_score_map[search_id_str] = request
+
+        outputDir = os.environ['D3MOUTPUTDIR'] + "/" + search_id_str
+        util.initialize_for_search(outputDir)
         return core_pb2.SearchSolutionsResponse(search_id = search_id_str)
 
     def _get_inputs(self, problem, rinputs):
@@ -137,7 +145,7 @@ class Core(core_pb2_grpc.CoreServicer):
                 data = pd.read_csv(ip.csv_uri, dtype=str, header=0, na_filter=False, encoding='utf8', low_memory=False,)
                 dataset = container.DataFrame(data)
 
-            logging.info("Problem %s", problem)
+            logging.critical("Problem %s", problem)
             if len(problem.inputs) > 0:
                 targets = problem.inputs[0].targets
                 dataset = util.add_target_metadata(dataset, targets)
@@ -150,7 +158,7 @@ class Core(core_pb2_grpc.CoreServicer):
         """
         TA2-3 API call
         """
-        logging.info("Message received: GetSearchSolutionsRequest")
+        logging.critical("Message received: GetSearchSolutionsRequest")
         search_id_str = request.search_id
         
         start=solutiondescription.compute_timestamp()
@@ -171,17 +179,20 @@ class Core(core_pb2_grpc.CoreServicer):
             count = count + 1
             id = solutions[0].id
             self._solutions[id] = solutions[0]
-            self._search_solutions[search_id_str].append(id) 
+            self._search_solutions[search_id_str].append(id)
+            self._solution_to_search[id] = search_id_str 
             yield core_pb2.GetSearchSolutionsResultsResponse(progress=msg, done_ticks=1, all_ticks=1,
-                          solution_id=id, internal_score=0.0, scores=[])            
+                          solution_id=id, internal_score=0.0, scores=[])
+                        
         else: # Evaluate potential solutions
             index = 0
             msg = core_pb2.Progress(state=core_pb2.RUNNING, status="", start=start, end=solutiondescription.compute_timestamp())
 
             metric = request_params.problem.problem.performance_metrics[0].metric
             posLabel = request_params.problem.problem.performance_metrics[0].pos_label
-            results =  [self.async_message_thread.apply_async(search.evaluate_solution_score, (inputs, sol, self._primitives, metric, posLabel, self._solutions, )) for sol in solutions]
-            logging.info("Search timeout = %d", request_params.time_bound_search)
+            solutions_dict = copy.deepcopy(self._solutions)
+            results =  [self.async_message_thread.apply_async(search.evaluate_solution_score, (inputs, sol, self._primitives, metric, posLabel, solutions_dict, )) for sol in solutions]
+            logging.critical("Search timeout = %d", request_params.time_bound_search)
             timeout = request_params.time_bound_search * 60
             if timeout <= 0:
                 timeout = None
@@ -192,9 +203,9 @@ class Core(core_pb2_grpc.CoreServicer):
                     timeout = 1
 
             if timeout is not None:
-                logging.info("Timeout = %d sec", timeout)
+                logging.critical("Timeout = %d sec", timeout)
 
-            outputDir = os.environ['D3MOUTPUTDIR']
+            outputDir = os.environ['D3MOUTPUTDIR'] + "/" + search_id_str
             valid_solution_scores = {}
 
             # Evaluate potential solutions asynchronously and get end-result
@@ -206,9 +217,10 @@ class Core(core_pb2_grpc.CoreServicer):
                     id = solutions[index].id
                     self._solutions[id] = solutions[index]
                     self._search_solutions[search_id_str].append(id)
-                    valid_solution_scores[id] = score
+                    self._solution_to_search[id] = search_id_str
+                    valid_solution_scores[index] = score
                     if optimal_params is not None and len(optimal_params) > 0:
-                        self._solutions[id].set_hyperparams(self._solutions, optimal_params)
+                        solutions[index].set_hyperparams(self._solutions, optimal_params)
                     util.write_pipeline_json(solutions[index], self._primitives, self._solutions, outputDir + "/pipelines_searched", outputDir + "/subpipelines")
                     end_solution = timer()
                     time_used = end_solution - start_solution
@@ -218,47 +230,50 @@ class Core(core_pb2_grpc.CoreServicer):
                     yield core_pb2.GetSearchSolutionsResultsResponse(progress=msg, done_ticks=count, all_ticks=len(solutions), solution_id=id,
                                         internal_score=0.0, scores=[])
                 except TimeoutError:
-                    logging.info(solutions[index].primitives)
-                    logging.info(sys.exc_info()[0])
-                    logging.info("Solution terminated: %s", solutions[index].id)
-                    #self.async_message_thread.terminate()
+                    logging.critical(solutions[index].primitives)
+                    logging.critical(sys.exc_info()[0])
+                    logging.critical("Solution terminated: %s", solutions[index].id)
                     timeout = 3
                 except:
-                    logging.info(solutions[index].primitives)
-                    logging.info(sys.exc_info()[0])
-                    logging.info("Solution terminated: %s", solutions[index].id)
+                    logging.critical(solutions[index].primitives)
+                    logging.critical(sys.exc_info()[0])
+                    logging.critical("Solution terminated: %s", solutions[index].id)
                 index = index + 1
 
             # Sort solutions by their scores and rank them
             sorted_x = search.rank_solutions(valid_solution_scores, metric)
-            index = 1
-            for (sol, score) in sorted_x:
-                self._solutions[sol].rank = index
-                logging.info("Rank %d", index)
+            sol_rank = 1
+            for (index, score) in sorted_x:
+                id = solutions[index].id
+                #self._solutions[id] = solutions[index]
+                #self._search_solutions[search_id_str].append(id)
+                #self._solution_to_search[id] = search_id_str
+                self._solutions[id].rank = sol_rank
+                logging.critical("Rank %d", sol_rank)
                 print("Score ", score)
-                rank = core_pb2.Score(metric=problem_pb2.ProblemPerformanceMetric(metric=problem_pb2.RANK), value=value_pb2.Value(raw=value_pb2.ValueRaw(double=index)))
+                rank = core_pb2.Score(metric=problem_pb2.ProblemPerformanceMetric(metric="RANK"), value=value_pb2.Value(raw=value_pb2.ValueRaw(double=sol_rank)))
                 search_rank = core_pb2.SolutionSearchScore(scoring_configuration=core_pb2.ScoringConfiguration(), scores=[rank])
-                yield core_pb2.GetSearchSolutionsResultsResponse(progress=msg, done_ticks=count, all_ticks=len(solutions), solution_id=sol,
-                                        internal_score=0.0, scores=[search_rank])
-                index = index + 1  
-
+                sscore = core_pb2.Score(metric=problem_pb2.ProblemPerformanceMetric(metric=metric), value=value_pb2.Value(raw=value_pb2.ValueRaw(double=score)))
+                search_score = core_pb2.SolutionSearchScore(scoring_configuration=core_pb2.ScoringConfiguration(), scores=[sscore])
+                yield core_pb2.GetSearchSolutionsResultsResponse(progress=msg, done_ticks=count, all_ticks=len(solutions), solution_id=id,
+                                        internal_score=0.0, scores=[search_rank, search_score])
+                sol_rank = sol_rank + 1  
+            msg = core_pb2.Progress(state=core_pb2.COMPLETED, status="", start=start, end=solutiondescription.compute_timestamp()) 
+            yield core_pb2.GetSearchSolutionsResultsResponse(progress=msg, done_ticks=count, all_ticks=count, solution_id="", internal_score=0.0, scores=[])
+        
         self._solution_score_map.pop(search_id_str, None)
-      
-        logging.info("No. of sol = %d", count) 
-
-        msg = core_pb2.Progress(state=core_pb2.COMPLETED, status="", start=start, end=solutiondescription.compute_timestamp()) 
-        yield core_pb2.GetSearchSolutionsResultsResponse(progress=msg, done_ticks=count, all_ticks=count,
-                          solution_id="", internal_score=0.0, scores=[])
+        logging.critical("No. of sol = %d", count)
 
     def EndSearchSolutions(self, request, context):
         """
         TA2-3 API call
         """
-        logging.info("Message received: EndSearchSolutions")
+        logging.critical("Message received: EndSearchSolutions")
         search_id_str = request.search_id
 
         for sol_id in self._search_solutions[search_id_str]:
             self._solutions.pop(sol_id, None)
+            self._solution_to_search.pop(sol_id, None)
 
         self._search_solutions[search_id_str].clear()
         return core_pb2.EndSearchSolutionsResponse()
@@ -268,8 +283,146 @@ class Core(core_pb2_grpc.CoreServicer):
         TA2-3 API call
         """
         search_id_str = request.search_id
-        logging.info("Message received: StopSearchSolutions")
+        logging.critical("Message received: StopSearchSolutions")
+        #self.async_message_thread.terminate()
+        #self.async_message_thread.join()
+        #self.async_message_thread = Pool(cpu_count())
+
         return core_pb2.StopSearchSolutionsResponse()
+
+    def SaveSolution(self, request, context):
+
+        logging.critical("Message received: SaveSolution")
+
+        # Get the solution ID from the request object
+        solution_id = request.solution_id
+
+        logging.critical("Solution id:", solution_id)
+
+        # Get the output directory env variable
+        output_dir = os.environ['D3MOUTPUTDIR']
+
+        logging.critical("D3MOUTPUTDIR", output_dir)
+
+        if solution_id in self._solutions:
+
+            logging.critical("Solution found.")
+
+            solution_object = {
+                'solution_id': solution_id,
+                'solution': self._solutions[solution_id]
+            }
+
+            logging.critical(solution_object)
+
+            with open(os.path.join(output_dir, '/temp/', solution_id+'.pickle'), 'wb') as f:
+
+                logging.critical("File opened")
+
+                # Pickle the solution to the file
+                pickle.dump(solution_object, f, pickle.HIGHEST_PROTOCOL)
+
+                logging.critical("Pickle dumped to file")
+
+                # Get real path of the file
+                filepath = os.path.realpath(f.name)
+
+                logging.critical("Real file path:", filepath)
+
+                yield core_pb2.SaveSolutionResponse(solution_uri=filepath)
+
+                logging.critical("Yielded", core_pb2.SaveSolutionResponse(solution_uri=filepath))
+
+        else:
+
+            logging.critical("SaveSolution: Solution %s not found!", solution_id)
+            yield core_pb2.SaveSolutionResponse(solution_uri="")
+
+    def LoadSolution(self, request, context):
+
+        logging.critical("Message received: LoadSolution")
+
+        filepath = request.solution_uri
+
+        try:
+
+            with open(filepath, 'rb') as f:
+
+                # Unpickle from file
+                solution_object = pickle.load(f)
+
+                # Cache the solution in memory
+                self._solutions[solution_object['solution_id']] = solution_object['solution']
+
+                yield core_pb2.LoadSolutionResponse(solution_id=solution_object['solution_id'])
+
+        except:
+
+            logging.critical("LoadSolution: File %s not found!", filepath)
+            yield core_pb2.LoadSolutionResponse(solution_id="")
+
+    def SaveFittedSolution(self, request, context):
+
+        logging.critical("Message received: SaveFittedSolution")
+
+        # Get the solution ID from the request object
+        solution_id = request.solution_id
+
+        # Get the output directory env variable
+        output_dir = os.environ['D3MOUTPUTDIR']
+
+        if solution_id in self._solutions:
+
+            solution_object = {
+                'solution_id': solution_id,
+                'solution': self._solutions[solution_id]
+            }
+
+            with open(os.path.join(output_dir, '/temp/', solution_id + '.pickle'), 'wb') as f:
+
+                # Pickle the solution to the file
+                pickle.dump(solution_object, f, pickle.HIGHEST_PROTOCOL)
+
+                # Get real path of the file
+                filepath = os.path.realpath(f.name)
+
+                yield core_pb2.SaveFittedSolutionResponse(solution_uri=filepath)
+
+        else:
+
+            logging.critical("SaveFittedSolution: Solution %s not found!", solution_id)
+            yield core_pb2.SaveFittedSolutionResponse(solution_uri="")
+
+    def LoadFittedSolution(self, request, context):
+
+        logging.critical("Message received: LoadFittedSolution")
+
+        filepath = request.fitted_solution_uri
+
+        try:
+
+            with open(filepath, 'rb') as f:
+
+                # Unpickle from file
+                solution_object = pickle.load(f)
+
+                # Cache the solution in memory
+                self._solutions[solution_object['solution_id']] = solution_object['solution']
+
+                yield core_pb2.LoadSolutionResponse(fitted_solution_id=solution_object['solution_id'])
+
+        except:
+
+            logging.critical("LoadFittedSolution: File %s not found!", filepath)
+            yield core_pb2.LoadSolutionResponse(fitted_solution_id="")
+
+    def SplitData(self, request, context):
+        logging.critical("Message received: SplitData")
+        pass
+
+    def ScorePredictions(self, request, context):
+        logging.critical("Message received: ScorePredictions")
+        pass
 
     def GetStepDescriptions(self, solution_id):
         param_map = []
@@ -288,20 +441,20 @@ class Core(core_pb2_grpc.CoreServicer):
         """
         TA2-3 API call
         """
-        logging.info("Message received: DescribeSolution")
+        logging.critical("Message received: DescribeSolution")
         solution_id = request.solution_id
         solution = self._solutions[solution_id]
         desc = solution.describe_solution(self._primitives, self._solutions)
         param_map = self.GetStepDescriptions(solution_id)
 
-        logging.info(param_map)
+        logging.critical(param_map)
         return core_pb2.DescribeSolutionResponse(pipeline=desc, steps=param_map)
 
     def ScoreSolution(self, request, context):
         """
         TA2-3 API call
         """
-        logging.info("Message received: ScoreSolution")
+        logging.critical("Message received: ScoreSolution")
 
         request_id = str(uuid.uuid4())
         self._solution_score_map[request_id] = request
@@ -312,7 +465,7 @@ class Core(core_pb2_grpc.CoreServicer):
         """
         TA2-3 API call
         """
-        logging.info("Message received: GetScoreSolutionResults")
+        logging.critical("Message received: GetScoreSolutionResults")
         request_id = request.request_id
         request_params = self._solution_score_map[request_id]
         
@@ -324,14 +477,15 @@ class Core(core_pb2_grpc.CoreServicer):
         from timeit import default_timer as timer
 
         if solution_id not in self._solutions:
-            logging.info("GetScoreSolutionResults: Solution %s not found!", solution_id)  
+            logging.critical("GetScoreSolutionResults: Solution %s not found!", solution_id)  
             msg = core_pb2.Progress(state=core_pb2.ERRORED, status="", start=start, end=solutiondescription.compute_timestamp())
             # Clean up
             self._solution_score_map.pop(request_id, None)
             yield core_pb2.GetScoreSolutionResultsResponse(progress=msg, scores=[])
         else:
             inputs = self._get_inputs(self._solutions[solution_id].problem, request_params.inputs)
-            if 1:#try:
+            score = 0.0
+            try:
                 s = timer()                
                 (score, optimal_params) = self._solutions[solution_id].score_solution(inputs=inputs, metric=request_params.performance_metrics[0].metric,
                                 posLabel = request_params.performance_metrics[0].pos_label,
@@ -340,20 +494,20 @@ class Core(core_pb2_grpc.CoreServicer):
                     self._solutions[solution_id].set_hyperparams(self._solutions, optimal_params)
 
                 e = timer()
-                logging.info("Time taken = %s sec", e-s) 
-            #except:
-            #    score = 0.0
-            #    logging.info("Exception in score: %s", self._solutions[solution_id].primitives)
-            #    logging.info("Exception in score: %s", sys.exc_info()[0])
+                logging.critical("Time taken = %s sec", e-s) 
+            except:
+                score = 0.0
+                logging.critical("Exception in score: %s", self._solutions[solution_id].primitives)
+                logging.critical("Exception in score: %s", sys.exc_info()[0])
             
-            score = self._solutions[solution_id].rank
-            outputDir = os.environ['D3MOUTPUTDIR']
+            search_id_str = self._solution_to_search[solution_id]
+            outputDir = os.environ['D3MOUTPUTDIR'] + "/" + search_id_str
             try:
                 util.write_pipeline_json(self._solutions[solution_id], self._primitives, self._solutions, outputDir + "/pipelines_scored", outputDir + "/subpipelines")
             except:
-                logging.info(sys.exc_info()[0])
-                logging.info(self._solutions[solution_id].primitives)
-            logging.info("Score = %f", score)
+                logging.critical(sys.exc_info()[0])
+                logging.critical(self._solutions[solution_id].primitives)
+            logging.critical("Score = %f", score)
             send_scores.append(core_pb2.Score(metric=request_params.performance_metrics[0],
              fold=0, value=value_pb2.Value(raw=value_pb2.ValueRaw(double=score)), random_seed=0))
 
@@ -369,7 +523,7 @@ class Core(core_pb2_grpc.CoreServicer):
         """
         TA2-3 API call
         """
-        logging.info("Message received: FitSolution")
+        logging.critical("Message received: FitSolution")
         request_id = str(uuid.uuid4())
         self._solution_score_map[request_id] = request
         return core_pb2.FitSolutionResponse(request_id = request_id)
@@ -378,7 +532,7 @@ class Core(core_pb2_grpc.CoreServicer):
         """
         TA2-3 API call
         """
-        logging.info("Message received: GetFitSolutionResults")
+        logging.critical("Message received: GetFitSolutionResults")
         request_id = request.request_id
         request_params = self._solution_score_map[request_id]
         start=solutiondescription.compute_timestamp()
@@ -386,7 +540,7 @@ class Core(core_pb2_grpc.CoreServicer):
         solution_id = request_params.solution_id
 
         if solution_id not in self._solutions:
-            logging.info("GetFitSolutionResults: Solution %s not found!", solution_id)
+            logging.critical("GetFitSolutionResults: Solution %s not found!", solution_id)
             msg = core_pb2.Progress(state=core_pb2.ERRORED, status="", start=start, end=solutiondescription.compute_timestamp())
             # Clean up
             self._solution_score_map.pop(request_id, None)
@@ -401,17 +555,18 @@ class Core(core_pb2_grpc.CoreServicer):
             inputs = self._get_inputs(solution.problem, request_params.inputs)
             try:
                 output = solution.fit(inputs=inputs, solution_dict=self._solutions)
-                logging.info("Fit predictions with rows = %s", len(output))
+                logging.critical("Fit predictions with rows = %s", len(output))
             except:
-                logging.info("Exception in fit: %s", solution.primitives)
-                logging.info("Exception in fit: %s", sys.exc_info()[0])
+                logging.critical("Exception in fit: %s", solution.primitives)
+                logging.critical("Exception in fit: %s", sys.exc_info()[0])
                 output = None
 
             result = None
-            outputDir = os.environ['D3MOUTPUTDIR']
+            search_id_str = self._solution_to_search[solution_id]
+            outputDir = os.environ['D3MOUTPUTDIR'] + "/" + search_id_str
 
             if output is not None:
-                uri = util.write_predictions(output, outputDir + "/predictions", solution)
+                uri = util.write_predictions(output, outputDir + "/predictions", request_id)
                 uri = 'file://{uri}'.format(uri=os.path.abspath(uri)) 
                 result = value_pb2.Value(csv_uri=uri)
             else:
@@ -442,7 +597,7 @@ class Core(core_pb2_grpc.CoreServicer):
         """
         TA2-3 API call
         """
-        logging.info("Message received: ProduceSolution")
+        logging.critical("Message received: ProduceSolution")
         request_id = str(uuid.uuid4())
         self._solution_score_map[request_id] = request
 
@@ -452,7 +607,7 @@ class Core(core_pb2_grpc.CoreServicer):
         """
         TA2-3 API call
         """
-        logging.info("Message received: GetProduceSolutionResults")
+        logging.critical("Message received: GetProduceSolutionResults")
         request_id = request.request_id
         request_params = self._solution_score_map[request_id]
         start=solutiondescription.compute_timestamp()
@@ -463,18 +618,18 @@ class Core(core_pb2_grpc.CoreServicer):
         inputs = self._get_inputs(solution.problem, request_params.inputs)
         try:
             output = solution.produce(inputs=inputs, solution_dict=self._solutions)[0]
-            logging.info("Produce predictions with rows = %s", len(output))
+            logging.critical("Produce predictions with rows = %s", len(output))
         except:
-            logging.info("Exception in produce: %s", solution.primitives)
-            logging.info("Exception in produce: %s", sys.exc_info()[0])
+            logging.critical("Exception in produce: %s", solution.primitives)
+            logging.critical("Exception in produce: %s", sys.exc_info()[0])
             output = None
     
         result = None
-        
-        outputDir = os.environ['D3MOUTPUTDIR']
+        search_id_str = self._solution_to_search[solution_id]
+        outputDir = os.environ['D3MOUTPUTDIR'] + "/" + search_id_str
 
         if output is not None:
-            uri = util.write_predictions(output, outputDir + "/predictions", solution)
+            uri = util.write_predictions(output, outputDir + "/predictions", request_id)
             uri = 'file://{uri}'.format(uri=os.path.abspath(uri))
             result = value_pb2.Value(csv_uri=uri)
         else:
@@ -502,13 +657,14 @@ class Core(core_pb2_grpc.CoreServicer):
         """
         TA2-3 API call
         """
-        logging.info("Message received: SolutionExport")
+        logging.critical("Message received: SolutionExport")
         solution_id = request.solution_id
         rank = request.rank
         solution = self._solutions[solution_id]
         solution.rank = rank
 
-        outputDir = os.environ['D3MOUTPUTDIR'] 
+        search_id_str = self._solution_to_search[solution_id]
+        outputDir = os.environ['D3MOUTPUTDIR'] + "/" + search_id_str
         util.write_pipeline_json(solution, self._primitives, self._solutions, outputDir + "/pipelines_ranked", outputDir + "/subpipelines", rank=solution.rank)
         util.write_rank_file(solution, rank, outputDir + "/pipelines_ranked")
 
@@ -518,7 +674,7 @@ class Core(core_pb2_grpc.CoreServicer):
         """
         TA2-3 API call
         """
-        logging.info("Message received: UpdateProblem")
+        logging.critical("Message received: UpdateProblem")
 
         return core_pb2.UpdateProblemResponse()
 
@@ -526,7 +682,7 @@ class Core(core_pb2_grpc.CoreServicer):
         """
         TA2-3 API call
         """
-        logging.info("Message received: ListPrimitives")
+        logging.critical("Message received: ListPrimitives")
 
         primitives = []
         for classname, p in self._primitives.items():
@@ -537,12 +693,12 @@ class Core(core_pb2_grpc.CoreServicer):
         """
         TA2-3 API call
         """
-        logging.info("Message received: Hello")
+        logging.critical("Message received: Hello")
         version = core_pb2.DESCRIPTOR.GetOptions().Extensions[
                     core_pb2.protocol_version]
         return core_pb2.HelloResponse(user_agent="cmu_ta2",
         version=version,
-        allowed_value_types = [value_pb2.RAW, value_pb2.DATASET_URI, value_pb2.CSV_URI],
+        allowed_value_types = ['RAW', 'DATASET_URI', 'CSV_URI'],
         supported_extensions = [])
         
 def add_to_server(server):

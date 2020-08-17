@@ -4,6 +4,8 @@ __author__ = "Saswati Ray"
 __email__ = "sray@cs.cmu.edu"
 
 import logging
+from multiprocessing import set_start_method
+set_start_method("spawn", force=True)
 from concurrent import futures
 import time
 import sys
@@ -31,9 +33,9 @@ def main(argv):
         core.add_to_server(server)
         server_string = '{}:{}'.format(TA2_API_HOST, TA2_API_PORT)
         server.add_insecure_port(server_string)
-        logging.info("Starting server on %s", server_string)
+        logging.critical("Starting server on %s", server_string)
         server.start()
-        logging.info("Server started, waiting.")
+        logging.critical("Server started, waiting.")
         try:
             while True:
                 time.sleep(3600)

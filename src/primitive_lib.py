@@ -9,8 +9,7 @@ import d3m.index
 import d3m.metadata.base as metadata
 import logging
 import primitivedescription
-
-logging.basicConfig(level=logging.INFO)
+import sys
 
 def list_primitives():
     """
@@ -23,11 +22,13 @@ def list_primitives():
         # Do not load expensive primitives! These ones have been reported to take very long making TA2 unavailable!
         if 'Cornell' in pc:# or 'Umich' in pc:
             continue
-        if 'GCN' in pc or 'DistilAudioTransfer' in pc or 'graph_to_edge_list.DSBOX' in pc or 'multilabel_classifier.DSBOX' in pc:
+        if 'GCN' in pc or 'graph_to_edge_list.DSBOX' in pc or 'multilabel_classifier.DSBOX' in pc:
             continue
         try:
             primitive_obj = d3m.index.get_primitive(pc)
         except:
+            print("problem with ", pc)
+            print(sys.exc_info()[0])
             continue
 
         if hasattr(primitive_obj, 'metadata'):
